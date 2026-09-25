@@ -159,6 +159,10 @@ void ChallengeMgr::SaveChallengeToDB(ChallengeData const* challengeData)
 
 void ChallengeMgr::LoadFromDB()
 {
+    // No instance outlives a restart, crash included: a key still marked as running would be refused
+    // ("already run in another instance") until the weekly reset. It is freed at its level.
+    CharacterDatabase.DirectExecute("UPDATE challenge_key SET InstanceID = 0 WHERE InstanceID <> 0");
+
     if (QueryResult result = CharacterDatabase.Query("SELECT `ID`, `GuildID`, `MapID`, `RecordTime`, `Date`, `ChallengeLevel`, `TimerLevel`, `Affixes`, `ChestID`, `ChallengeID` FROM `challenge`"))
     {
         do
