@@ -492,6 +492,7 @@ class TC_GAME_API Spell
         bool m_canLostTarget;
 
         int32 GetCastTime() const { return m_casttime; }
+        int32 GetRemainingCastTime() const { return m_timer; }
         uint32 GetStartCastTime() const { return m_castedTime; }
         void SetStartCastTime(uint32 time);
         bool IsAutoRepeat() const { return m_autoRepeat; }
