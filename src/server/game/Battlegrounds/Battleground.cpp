@@ -729,7 +729,6 @@ void Battleground::EndBattleground(uint32 winner)
             {
                 player->UpdateAchievementCriteria(CRITERIA_TYPE_WIN_RATED_ARENA, 1);
                 player->UpdateAchievementCriteria(CRITERIA_TYPE_WIN_ARENA, GetMapId());
-                player->KilledMonsterCredit(542183); // for daily event quest
                 _arenaTeamScores[0].Assign(bracket->getRating(), bracket->getRating() + gain, bracket->getMMV() - bracket->getLastMMRChange());
             }
             else

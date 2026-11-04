@@ -19634,7 +19634,7 @@ void Player::RewardQuest(Quest const* quest, uint32 reward, Object* questGiver, 
 
             // TC_LOG_DEBUG("worldquest", "RewardQuest IsWorld moneyRew %i ItemID %u ItemCount %u", moneyRew, ItemID, ItemCount);
             UpdateAchievementCriteria(CRITERIA_TYPE_COMPLETE_WORLD_QUEST, 1, quest->QuestInfoID);
-            KilledMonsterCredit(542184); // for daily event quest
+            KilledMonsterCredit(542184); // objective of the Blizzard quests that count completed world quests
             WorldQuestInfo& wqi = m_worldquests[quest_id];
             wqi.QuestID = quest_id;
             wqi.resetTime = wq->StartTime + wq->Timer;
@@ -19656,7 +19656,7 @@ void Player::RewardQuest(Quest const* quest, uint32 reward, Object* questGiver, 
             wqi.resetTime = wq->StartTime + wq->Timer;
             wqi.needSave = true;
             UpdateAchievementCriteria(CRITERIA_TYPE_COMPLETE_WORLD_QUEST, 1, quest->QuestInfoID);
-            KilledMonsterCredit(542184); // for daily event quest
+            KilledMonsterCredit(542184); // objective of the Blizzard quests that count completed world quests
         }
     }
 
@@ -24631,9 +24631,6 @@ void Player::AddPlayerLootCooldown(uint32 entry, uint32 guid, uint8 type/* = 0*/
             break;
     }
 
-    if (entry == 542185 || entry == 542191)
-        respawnTime = GameTime::GetGameTime() + 7200;
-
     if (type == TYPE_ZONE)
         respawnTime = GameTime::GetGameTime() + 21600;
 
@@ -28609,13 +28606,6 @@ inline bool Player::_StoreOrEquipNewItem(uint32 vendorslot, uint32 item, uint8 c
         }
     }
 
-    // event vendors items log
-    switch (pVendor->GetEntry())
-    {
-    case 542000:
-        sLog->outWarden("Player %s (GUID: %u) buy item %u (%u - count) from vendor (Entry: %u)", GetName(), GetGUIDLow(), item, count, pVendor->GetEntry());
-        break;
-    }
     return true;
 }
 
