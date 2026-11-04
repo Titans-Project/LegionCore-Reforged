@@ -19479,6 +19479,22 @@ void Player::RewardQuest(Quest const* quest, uint32 reward, Object* questGiver, 
     // QuestPackageItem.db2
     if (rewardProto && quest->PackageID)
         RewardQuestPackage(quest->PackageID, reward);
+    else if (quest->PackageID)
+    {
+        // turned in without a choice: the one package item meant for this player is given anyway
+        uint32 onlyItemId = 0;
+        uint32 selectable = 0;
+        if (std::vector<QuestPackageItemEntry const*> const* questPackageItems = sDB2Manager.GetQuestPackageItems(quest->PackageID))
+            for (QuestPackageItemEntry const* questPackageItem : *questPackageItems)
+                if (CanSelectQuestPackageItem(questPackageItem))
+                {
+                    onlyItemId = questPackageItem->ItemID;
+                    ++selectable;
+                }
+
+        if (selectable == 1)
+            RewardQuestPackage(quest->PackageID, onlyItemId);
+    }
 
     if (quest->m_rewItemsCount)
     {

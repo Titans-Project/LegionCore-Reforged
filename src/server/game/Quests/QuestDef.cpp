@@ -11,6 +11,7 @@
 ////////////////////////////////////////////
 
 #include "QuestDef.h"
+#include "DB2Stores.h"
 #include "Player.h"
 #include "World.h"
 #include "QuestPackets.h"
@@ -341,6 +342,30 @@ void Quest::BuildQuestRewards(WorldPackets::Quest::QuestRewards& rewards, Player
     {
         rewards.ChoiceItems[i].ItemID = RewardChoiceItemId[i];
         rewards.ChoiceItems[i].Quantity = RewardChoiceItemCount[i];
+    }
+
+    // the client is not sent this package (see GetClientPackageID): the package items the player can take are listed as choices
+    if (PackageID && !m_rewChoiceItemsCount)
+    {
+        uint32 count = 0;
+        auto addItems = [&](std::vector<QuestPackageItemEntry const*> const* questPackageItems, bool filtered)
+        {
+            if (!questPackageItems)
+                return;
+
+            for (QuestPackageItemEntry const* questPackageItem : *questPackageItems)
+                if (count < QUEST_REWARD_CHOICES_COUNT && (!filtered || player->CanSelectQuestPackageItem(questPackageItem)))
+                {
+                    rewards.ChoiceItems[count].ItemID = questPackageItem->ItemID;
+                    rewards.ChoiceItems[count].Quantity = questPackageItem->ItemQuantity;
+                    ++count;
+                }
+        };
+
+        addItems(sDB2Manager.GetQuestPackageItems(PackageID), true);
+        if (!count)
+            addItems(sDB2Manager.GetQuestPackageItemsFallback(PackageID), false);
+        rewards.ChoiceItemCount = count;
     }
 
     for (uint32 i = 0; i < QUEST_ITEM_COUNT; ++i)
