@@ -19739,7 +19739,9 @@ void Player::RewardQuest(Quest const* quest, uint32 reward, Object* questGiver, 
     // Must come after the insert in m_RewardedQuests because of spell_area check
     RemoveActiveQuest(quest_id);
 
-    SendQuestReward(quest, XP, questGiver ? questGiver->ToCreature() : nullptr, moneyRew, !announce);
+    // A hidden tracking quest is done in silence: the completion packet made the client play the quest sound for nothing
+    if (!quest->HasFlag(QUEST_FLAGS_TRACKING) || quest->Type == QUEST_TYPE_TASK)
+        SendQuestReward(quest, XP, questGiver ? questGiver->ToCreature() : nullptr, moneyRew, !announce);
 
     AddDelayedEvent(100, [this, quest_id]() -> void
     {
