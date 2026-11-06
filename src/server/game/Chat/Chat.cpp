@@ -265,10 +265,13 @@ bool ChatHandler::ExecuteCommandInTable(std::vector<ChatCommand> const& table, c
             continue;
 
         SetSentErrorMessage(false);
+        // the handler may rebuild the command table (.reload all, .reload command): nothing of it is read once it has run
+        bool const logCommand = !AccountMgr::IsPlayerAccount(table[i].SecurityLevel);
+        std::string const help = table[i].Help;
         // table[i].Name == "" is special case: send original command to handler
         if ((table[i].Handler)(this, table[i].Name[0] != '\0' ? text : oldtext))
         {
-            if (!AccountMgr::IsPlayerAccount(table[i].SecurityLevel))
+            if (logCommand)
             {
                 // chat case
                 if (m_session)
@@ -291,8 +294,8 @@ bool ChatHandler::ExecuteCommandInTable(std::vector<ChatCommand> const& table, c
         // some commands have custom error messages. Don't send the default one in these cases.
         else if (!HasSentErrorMessage())
         {
-            if (!table[i].Help.empty())
-                SendSysMessage(table[i].Help.c_str());
+            if (!help.empty())
+                SendSysMessage(help.c_str());
             else
                 SendSysMessage(LANG_CMD_SYNTAX);
         }
