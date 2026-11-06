@@ -22721,6 +22721,22 @@ bool Player::LoadFromDB(ObjectGuid guid, CharacterDatabaseQueryHolder const& hol
 
     // after spell and quest load
     InitTalentForLevel();
+
+    // a chosen talent whose spell was saved disabled could never be cast again: it is learned back
+    for (auto const& talent : *GetTalentMap(GetActiveTalentGroup()))
+    {
+        if (talent.second == PLAYERSPELL_REMOVED)
+            continue;
+
+        TalentEntry const* talentInfo = sTalentStore.LookupEntry(talent.first);
+        if (!talentInfo || !talentInfo->SpellID)
+            continue;
+
+        PlayerSpellMap::const_iterator spell = m_spells.find(talentInfo->SpellID);
+        if (spell != m_spells.end() && spell->second.disabled && spell->second.state != PLAYERSPELL_REMOVED)
+            learnSpell(talentInfo->SpellID, false, 0, false);
+    }
+
     LearnDefaultSkills();
     LearnCustomSpells();
 
