@@ -3184,7 +3184,14 @@ char const* DB2Manager::GetBroadcastTextValue(BroadcastTextEntry const* broadcas
     if (broadcastText->Text->Str[locale][0] != '\0')
         return broadcastText->Text->Str[locale];
 
-    return broadcastText->Text->Str[DEFAULT_LOCALE];
+    if (broadcastText->Text->Str[DEFAULT_LOCALE][0] != '\0' || forceGender)
+        return broadcastText->Text->Str[DEFAULT_LOCALE];
+
+    // a text written for women only, said by a male or genderless speaker: its only version is used rather than nothing
+    if (broadcastText->Text1->Str[locale][0] != '\0')
+        return broadcastText->Text1->Str[locale];
+
+    return broadcastText->Text1->Str[DEFAULT_LOCALE];
 }
 
 AchievementEntry const* DB2Manager::GetsAchievementByTreeList(uint32 criteriaTree)
