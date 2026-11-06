@@ -1549,6 +1549,17 @@ void AchievementMgr<T>::CheckAllAchievementCriteria(Player* referencePlayer)
     m_canUpdateAchiev = 1;
 }
 
+// The login check above runs while the character is still loading, when no criteria can update: a character created
+// above level 1 (a demon hunter at 98, a boosted one) only earned its level achievements at its first level up, all
+// at once. Checked here instead, once its map is known and before the client gets the achievement list: no toast.
+template<class T>
+void AchievementMgr<T>::CheckLevelAchievementsAtLogin(Player* referencePlayer)
+{
+    m_loginLevelCheck = true;
+    UpdateAchievementCriteria(CRITERIA_TYPE_REACH_LEVEL, 0, 0, 0, nullptr, referencePlayer);
+    m_loginLevelCheck = false;
+}
+
 static const uint32 achievIdByArenaSlot[MAX_ARENA_SLOT] = {1057, 1107, 1108};
 static const uint32 achievIdForDungeon[][4] =
 {
@@ -1582,7 +1593,7 @@ void AchievementMgr<T>::UpdateAchievementCriteria(AchievementCachePtr cachePtr, 
         return;
 
     // disable for gamemasters with GM-mode enabled
-    if (cachePtr->player->isGameMaster() || !cachePtr->player->CanContact())
+    if (cachePtr->player->isGameMaster() || (!cachePtr->player->CanContact() && !(m_loginLevelCheck && cachePtr->player->GetMap())))
         return;
 
     // Lua_GetGuildLevelEnabled() is checked in achievement UI to display guild tab

@@ -30393,6 +30393,7 @@ void Player::SendInitialPacketsBeforeAddToMap(bool login)
     if (login) // Don`t send when teleported
     {
         SendEquipmentSetList();
+        m_achievementMgr->CheckLevelAchievementsAtLogin(this);
         m_achievementMgr->SendAllAchievementData(this);
 
         WorldPackets::Misc::LoginSetTimeSpeed loginSetTimeSpeed;
