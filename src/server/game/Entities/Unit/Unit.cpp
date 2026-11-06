@@ -23608,6 +23608,11 @@ void Unit::OnRelocated()
     AINotifyTask::Schedule(this);
 }
 
+void Unit::ScheduleAINotify()
+{
+    AINotifyTask::Schedule(this);
+}
+
 void Unit::UpdateObjectVisibility(bool forced)
 {
     if (forced)

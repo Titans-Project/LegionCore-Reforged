@@ -1195,7 +1195,11 @@ void Creature::Update(uint32 diff)
             if (m_respawnCombatDelay)
             {
                 if (m_respawnCombatDelay <= diff)
+                {
                     m_respawnCombatDelay = 0;
+                    // the neighbours were looked at while it could not fight yet: standing still, they will not be seen again
+                    ScheduleAINotify();
+                }
                 else
                     m_respawnCombatDelay -= diff;
             }

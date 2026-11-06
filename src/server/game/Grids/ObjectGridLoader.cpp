@@ -49,6 +49,9 @@ void AddObjectHelper(Cell const &cell, Map* map, Creature *obj)
         map->AddToActive(obj);
 
     map->AddBattlePet(obj);
+
+    // nor through UpdateObjectVisibility: until it moves, hostile creatures standing next to it never see it
+    obj->ScheduleAINotify();
 }
 
 template <typename T>
