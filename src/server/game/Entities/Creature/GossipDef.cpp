@@ -21,6 +21,10 @@
 #include "NPCPackets.h"
 #include "QuestData.h"
 #include "GossipData.h"
+#include "Player.h"
+#include "DB2Stores.h"
+#include "SpellInfo.h"
+#include "SpellMgr.h"
 
 GossipMenu::GossipMenu()
 {
@@ -539,8 +543,11 @@ void PlayerMenu::SendQuestGiverQuestDetails(Quest const* quest, ObjectGuid npcGU
     packet.QuestFlags[1] = quest->FlagsEx;
     packet.SuggestedPartyMembers = quest->SuggestedPlayers;
 
+    // the accept spell is shown as learnt only when it teaches something: most of them play a scene or set a phase
     if (quest->SourceSpellID)
-        packet.LearnSpells.push_back(quest->SourceSpellID);
+        if (SpellInfo const* sourceSpell = sSpellMgr->GetSpellInfo(quest->SourceSpellID))
+            if (sourceSpell->HasEffect(SPELL_EFFECT_LEARN_SPELL))
+                packet.LearnSpells.push_back(quest->SourceSpellID);
 
     packet.QuestStartItemID = questStartItemId;
 
@@ -567,12 +574,12 @@ void PlayerMenu::SendQuestGiverQuestDetails(Quest const* quest, ObjectGuid npcGU
 
     player->SendDirectMessage(packet.Write());
 
-    // the client draws reward items it does not know yet as blank until the window is shown again: it is sent once more
+    // the client draws reward items it does not know yet as blank until the window is shown again: it is sent once more, a quarter of a second later
     bool const hasItems = packet.Rewards.ChoiceItemCount || packet.Rewards.ItemCount;
     if (hasItems && !resent)
     {
         uint32 const questId = quest->GetQuestId();
-        player->AddDelayedEvent(500, [player, questId, npcGUID, autoLaunched, displayPopup, isAreaTrigger, questStartItemId]() -> void
+        player->AddDelayedEvent(250, [player, questId, npcGUID, autoLaunched, displayPopup, isAreaTrigger, questStartItemId]() -> void
         {
             Quest const* quest = sQuestDataStore->GetQuestTemplate(questId);
             if (quest && player->GetQuestStatus(questId) == QUEST_STATUS_NONE)
@@ -675,6 +682,30 @@ void PlayerMenu::SendQuestQueryResponse(uint32 questId) const
         {
             packet.Info.UnfilteredChoiceItems[i].ItemID = quest->RewardChoiceItemId[i];
             packet.Info.UnfilteredChoiceItems[i].Quantity = quest->RewardChoiceItemCount[i];
+        }
+
+        // the quest log does not show a reward package either: it lists the package items this player can take
+        if (quest->PackageID && !quest->GetClientPackageID())
+        {
+            Player* player = _session->GetPlayer();
+            uint8 count = 0;
+            auto addItems = [&](std::vector<QuestPackageItemEntry const*> const* questPackageItems, bool filtered)
+            {
+                if (!questPackageItems)
+                    return;
+
+                for (QuestPackageItemEntry const* questPackageItem : *questPackageItems)
+                    if (count < QUEST_REWARD_CHOICES_COUNT && (!filtered || (player && player->CanSelectQuestPackageItem(questPackageItem))))
+                    {
+                        packet.Info.UnfilteredChoiceItems[count].ItemID = questPackageItem->ItemID;
+                        packet.Info.UnfilteredChoiceItems[count].Quantity = questPackageItem->ItemQuantity;
+                        ++count;
+                    }
+            };
+
+            addItems(sDB2Manager.GetQuestPackageItems(quest->PackageID), true);
+            if (!count)
+                addItems(sDB2Manager.GetQuestPackageItemsFallback(quest->PackageID), false);
         }
     }
 
@@ -785,7 +816,7 @@ void PlayerMenu::SendQuestGiverOfferReward(Quest const* quest, ObjectGuid npcGUI
     if ((offer.Rewards.ChoiceItemCount || offer.Rewards.ItemCount) && !resent)
     {
         uint32 const questId = quest->GetQuestId();
-        player->AddDelayedEvent(500, [player, questId, npcGUID, autoLaunched]() -> void
+        player->AddDelayedEvent(250, [player, questId, npcGUID, autoLaunched]() -> void
         {
             Quest const* quest = sQuestDataStore->GetQuestTemplate(questId);
             if (quest && player->GetQuestStatus(questId) == QUEST_STATUS_COMPLETE)
