@@ -527,7 +527,8 @@ void Creature::AddToWorld()
         if (auto bg = GetBattleground())
             bg->OnCreatureCreate(this);
 
-        if (MaxVisible && !isAnySummons())
+        // a spawned vehicle (siege engine, ship) is seen from afar too: only summons are left out
+        if (MaxVisible && !isSummon() && !(m_unitTypeMask & (UNIT_MASK_GUARDIAN | UNIT_MASK_PET | UNIT_MASK_HUNTER_PET | UNIT_MASK_TOTEM)))
             if (Map* mapInfo = GetMap())
                 mapInfo->AddMaxVisible(this);
 
@@ -552,7 +553,7 @@ void Creature::RemoveFromWorld()
             if (auto bg = GetBattleground())
                 bg->OnCreatureRemove(this);
 
-            if (MaxVisible && !isAnySummons())
+            if (MaxVisible)
                 mapInfo->RemoveMaxVisible(this);
 
         }
