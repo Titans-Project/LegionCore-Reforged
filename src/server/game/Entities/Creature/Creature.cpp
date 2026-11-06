@@ -1921,6 +1921,13 @@ void Creature::SaveToDB(uint32 mapid, uint64 spawnMask, uint32 phaseMask)
     stmt->setFloat(index++, data.personalSize);
     trans->Append(stmt);
 
+    // the phases it stands in: left out, it came back in no phase at all, unseen by and blind to everything around it
+    std::string phases;
+    for (uint32 phase : GetPhases())
+        phases += (phases.empty() ? "" : " ") + std::to_string(phase);
+    data.PhaseID = GetPhases();
+    trans->PAppend("UPDATE creature SET PhaseId = '%s' WHERE guid = %llu", phases.c_str(), (unsigned long long)m_DBTableGuid);
+
     WorldDatabase.CommitTransaction(trans);
 }
 
