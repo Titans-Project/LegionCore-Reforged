@@ -896,6 +896,20 @@ void Unit::DealDamageMods(Unit* victim, uint32 &damage, uint32* absorb, SpellInf
 
 uint32 Unit::DealDamage(Unit* victim, uint32 damage, CleanDamage const* cleanDamage, DamageEffectType damagetype, SpellSchoolMask damageSchoolMask, SpellInfo const* spellProto, bool durabilityLoss)
 {
+    // Mardum: in the fights between the illidari and the demons, the illidari have a slight edge
+    bool const mardumNpcFight = GetMapId() == 1481 && IsCreature() && victim->IsCreature() && !IsControlledByPlayer() && !victim->IsControlledByPlayer();
+    auto illidari = [](Unit const* unit) { uint32 const faction = unit->getFaction(); return faction == 2843 || faction == 2804 || faction == 2838; };
+    if (mardumNpcFight)
+    {
+        if (illidari(this) && !illidari(victim))
+        {
+            damage += damage / 10;
+            // a quarter of each blow comes back to him: endless waves of demons hardly ever bring him down
+            if (IsAlive())
+                ModifyHealth(int64(damage / 4));
+        }
+    }
+
     if (victim->IsAIEnabled)
     {
         victim->GetAI()->DamageTaken(this, damage, damagetype);
@@ -981,7 +995,8 @@ uint32 Unit::DealDamage(Unit* victim, uint32 damage, CleanDamage const* cleanDam
             pet->AI()->OwnerDamagedBy(this);
     }
 
-    if (!victim->IsPlayer() && !IsPlayer() && !victim->isAnySummons() && !isAnySummons() && victim->ToCreature()->IsNoDamage() && victim->HealthBelowPct(85))
+    // the ambient fights of Mardum go to the end: there, under 85% health the blows of another NPC no longer did anything
+    if (!mardumNpcFight && !victim->IsPlayer() && !IsPlayer() && !victim->isAnySummons() && !isAnySummons() && victim->ToCreature()->IsNoDamage() && victim->HealthBelowPct(85))
         damage = 0;
 
     if (damagetype != NODAMAGE)
@@ -1178,6 +1193,16 @@ uint32 Unit::DealDamage(Unit* victim, uint32 damage, CleanDamage const* cleanDam
        //     victim->SetHealth(1);
        // else
             Kill(victim, durabilityLoss, spellProto ? spellProto : nullptr);
+
+        // Mardum: fallen in a fight between NPCs, it is back 15 seconds later and the fighting goes on
+        if (mardumNpcFight && victim->isDead())
+        {
+            Creature* fallen = victim->ToCreature();
+            // the death saved the spawn's own delay: a grid loaded again would bring it back minutes later
+            fallen->SetRespawnTime(15);
+            fallen->SaveRespawnTime();
+            fallen->DespawnOrUnsummon(3000, Seconds(12));
+        }
     }
     else
     {
