@@ -3058,6 +3058,11 @@ void LootTemplate::ProcessRareOrGoLoot(Loot& loot) const
         TC_LOG_DEBUG("loot", "LootTemplate::ProcessRareOrGoLoot AddItem itemid %i", i->itemid);
     }
 
+    // the groups of the template roll one item each, as in any other loot: skipped, a personal chest whose loot is
+    // grouped was opened empty
+    for (LootGroups::const_iterator i = Groups.begin(); i != Groups.end(); ++i)
+        i->Process(loot, this);
+
     TC_LOG_DEBUG("loot", "LootTemplate::ProcessRareOrGoLoot PersonalGroups %zu", PersonalGroups.size());
 
     if (!loot.isRareNext && !PersonalGroups.empty())
