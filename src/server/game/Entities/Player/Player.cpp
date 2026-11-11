@@ -18593,7 +18593,8 @@ void Player::PrepareQuestMenu(ObjectGuid guid)
     QuestRelationBounds objectQIR;
 
     // pets also can have quests
-    if (Creature* creature = ObjectAccessor::GetCreatureOrPetOrVehicle(*this, guid))
+    Creature* questCreature = ObjectAccessor::GetCreatureOrPetOrVehicle(*this, guid);
+    if (Creature* creature = questCreature)
     {
         objectQR  = sQuestDataStore->GetCreatureQuestRelationBounds(creature->GetEntry());
         objectQIR = sQuestDataStore->GetCreatureQuestInvolvedRelationBounds(creature->GetEntry());
@@ -18620,6 +18621,8 @@ void Player::PrepareQuestMenu(ObjectGuid guid)
     for (QuestRelations::const_iterator i = objectQIR.first; i != objectQIR.second; ++i)
     {
         uint32 quest_id = i->second;
+        if (questCreature && !questCreature->TakesBackQuestHere(quest_id))
+            continue;
         QuestStatus status = GetQuestStatus(quest_id);
         if (status == QUEST_STATUS_COMPLETE)
             qm.AddMenuItem(quest_id, 4);
@@ -21752,6 +21755,9 @@ QuestGiverStatus Player::GetQuestDialogStatus(Object* questgiver)
         uint32 questId = i->second;
         Quest const* quest = sQuestDataStore->GetQuestTemplate(questId);
         if (!quest)
+            continue;
+
+        if (questgiver->IsCreature() && !questgiver->ToCreature()->TakesBackQuestHere(questId))
             continue;
 
         ConditionList const& conditions = sConditionMgr->GetConditionsForNotGroupedEntry(CONDITION_SOURCE_TYPE_QUEST_SHOW_MARK, quest->GetQuestId());

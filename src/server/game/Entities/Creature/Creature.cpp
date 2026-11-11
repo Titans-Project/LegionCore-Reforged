@@ -2522,8 +2522,20 @@ bool Creature::hasQuest(uint32 quest_id) const
     return false;
 }
 
+// a few spawns share the entry of a questgiver who takes the quest back somewhere else: they only give it
+bool Creature::TakesBackQuestHere(uint32 questId) const
+{
+    // Altruis waiting in the hall of the Vault of the Wardens: Fel Infusion is handed in near the Vault of the Betrayer
+    if (GetDBTableGUIDLow() == 366398 && questId == 38689)
+        return false;
+    return true;
+}
+
 bool Creature::hasInvolvedQuest(uint32 quest_id) const
 {
+    if (!TakesBackQuestHere(quest_id))
+        return false;
+
     QuestRelationBounds qir = sQuestDataStore->GetCreatureQuestInvolvedRelationBounds(GetEntry());
     for (auto itr = qir.first; itr != qir.second; ++itr)
         if (itr->second == quest_id)
