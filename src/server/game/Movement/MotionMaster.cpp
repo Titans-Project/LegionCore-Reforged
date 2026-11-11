@@ -418,10 +418,23 @@ void MotionMaster::MoveTakeoff(uint32 id, float x, float y, float z)
     Mutate(new EffectMovementGenerator(id), MOTION_SLOT_ACTIVE);
 }
 
+// A player's charge overrides the leap of one of its own spells (Felblade right after Vengeful Retreat): ignored, the charge
+// dealt its blow from afar without moving. Any other controlled movement (fear, confusion...) keeps the upper hand.
+bool MotionMaster::ChargeIsBlocked() const
+{
+    MovementGenerator const* controlled = _slot[MOTION_SLOT_CONTROLLED];
+    if (!controlled)
+        return false;
+    MovementGeneratorType const type = controlled->GetMovementGeneratorType();
+    if (type == DISTRACT_MOTION_TYPE)
+        return false;
+    return !(_owner->IsPlayer() && type == EFFECT_MOTION_TYPE);
+}
+
 void MotionMaster::MoveCharge(float x, float y, float z, float speed /*= SPEED_CHARGE*/, uint32 id /*= EVENT_CHARGE*/, bool generatePath /*= false*/,
     Unit const* target /*= nullptr*/, Movement::SpellEffectExtraData const* spellEffectExtraData /*= nullptr*/)
 {
-    if (_slot[MOTION_SLOT_CONTROLLED] && _slot[MOTION_SLOT_CONTROLLED]->GetMovementGeneratorType() != DISTRACT_MOTION_TYPE)
+    if (ChargeIsBlocked())
         return;
 
     ObjectGuid const faceTargetGuid = target ? target->GetGUID() : ObjectGuid::Empty;
@@ -443,7 +456,7 @@ void MotionMaster::MoveCharge(PathGenerator const& path, float speed /*= SPEED_C
     Movement::SpellEffectExtraData const* spellEffectExtraData /*= nullptr*/)
 {
     // The inner MoveCharge is a no-op in this case: launching the spline anyway would move the unit without an owning generator
-    if (_slot[MOTION_SLOT_CONTROLLED] && _slot[MOTION_SLOT_CONTROLLED]->GetMovementGeneratorType() != DISTRACT_MOTION_TYPE)
+    if (ChargeIsBlocked())
         return;
 
     G3D::Vector3 dest = path.GetActualEndPosition();
