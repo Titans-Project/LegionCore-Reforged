@@ -896,18 +896,38 @@ void Unit::DealDamageMods(Unit* victim, uint32 &damage, uint32* absorb, SpellInf
 
 uint32 Unit::DealDamage(Unit* victim, uint32 damage, CleanDamage const* cleanDamage, DamageEffectType damagetype, SpellSchoolMask damageSchoolMask, SpellInfo const* spellProto, bool durabilityLoss)
 {
-    // Mardum: in the fights between the illidari and the demons, the illidari have a slight edge
-    bool const mardumNpcFight = GetMapId() == 1481 && IsCreature() && victim->IsCreature() && !IsControlledByPlayer() && !victim->IsControlledByPlayer();
+    // Mardum and the Vault of the Wardens: in the fights between the illidari and the demons, the illidari have a slight edge
+    bool const mardumNpcFight = (GetMapId() == 1481 || GetMapId() == 1468) && IsCreature() && victim->IsCreature() && !IsControlledByPlayer() && !victim->IsControlledByPlayer();
     auto illidari = [](Unit const* unit) { uint32 const faction = unit->getFaction(); return faction == 2843 || faction == 2804 || faction == 2838; };
     if (mardumNpcFight)
     {
+        // in the Vault the blows between NPCs are tripled, both ways: at their own strength the fights hardly moved
+        if (GetMapId() == 1468)
+            damage *= 3;
+
         if (illidari(this) && !illidari(victim))
         {
-            damage += damage / 10;
-            // a quarter of each blow comes back to him: endless waves of demons hardly ever bring him down
+            // in the Vault they face a whole invasion pouring out of the portals: +15 % and 40 % of each blow healed back,
+            // enough to thin it out little by little without wiping it out; on Mardum +10 % and a quarter
+            bool const vault = GetMapId() == 1468;
+            damage += vault ? damage * 15 / 100 : damage / 10;
             if (IsAlive())
-                ModifyHealth(int64(damage / 4));
+                ModifyHealth(int64(vault ? damage * 2 / 5 : damage / 4));
         }
+
+        // doubled again in the Vault, on both sides, once the Illidari heal is drawn so that they do not become unkillable
+        if (GetMapId() == 1468)
+            damage *= 2;
+
+        // Drelanim Whisperwind and Mirana Starlight would cut the demons down alone at full strength
+        if (GetEntry() == 96847 || GetEntry() == 99451)
+        {
+            damage -= damage * 3 / 10;
+            damage -= damage * 2 / 5;
+        }
+        // and Drelanim's skills, which strike several of them at once, hit 40 % softer still
+        if (GetEntry() == 96847 && spellProto)
+            damage -= damage * 2 / 5;
     }
 
     if (victim->IsAIEnabled)
@@ -995,9 +1015,6 @@ uint32 Unit::DealDamage(Unit* victim, uint32 damage, CleanDamage const* cleanDam
             pet->AI()->OwnerDamagedBy(this);
     }
 
-    // the ambient fights of Mardum go to the end: there, under 85% health the blows of another NPC no longer did anything
-    if (!mardumNpcFight && !victim->IsPlayer() && !IsPlayer() && !victim->isAnySummons() && !isAnySummons() && victim->ToCreature()->IsNoDamage() && victim->HealthBelowPct(85))
-        damage = 0;
 
     if (damagetype != NODAMAGE)
     {
@@ -1194,8 +1211,11 @@ uint32 Unit::DealDamage(Unit* victim, uint32 damage, CleanDamage const* cleanDam
        // else
             Kill(victim, durabilityLoss, spellProto ? spellProto : nullptr);
 
-        // Mardum: fallen in a fight between NPCs, it is back 15 seconds later and the fighting goes on
-        if (mardumNpcFight && victim->isDead())
+        // Mardum and the Vault: fallen in a fight between NPCs, it is back 15 seconds later and the fighting goes on.
+        // Not the demons of the Vault halls with Legion Portals: their place is taken by those the portals send
+        // (warden_prison.cpp, npc_q38689 keeps them down)
+        bool const portalDemon = mardumNpcFight && GetMapId() == 1468 && !illidari(victim) && victim->ToCreature()->FindNearestCreature(99501, 60.0f);
+        if (mardumNpcFight && victim->isDead() && !portalDemon)
         {
             Creature* fallen = victim->ToCreature();
             // the death saved the spawn's own delay: a grid loaded again would bring it back minutes later
@@ -1214,7 +1234,12 @@ uint32 Unit::DealDamage(Unit* victim, uint32 damage, CleanDamage const* cleanDam
         if (damagetype == DIRECT_DAMAGE || damagetype == SPELL_DIRECT_DAMAGE)
             victim->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_DIRECT_DAMAGE, spellProto ? spellProto->Id : 0, spellProto ? spellProto->Id : 0);
 
-        if (!victim->IsPlayer())
+        // in the fights between NPCs of Mardum and the Vault a blow does not steal a foe busy with someone else: a token threat only,
+        // so that it keeps its target and still knows whom to turn to once that one falls
+        Unit const* busyWith = mardumNpcFight ? victim->getVictim() : nullptr;
+        if (!victim->IsPlayer() && busyWith && busyWith != this && busyWith->IsAlive())
+            victim->AddThreat(this, 1.0f, damageSchoolMask, spellProto);
+        else if (!victim->IsPlayer())
             victim->AddThreat(this, float(damage), damageSchoolMask, spellProto);
         else                                                // victim is a player
         {
@@ -2323,7 +2348,10 @@ void Unit::CalculateMeleeDamage(Unit* victim, uint32 damage, CalcDamageInfo* dam
 
     damageInfo->damage = damage;
 
-    if (Unit* owner = GetAnyOwner()) //For pets chance calc from owner
+    // a summoned unit rolls with its summoner's chances; in the Vault of the Wardens a creature summoned by another creature
+    // (a Legion Portal, a boss) rolls with its own: a portal cannot fight, and its demons missed every blow
+    Unit* owner = GetAnyOwner();
+    if (owner && (GetMapId() != 1468 || owner->IsControlledByPlayer()))
         damageInfo->hitOutCome = owner->RollMeleeOutcomeAgainst(damageInfo->target, damageInfo->attackType);
     else
         damageInfo->hitOutCome = RollMeleeOutcomeAgainst(damageInfo->target, damageInfo->attackType);
@@ -3810,7 +3838,9 @@ SpellMissInfo Unit::SpellHitResult(Unit* victim, SpellInfo const* spellInfo, boo
             return SPELL_MISS_REFLECT;
     }
 
-    Unit* checker = (IsCreature() && GetAnyOwner()) ? GetAnyOwner() : this;
+    // as for melee blows: in the Vault of the Wardens a creature summoned by a portal or a boss keeps its own chances
+    Unit* spellOwner = IsCreature() ? GetAnyOwner() : nullptr;
+    Unit* checker = (spellOwner && (GetMapId() != 1468 || spellOwner->IsControlledByPlayer())) ? spellOwner : this;
     switch (spellInfo->Categories.DefenseType)
     {
         case SPELL_DAMAGE_CLASS_RANGED:
