@@ -1,0 +1,24 @@
+-- Mardum: every line of the conversations starts once the one before has ended, in English and in French
+UPDATE `conversation_data` SET `textId`=5472 WHERE `entry`=555 AND `idx`=1;
+UPDATE `conversation_creature` SET `duration`=4438 WHERE `entry`=555 AND `id`=0;
+UPDATE `conversation_data` SET `textId`=7030 WHERE `entry`=569 AND `idx`=1;
+UPDATE `conversation_data` SET `textId`=14030 WHERE `entry`=569 AND `idx`=2;
+UPDATE `conversation_data` SET `textId`=19030 WHERE `entry`=569 AND `idx`=3;
+UPDATE `conversation_data` SET `textId`=24547 WHERE `entry`=569 AND `idx`=4;
+UPDATE `conversation_data` SET `textId`=33949 WHERE `entry`=569 AND `idx`=5;
+UPDATE `conversation_data` SET `textId`=36949 WHERE `entry`=569 AND `idx`=6;
+UPDATE `conversation_data` SET `textId`=40136 WHERE `entry`=569 AND `idx`=7;
+UPDATE `conversation_data` SET `textId`=46136 WHERE `entry`=569 AND `idx`=8;
+UPDATE `conversation_data` SET `textId`=52636 WHERE `entry`=569 AND `idx`=9;
+UPDATE `conversation_data` SET `textId`=56636 WHERE `entry`=569 AND `idx`=10;
+UPDATE `conversation_actor` SET `duration`=11121 WHERE `entry`=569 AND `id`=0;
+UPDATE `conversation_data` SET `textId`=4778 WHERE `entry`=570 AND `idx`=1;
+UPDATE `conversation_actor` SET `duration`=4818 WHERE `entry`=570 AND `id`=0;
+UPDATE `conversation_data` SET `textId`=4681 WHERE `entry`=571 AND `idx`=1;
+UPDATE `conversation_data` SET `textId`=11502 WHERE `entry`=571 AND `idx`=2;
+UPDATE `conversation_actor` SET `duration`=11073 WHERE `entry`=571 AND `id`=0;
+UPDATE `conversation_data` SET `textId`=4714 WHERE `entry`=573 AND `idx`=1;
+UPDATE `conversation_actor` SET `duration`=8525 WHERE `entry`=705 AND `id`=0;
+UPDATE `conversation_creature` SET `duration`=4292 WHERE `entry`=735 AND `id`=0;
+UPDATE `conversation_actor` SET `duration`=11664 WHERE `entry`=747 AND `id`=0;
+UPDATE `conversation_creature` SET `duration`=4522 WHERE `entry`=922 AND `id`=0;
