@@ -1,20 +1,16 @@
-/*
- * Copyright (C) 2008-2018 TrinityCore <https://www.trinitycore.org/>
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2018 TrinityCore    ///
+///   <https://www.trinitycore.org/>     ///
+///   Copyright 2005-2009 MaNGOS         ///
+///   <http://getmangos.com/>            ///
+///                                      ///
+////////////////////////////////////////////
 
 #include "DynamicTree.h"
 #include "BoundingIntervalHierarchyWrapper.h"
@@ -143,12 +139,13 @@ void DynamicMapTree::update(uint32 t_diff)
 
 struct DynamicTreeIntersectionCallback
 {
-    DynamicTreeIntersectionCallback(std::set<uint32> const& phases, bool otherUsePlayerPhasingRules) : _didHit(false), _phases(phases), _otherUsePlayerPhasingRules(otherUsePlayerPhasingRules), _go(nullptr) { }
+    DynamicTreeIntersectionCallback(std::set<uint32> const& phases, bool otherUsePlayerPhasingRules, bool nearestHit = false) : _didHit(false), _phases(phases), _otherUsePlayerPhasingRules(otherUsePlayerPhasingRules), _nearestHit(nearestHit), _go(nullptr) { }
 
     bool operator()(G3D::Ray const& r, GameObjectModel const& obj, float& distance)
     {
         // Only ever set: a model missed further along the ray must not clear an earlier hit.
-        bool const hit = obj.intersectRay(r, distance, true, _phases, _otherUsePlayerPhasingRules, VMAP::ModelIgnoreFlags::Nothing);
+        // A floor search needs the nearest surface: on a model of several levels (Dalaran) the first triangle found may lie floors below.
+        bool const hit = obj.intersectRay(r, distance, !_nearestHit, _phases, _otherUsePlayerPhasingRules, VMAP::ModelIgnoreFlags::Nothing);
         if (hit)
         {
             _didHit = true;
@@ -166,6 +163,7 @@ private:
     bool _didHit;
     std::set<uint32> _phases;
     bool _otherUsePlayerPhasingRules;
+    bool _nearestHit;
 };
 
 struct DynamicTreeisInLineOfSightCallback
@@ -287,7 +285,7 @@ float DynamicMapTree::getHeight(float x, float y, float z, float maxSearchDist, 
 {
     G3D::Vector3 v(x, y, z + 0.5f);
     G3D::Ray r(v, G3D::Vector3(0, 0, -1));
-    DynamicTreeIntersectionCallback callback(phases, otherUsePlayerPhasingRules);
+    DynamicTreeIntersectionCallback callback(phases, otherUsePlayerPhasingRules, true);
     RecursiveGuard guard(dynamic_lock);
     impl->intersectZAllignedRay(r, callback, maxSearchDist);
 
