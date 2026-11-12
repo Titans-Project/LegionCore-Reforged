@@ -118,6 +118,9 @@ static bool VaultChoseKayn(Player const* player)
     return player->GetQuestRewardStatus(40374);
 }
 
+// the druid shapeshift cloud, when Khadgar turns into a raven or back
+static uint32 const VAULT_VISUAL_SHAPESHIFT = 52969;
+
 static Position const VaultCourtKayn = { 4272.4f, -450.3f, 259.6f, 4.7305f };
 static Position const VaultCourtAltruis = { 4272.2f, -453.4f, 259.6f, 1.5876f };
 static Position const VaultCourtKorvas = { 4282.9f, -451.8f, 259.7f, 3.1669f };
@@ -3014,18 +3017,30 @@ public:
                     if (khadgar->IsInWorld())
                         return;
 
-            // he comes as a raven from the sky behind him, lands, then takes back his own shape (his SmartAI, 6 s after coming)
+            // he comes as a raven from the sky behind him, lands on the ground, then takes back his own shape in a cloud
+            // (his SmartAI then speaks)
             if (Creature* targ = player->SummonCreature(97978, 4143.3f, -885.7f, 301.2f, 1.0f, TEMPSUMMON_MANUAL_DESPAWN, 0, player->GetGUID(), NULL))
             {
                 targ->SetDisplayId(68476);
                 targ->SetCanFly(true);
                 targ->SetDisableGravity(true);
-                targ->GetMotionMaster()->MoveSmoothFlyPath(0, Position(4154.08f, -868.86f, 291.69f, 1.0f), 7.0f);
+                targ->GetMotionMaster()->MoveSmoothFlyPath(0, Position(4154.08f, -868.86f, 292.8f, 1.0f), 7.0f);
                 VaultWhenArrived(targ, [targ]() -> void
                 {
-                    targ->SetCanFly(false);
-                    targ->SetDisableGravity(false);
-                    targ->SetFacingTo(1.0f);
+                    targ->GetMotionMaster()->MoveLand(1, Position(4154.08f, -868.86f, 291.3f, 1.0f));
+                    VaultWhenArrived(targ, [targ]() -> void
+                    {
+                        // summoned in the air, he was given the right to fly, which kept him floating above the ground:
+                        // taken back, he drops onto the real ground
+                        targ->SetFlightMovement(CreatureFlightMovementType::None);
+                        targ->GetMotionMaster()->MoveFall();
+                        targ->SetFacingTo(1.0f);
+                        targ->AddDelayedEvent(800, [targ]() -> void
+                        {
+                            targ->PlaySpellVisual(targ->GetPosition(), VAULT_VISUAL_SHAPESHIFT, 0.0f, targ->GetGUID());
+                            targ->SetDisplayId(65834);
+                        });
+                    });
                 });
                 _khadgarFor[player->GetGUID()] = targ->GetGUID();
             }
@@ -3422,13 +3437,20 @@ public:
         TempSummon* raven = player->SummonCreature(creature->GetEntry(), from, TEMPSUMMON_TIMED_DESPAWN, 20000, 0, player->GetGUID());
         if (!raven)
             return false;
-        raven->SetDisplayId(68476);
-        raven->SetCanFly(true);
-        raven->SetDisableGravity(true);
+        // he first stands as himself in the place of the real one; the cloud is played once the client knows him
+        raven->AddDelayedEvent(400, [raven]() -> void
+        {
+            raven->PlaySpellVisual(raven->GetPosition(), VAULT_VISUAL_SHAPESHIFT, 0.0f, raven->GetGUID());
+            raven->SetDisplayId(68476);
+            // summoned on the ground, he has no right to fly, without which every update would put him back on his feet
+            raven->SetFlightMovement(CreatureFlightMovementType::CanFly);
+            raven->SetCanFly(true);
+            raven->SetDisableGravity(true);
+        });
         // Stormwind: towards the Keep; Orgrimmar: up over the city, towards Dalaran
         Position const to = quest->GetQuestId() == 39691 ? Position(-8511.6f, 421.9f, 135.0f, 0.0f)
             : Position(from.GetPositionX() + 30.0f, from.GetPositionY(), from.GetPositionZ() + 35.0f, 0.0f);
-        raven->AddDelayedEvent(1000, [raven, to]() -> void
+        raven->AddDelayedEvent(1400, [raven, to]() -> void
         {
             raven->GetMotionMaster()->MoveSmoothFlyPath(1, to, 9.0f);
             VaultVanishOnArrival(raven, Seconds(0));
