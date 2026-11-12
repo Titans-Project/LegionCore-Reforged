@@ -1,5 +1,16 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
  * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -42,6 +53,9 @@ public:
 
         EventMap events;
 
+        // the demon hunters seen with Spectral Sight on: the disguised demons of the throne room follow it (phases 4929, 4930)
+        GuidSet _sighted;
+
         void MoveInLineOfSight(Unit* who) override
         {
             if (events.Empty())
@@ -67,7 +81,8 @@ public:
                 switch (eventId)
                 {
                 case EVENT_1:
-                    events.ScheduleEvent(EVENT_1, 2000);
+                {
+                    events.ScheduleEvent(EVENT_1, 1000);
 
                     std::list<Player*> list;
                     me->GetPlayerListInGrid(list, 20.0f);
@@ -75,7 +90,24 @@ public:
                         if (player->HasAura(188501) && player->GetQuestStatus(44471) == QUEST_STATUS_INCOMPLETE)
                             player->KilledMonsterCredit(102563);
 
+                    // Second Sight: Spectral Sight turned on or off shows or hides the demons under the guards' guise
+                    std::list<Player*> hall;
+                    me->GetPlayerListInGrid(hall, 80.0f);
+                    for (Player* player : hall)
+                    {
+                        bool const sighted = player->HasAura(188501);
+                        if (sighted == (_sighted.count(player->GetGUID()) != 0))
+                            continue;
+                        if (sighted)
+                            _sighted.insert(player->GetGUID());
+                        else
+                            _sighted.erase(player->GetGUID());
+                        PhaseUpdateData phaseUpdate;
+                        phaseUpdate.AddConditionType(CONDITION_AURA);
+                        player->GetPhaseMgr().NotifyConditionChanged(phaseUpdate);
+                    }
                     break;
+                }
                 }
             }
         }
