@@ -21515,6 +21515,15 @@ void Player::SetQuestObjectiveData(Quest const* quest, QuestObjective const* obj
             }
         }
     }
+
+    // a phase may hang on an objective (CONDITION_QUEST_OBJECTIVE_DONE): it changes as soon as the objective moves, not only
+    // when the quest status changes (Demons Among Them: the attack once Anduin is warned)
+    if (!isLoad)
+    {
+        PhaseUpdateData phaseUpdate;
+        phaseUpdate.AddConditionType(CONDITION_QUEST_OBJECTIVE_DONE);
+        GetPhaseMgr().NotifyConditionChanged(phaseUpdate);
+    }
 }
 
 bool Player::HasCompletedQuest(uint32 questId) const
