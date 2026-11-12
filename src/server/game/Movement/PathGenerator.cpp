@@ -234,7 +234,9 @@ void PathGenerator::BuildPolyPath(G3D::Vector3 const& startPos, G3D::Vector3 con
     {
         TC_LOG_DEBUG("maps.mmaps", "++ BuildPolyPath :: (startPoly == 0 || endPoly == 0)");
         BuildShortcut();
-        bool path = _source->GetTypeId() == TYPEID_UNIT && _source->ToCreature()->CanFly();
+        // a creature standing on a game object floor the navmesh does not have (Dalaran over Deadwind Pass) goes straight,
+        // its points set on that floor
+        bool path = _source->GetTypeId() == TYPEID_UNIT && (_source->ToCreature()->CanFly() || IsStartOnGameObject());
 
         bool waterPath = _source->GetTypeId() == TYPEID_UNIT && _source->ToCreature()->CanSwim();
         if (waterPath)
@@ -294,7 +296,7 @@ void PathGenerator::BuildPolyPath(G3D::Vector3 const& startPos, G3D::Vector3 con
             TC_LOG_DEBUG("maps.mmaps", "++ BuildPolyPath :: flying case");
             if (const Unit* _sourceUnit = _source->ToUnit())
             {
-                if (_sourceUnit->CanFly())
+                if (_sourceUnit->CanFly() || IsStartOnGameObject())
                     buildShortcut = true;
                 // Allow to build a shortcut if the unit is falling and it's trying to move downwards towards a target (i.e. charging)
                 else if (_sourceUnit->IsFalling() && endPos.z < startPos.z)
