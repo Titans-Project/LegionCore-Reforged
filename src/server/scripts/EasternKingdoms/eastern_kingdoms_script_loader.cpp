@@ -1,19 +1,14 @@
-/*
-* Copyright (C) 2008-2018 TrinityCore <https://www.trinitycore.org/>
-*
-* This program is free software; you can redistribute it and/or modify it
-* under the terms of the GNU General Public License as published by the
-* Free Software Foundation; either version 2 of the License, or (at your
-* option) any later version.
-*
-* This program is distributed in the hope that it will be useful, but WITHOUT
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-* FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
-* more details.
-*
-* You should have received a copy of the GNU General Public License along
-* with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2018 TrinityCore    ///
+///   <https://www.trinitycore.org/>     ///
+///                                      ///
+////////////////////////////////////////////
 
 // This is where scripts' loading functions should be declared:
 void AddSC_alterac_valley();                 // Alterac Valley
@@ -234,6 +229,7 @@ void AddSC_instance_zulgurub();
 void AddSC_arathi_highlands();
 void AddSC_blasted_lands();
 void AddSC_burning_steppes();
+void AddSC_deadwind_pass();
 void AddSC_duskwood();
 void AddSC_eastern_plaguelands();
 void AddSC_elwynn_forest();
@@ -477,6 +473,7 @@ void AddEasternKingdomsScripts()
     AddSC_arathi_highlands();
     AddSC_blasted_lands();
     AddSC_burning_steppes();
+    AddSC_deadwind_pass();
     AddSC_duskwood();
     AddSC_eastern_plaguelands();
     AddSC_elwynn_forest();
