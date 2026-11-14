@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
 
@@ -183,10 +191,15 @@ class spell_mark_of_kazzak_legion : public SpellScriptLoader
 
                 if (Player* _player = caster->ToPlayer())
                 {
-                    float damage = int32(eventInfo.GetDamageInfo()->GetDamage());
+                    // the mark turns the damage or the healing done into shadow damage to the allies within 8 yards
+                    float amount = 0.0f;
+                    if (DamageInfo* damageInfo = eventInfo.GetDamageInfo())
+                        amount = float(damageInfo->GetDamage());
+                    else if (HealInfo* healInfo = eventInfo.GetHealInfo())
+                        amount = float(healInfo->GetHeal());
 
-                    if (damage)
-                        _player->CastCustomSpell(_player, 187671, &damage, NULL, NULL, false);
+                    if (amount > 0.0f)
+                        _player->CastCustomSpell(_player, 187671, &amount, NULL, NULL, false);
                 }
             }
 
