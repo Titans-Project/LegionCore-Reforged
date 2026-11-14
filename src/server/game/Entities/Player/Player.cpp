@@ -17970,6 +17970,13 @@ void Player::ApplyEnchantment(Item* item, EnchantmentSlot slot, bool apply, bool
                 case ITEM_ENCHANTMENT_TYPE_PRISMATIC_SOCKET:
                     // nothing do..
                     break;
+                case ITEM_ENCHANTMENT_TYPE_ARTIFACT_POWER_BONUS_RANK_BY_TYPE:
+                case ITEM_ENCHANTMENT_TYPE_ARTIFACT_POWER_BONUS_RANK_BY_ID:
+                case ITEM_ENCHANTMENT_TYPE_BONUS_LIST_ID:
+                case ITEM_ENCHANTMENT_TYPE_BONUS_LIST_CURVE:
+                case ITEM_ENCHANTMENT_TYPE_ARTIFACT_POWER_BONUS_RANK_PICKER:
+                    // relic and bonus list enchantments are applied by the item itself
+                    break;
                 default:
                     TC_LOG_ERROR("entities.player", "Unknown item enchantment (id = %d) display type: %d", enchant_id, enchant_display_type);
                     break;
