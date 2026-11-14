@@ -18255,7 +18255,7 @@ void Player::PrepareGossipMenu(WorldObject* source, uint32 menuId /*= 0*/, bool 
                 if (sConditionMgr->IsPlayerMeetingCondition(this, optionBroadcastText->ConditionID))
                     strOptionText = DB2Manager::GetBroadcastTextValue(optionBroadcastText, localeConstant, getGender());
             }
-            else if (GossipMenuItemsLocale const* gossipMenuLocale = sGossipDataStore->GetGossipMenuItemsLocale(MAKE_PAIR32(menuId, itr->second.OptionIndex)))
+            else if (GossipMenuItemsLocale const* gossipMenuLocale = sGossipDataStore->GetGossipMenuItemsLocale(MAKE_PAIR64(itr->second.OptionIndex, menuId)))
                 ObjectMgr::GetLocaleString(gossipMenuLocale->OptionText, localeConstant, strOptionText);
 
             if (BroadcastTextEntry const* boxBroadcastText = sBroadcastTextStore.LookupEntry(itr->second.BoxBroadcastTextID))
@@ -18263,7 +18263,7 @@ void Player::PrepareGossipMenu(WorldObject* source, uint32 menuId /*= 0*/, bool 
                 if (sConditionMgr->IsPlayerMeetingCondition(this, boxBroadcastText->ConditionID))
                     strBoxText = DB2Manager::GetBroadcastTextValue(boxBroadcastText, localeConstant, getGender());
             }
-            else if (GossipMenuItemsLocale const* gossipMenuLocale = sGossipDataStore->GetGossipMenuItemsLocale(MAKE_PAIR32(menuId, itr->second.OptionIndex)))
+            else if (GossipMenuItemsLocale const* gossipMenuLocale = sGossipDataStore->GetGossipMenuItemsLocale(MAKE_PAIR64(itr->second.OptionIndex, menuId)))
                 ObjectMgr::GetLocaleString(gossipMenuLocale->BoxText, localeConstant, strBoxText);
 
             menu->GetGossipMenu().AddMenuItem(itr->second.OptionIndex, itr->second.OptionNpc, strOptionText, 0, AsUnderlyingType(itr->second.OptionNpc), strBoxText, itr->second.BoxMoney, itr->second.BoxCoded);

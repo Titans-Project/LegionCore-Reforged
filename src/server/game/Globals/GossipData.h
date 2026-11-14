@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 
 #ifndef GossipData_h
 #define GossipData_h
@@ -33,7 +41,7 @@ typedef std::pair<GossipMenusContainer::iterator, GossipMenusContainer::iterator
 typedef std::multimap<uint32, GossipMenuItems> GossipMenuItemsContainer;
 typedef std::pair<GossipMenuItemsContainer::const_iterator, GossipMenuItemsContainer::const_iterator> GossipMenuItemsMapBounds;
 typedef std::pair<GossipMenuItemsContainer::iterator, GossipMenuItemsContainer::iterator> GossipMenuItemsMapBoundsNonConst;
-typedef std::unordered_map<uint32, GossipMenuItemsLocale> GossipMenuItemsLocaleContainer;
+typedef std::unordered_map<uint64, GossipMenuItemsLocale> GossipMenuItemsLocaleContainer;
 
 class TC_GAME_API GossipDataStoreMgr
 {
@@ -47,7 +55,7 @@ public:
     void LoadGossipMenu();
     void LoadGossipMenuItems();
 
-    GossipMenuItemsLocale const* GetGossipMenuItemsLocale(uint32 entry) const;
+    GossipMenuItemsLocale const* GetGossipMenuItemsLocale(uint64 entry) const;
     GossipMenusMapBounds GetGossipMenusMapBounds(uint32 uiMenuId) const;
     GossipMenusMapBoundsNonConst GetGossipMenusMapBoundsNonConst(uint32 uiMenuId);
     GossipMenuItemsMapBounds GetGossipMenuItemsMapBounds(uint32 uiMenuId) const;

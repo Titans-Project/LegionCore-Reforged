@@ -89,12 +89,12 @@ void GossipMenu::AddMenuItem(uint32 menuId, uint32 menuItemId, uint32 sender, ui
         {
             if (auto optionBroadcastText = sBroadcastTextStore.LookupEntry(itr->second.OptionBroadcastTextID))
                 strOptionText = DB2Manager::GetBroadcastTextValue(optionBroadcastText, GetLocale());
-            else if (auto gossipMenuLocale = sGossipDataStore->GetGossipMenuItemsLocale(MAKE_PAIR32(menuId, menuItemId)))
+            else if (auto gossipMenuLocale = sGossipDataStore->GetGossipMenuItemsLocale(MAKE_PAIR64(menuItemId, menuId)))
                 ObjectMgr::GetLocaleString(gossipMenuLocale->OptionText, GetLocale(), strOptionText);
 
             if (auto boxBroadcastText = sBroadcastTextStore.LookupEntry(itr->second.BoxBroadcastTextID))
                 strBoxText = DB2Manager::GetBroadcastTextValue(boxBroadcastText, GetLocale());
-            else if (auto gossipMenuLocale = sGossipDataStore->GetGossipMenuItemsLocale(MAKE_PAIR32(menuId, menuItemId)))
+            else if (auto gossipMenuLocale = sGossipDataStore->GetGossipMenuItemsLocale(MAKE_PAIR64(menuItemId, menuId)))
                 ObjectMgr::GetLocaleString(gossipMenuLocale->BoxText, GetLocale(), strBoxText);
         }
 

@@ -42,16 +42,10 @@ void GossipDataStoreMgr::LoadGossipMenuItemsLocales()
             continue;
 
 
-        // the store key packs both ids on 16 bits: a larger id would assert on read
         uint32 const menuId = fields[0].GetUInt32();
         uint32 const optionId = fields[1].GetUInt32();
-        if (menuId > 0xFFFF || optionId > 0xFFFF)
-        {
-            TC_LOG_ERROR("sql.sql", "Table `gossip_menu_option_locale`: MenuID %u OptionID %u does not fit on 16 bits, skipped.", menuId, optionId);
-            continue;
-        }
 
-        auto& data = _gossipMenuItemsLocaleStore[MAKE_PAIR32(menuId, optionId)];
+        auto& data = _gossipMenuItemsLocaleStore[MAKE_PAIR64(optionId, menuId)];
         ObjectMgr::AddLocaleString(fields[3].GetString(), locale, data.OptionText);
         ObjectMgr::AddLocaleString(fields[4].GetString(), locale, data.BoxText);
 
@@ -188,7 +182,7 @@ void GossipDataStoreMgr::LoadGossipMenuItems()
     TC_LOG_INFO("server.loading", ">> Loaded %u gossip_menu_option entries in %u ms", count, GetMSTimeDiffToNow(oldMSTime));
 }
 
-GossipMenuItemsLocale const* GossipDataStoreMgr::GetGossipMenuItemsLocale(uint32 entry) const
+GossipMenuItemsLocale const* GossipDataStoreMgr::GetGossipMenuItemsLocale(uint64 entry) const
 {
     return Trinity::Containers::MapGetValuePtr(_gossipMenuItemsLocaleStore, entry);
 }
