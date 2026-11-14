@@ -508,6 +508,7 @@ bool PhaseMgr::IsConditionTypeSupported(ConditionTypes const conditionType)
         case CONDITION_CLASS_HALL_ADVANCEMENT:
         case CONDITION_SPEC_ID:
         case CONDITION_GARRRISON_BUILDING:
+        case CONDITION_WORLD_STATE:     // garrison town hall: trader of the day
             return true;
         default:
             return false;
