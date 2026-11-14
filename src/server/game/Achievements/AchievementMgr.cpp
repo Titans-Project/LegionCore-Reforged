@@ -44,6 +44,8 @@
 #include "WorldPacket.h"
 #include "ObjectVisitors.hpp"
 #include "WorldStateMgr.h"
+#include <functional>
+#include <unordered_set>
 
 CriteriaProgress::CriteriaProgress() : Counter(0), date(0), changed(false), updated(false), completed(false), deactiveted(true)
 , deleted{false}, achievement(nullptr), criteriaTree(nullptr), parent(nullptr), criteria(nullptr), _criteria(nullptr)
@@ -1635,6 +1637,11 @@ void AchievementMgr<T>::UpdateAchievementCriteria(AchievementCachePtr cachePtr, 
         if (achievement && DisableMgr::IsDisabledFor(DISABLE_TYPE_ACHIEVEMENT, achievement->ID, referencePlayer))
             continue;
 
+        // a level achievement earned by another character of the account: resending its level criterion at each
+        // login made the client announce progress on every other achievement sharing it (class hall helm at 110)
+        if (m_loginLevelCheck && achievement && HasAccountAchieved(achievement->ID))
+            continue;
+
         bool canComplete = false;
         if (!CanUpdateCriteria(tree, cachePtr))
             continue;
@@ -2830,12 +2837,40 @@ struct VisibleAchievementPred
     }
 };
 
+// The progress of an earned achievement is not saved, so after a relog the client would show its criteria as
+// not done: they are sent as complete, without overriding a progress that is still tracked. Only achievements earned
+// by this character count: criteria are shared between trees (level 110 is also the class hall helm criterion).
+static void AddEarnedCriteriaProgress(CompletedAchievementMap const& completed, ObjectGuid const& owner, std::vector<WorldPackets::Achievement::CriteriaTreeProgress>& progressList)
+{
+    std::unordered_set<uint32> sent;
+    for (WorldPackets::Achievement::CriteriaTreeProgress const& progress : progressList)
+        sent.insert(progress.Id);
+
+    std::function<void(CriteriaTree const*, time_t)> addTree = [&](CriteriaTree const* tree, time_t date)
+    {
+        if (tree->CriteriaID && sent.insert(tree->CriteriaID).second)
+        {
+            WorldPackets::Achievement::CriteriaTreeProgress progress;
+            progress.Id = tree->CriteriaID;
+            progress.Quantity = std::max<uint64>(tree->Entry ? tree->Entry->Amount : 0, 1);
+            progress.Player = owner;
+            progress.Date = date;
+            progressList.push_back(progress);
+        }
+        for (CriteriaTree const* child : tree->Children)
+            addTree(child, date);
+    };
+
+    for (auto const& itr : completed)
+        if (itr.second.first_guid == owner.GetGUIDLow())
+            if (AchievementEntry const* achievement = sAchievementStore.LookupEntry(itr.first))
+                if (CriteriaTree const* tree = sAchievementMgr->GetCriteriaTree(achievement->CriteriaTree))
+                    addTree(tree, itr.second.date);
+}
+
 template<class T>
 void AchievementMgr<T>::SendAllAchievementData(Player* /*receiver*/)
 {
-    if (_criteriaProgress.empty())
-        return;
-
     VisibleAchievementPred isVisible;
     WorldPackets::Achievement::AllAchievements achievementData;
     achievementData.Earned.reserve(_completedAchievements.size());
@@ -2875,6 +2910,8 @@ void AchievementMgr<T>::SendAllAchievementData(Player* /*receiver*/)
             achievementData.Progress.push_back(progress);
         }
     }
+
+    AddEarnedCriteriaProgress(_completedAchievements, GetOwner()->GetGUID(), achievementData.Progress);
 
     SendPacket(achievementData.Write());
 }
@@ -2949,9 +2986,6 @@ void AchievementMgr<T>::SendAchievementInfo(Player* receiver, uint32 achievement
 template<>
 void AchievementMgr<Player>::SendAchievementInfo(Player* receiver, uint32 /*achievementId = 0 */)
 {
-    if (_criteriaProgress.empty())
-        return;
-
     VisibleAchievementPred isVisible;
 
     WorldPackets::Achievement::RespondInspectAchievements packet;
@@ -2989,6 +3023,8 @@ void AchievementMgr<Player>::SendAchievementInfo(Player* receiver, uint32 /*achi
             packet.Data.Progress.push_back(progress);
         }
     }
+
+    AddEarnedCriteriaProgress(_completedAchievements, GetOwner()->GetGUID(), packet.Data.Progress);
 
     receiver->SendDirectMessage(packet.Write());
 }
