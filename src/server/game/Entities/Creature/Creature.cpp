@@ -2019,6 +2019,13 @@ void Creature::SelectLevel(const CreatureTemplate* cInfo)
         case CLASS_MAGE:
             SetMaxPower(POWER_MANA, mana);
             SetFullPower(POWER_MANA);
+            break;
+        case CLASS_ROGUE:
+            // Without it energy has no power index on creatures and every energy spell fails CheckPower.
+            // A power type already chosen (vehicle, summon stats, script) is kept: respawns and NPC summons call this again.
+            if (GetPowerType() == POWER_MANA)
+                SetPowerType(POWER_ENERGY);
+            break;
         default: // We don't set max power here, 0 makes power bar hidden
             break;
     }
