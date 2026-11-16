@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 void AddSC_azsuna();
 void AddSC_broken_shore();
 void AddSC_highmountain();
@@ -200,7 +208,32 @@ void AddSC_Sharasdal();
 void AddSC_instance_sharasdal();
 void AddSC_monk_intro_scenario();
 void AddSC_Sheylun();
-void AddSC_instance_class_art_scenarios();
+void AddSC_instance_dreadblades();
+void AddSC_Felomelorn();
+void AddSC_Aluneth();
+void AddSC_instance_faronaar();
+void AddSC_instance_ruins_of_falanaar();
+void AddSC_panic_at_the_brewery();
+void AddSC_instance_remember_the_sunwell();
+void AddSC_DH_havoc_art_scenario();
+void AddSC_MawOfTheDamned();
+void AddSC_BladesOfTheFallenPrince();
+void AddSC_Apocalypse();
+void AddSC_ScytheOfElune();
+void AddSC_ClawsOfUrsoc();
+void AddSC_GHanir();
+void AddSC_Titanstrike();
+void AddSC_Thasdorah();
+void AddSC_Talonclaw();
+void AddSC_FistsOfTheHeavens();
+void AddSC_LightsWrath();
+void AddSC_Xalatath();
+void AddSC_FistOfRaden();
+void AddSC_Doomhammer();
+void AddSC_Ulthalesh();
+void AddSC_SkullOfTheManari();
+void AddSC_ScepterOfSargeras();
+void AddSC_Stromkar();
 void AddSC_AssaultBrokenShore();
 void AddSC_instance_AssaultBrokenShore();
 void AddSC_InvasionAzsuna();
@@ -420,7 +453,32 @@ void AddLegionScripts()
     AddSC_instance_sharasdal();
     AddSC_monk_intro_scenario();
     AddSC_Sheylun();
-    AddSC_instance_class_art_scenarios();
+    AddSC_instance_dreadblades();
+    AddSC_Felomelorn();
+    AddSC_Aluneth();
+    AddSC_instance_faronaar();
+    AddSC_instance_ruins_of_falanaar();
+    AddSC_panic_at_the_brewery();
+    AddSC_instance_remember_the_sunwell();
+    AddSC_DH_havoc_art_scenario();
+    AddSC_MawOfTheDamned();
+    AddSC_BladesOfTheFallenPrince();
+    AddSC_Apocalypse();
+    AddSC_ScytheOfElune();
+    AddSC_ClawsOfUrsoc();
+    AddSC_GHanir();
+    AddSC_Titanstrike();
+    AddSC_Thasdorah();
+    AddSC_Talonclaw();
+    AddSC_FistsOfTheHeavens();
+    AddSC_LightsWrath();
+    AddSC_Xalatath();
+    AddSC_FistOfRaden();
+    AddSC_Doomhammer();
+    AddSC_Ulthalesh();
+    AddSC_SkullOfTheManari();
+    AddSC_ScepterOfSargeras();
+    AddSC_Stromkar();
     AddSC_AssaultBrokenShore();
     AddSC_instance_AssaultBrokenShore();
     AddSC_InvasionAzsuna();
