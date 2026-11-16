@@ -371,7 +371,13 @@ void AuraApplication::ClientUpdate(bool remove)
     BuildUpdatePacket(auraInfo, remove);
     update.Auras.push_back(auraInfo);
 
-    _target->SendMessageToSet(update.Write(), true);
+    if (GetBase()->GetSpellInfo()->HasAttribute(SPELL_ATTR1_CU_VISIBLE_TO_OWNER_ONLY))
+    {
+        if (Player* player = _target->ToPlayer())
+            player->SendDirectMessage(update.Write());
+    }
+    else
+        _target->SendMessageToSet(update.Write(), true);
     if (!remove && _target->IsPlayer())
     {
         WorldPackets::Spells::LossOfControlAuraUpdate lossOfControl;

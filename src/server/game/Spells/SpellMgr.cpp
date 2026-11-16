@@ -4056,6 +4056,12 @@ void SpellMgr::LoadSpellCustomAttr()
         spellInfo->Effects[EFFECT_0]->TargetA = TARGET_UNIT_CASTER;
     });
 
+    // timewalking markers of the week: an information for the player, not shown on him to others
+    ApplySpellFix({ 193101, 193102, 201001, 233495, 233503 }, [](SpellInfo* spellInfo)
+    {
+        spellInfo->AttributesCu[1] |= SPELL_ATTR1_CU_VISIBLE_TO_OWNER_ONLY;
+    });
+
     ApplySpellFix({6203,  // Soulstone
         2641 // Dismiss Pet
     }, [](SpellInfo* spellInfo)

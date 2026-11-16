@@ -31142,6 +31142,9 @@ void Player::SendAurasForTarget(Unit* target)
 
     for (AuraApplication* auraApp : visibleAuras)
     {
+        if (target != this && auraApp->GetBase()->GetSpellInfo()->HasAttribute(SPELL_ATTR1_CU_VISIBLE_TO_OWNER_ONLY))
+            continue;
+
         WorldPackets::Spells::AuraInfo auraInfo;
         auraApp->BuildUpdatePacket(auraInfo, false);
         auraApp->BuildLossOfControlPacket(lossOfControl);

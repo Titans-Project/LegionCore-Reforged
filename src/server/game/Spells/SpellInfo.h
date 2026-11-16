@@ -218,6 +218,7 @@ enum SpellCustomAttributes1
     SPELL_ATTR1_CU_IS_USING_STACKS         = 0x00000001,
     SPELL_ATTR1_CU_CANT_USE_WHEN_ROOTED    = 0x00000002,
     SPELL_ATTR1_CU_USE_PATH_CHECK_FOR_CAST = 0x00000004,
+    SPELL_ATTR1_CU_VISIBLE_TO_OWNER_ONLY   = 0x00000008, // an information aura: other players do not receive it
 };
 
 enum SpellTypes
