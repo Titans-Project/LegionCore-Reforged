@@ -7821,8 +7821,9 @@ void ObjectMgr::LoadScenarioData()
 
             uint8 i = 0;
             uint32 ScenarioID = fields[i++].GetUInt32();
-            ScenarioData& data = _scenarioData[ScenarioID];
-            data.MapID = fields[i++].GetUInt32();
+            uint32 MapID = fields[i++].GetUInt32();
+            ScenarioData& data = _scenarioData[(uint64(MapID) << 32) | ScenarioID];
+            data.MapID = MapID;
             data.DifficultyID = fields[i++].GetUInt32();
             data.Team = fields[i++].GetUInt32();
             data.Class = fields[i++].GetUInt32();
