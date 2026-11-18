@@ -17,6 +17,7 @@
 #include "AchievementMgr.h"
 #include "Challenge.h"
 #include <safe_ptr.h>
+#include <unordered_set>
 
 class Challenge;
 
@@ -102,7 +103,22 @@ public:
     // the client keeps showing it complete while bonus steps ordered after the last main one are walked
     void SetCompleteThroughBonusSteps(bool value) { _completeThroughBonusSteps = value; }
 
+    // the step reached is kept for each player of a scenario map: a reconnection or a restart resumes there
+    void RestoreSavedStep(Player* player);
+    void ForgetSavedStep(Player* player) const;
+    bool KeepsProgress() const;
+    // the scenario of this map when it keeps its progress, else nullptr
+    static Scenario* KeepingProgressOn(Map* map);
+    // what was done in the finished steps stays done: placed creatures killed, objects used (type 0 and 1)
+    void RecordDoneSpawn(uint8 type, uint64 spawn);
+    bool IsDoneGameObject(uint64 spawn) const { return _doneGameObjects.count(spawn) != 0; }
+
 protected:
+    void SaveStep() const;
+    void RestoreDoneSpawns(Player* player, uint8 step);
+    bool _restoringStep = false;
+    std::unordered_set<uint64> _doneGameObjects;
+
     Challenge* _challenge;
     ScenarioEntry const* _scenarioEntry;
     std::map<ScenarioStepEntry const*, ScenarioStepState> _stepStates;

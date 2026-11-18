@@ -32,6 +32,7 @@
 #include "MapManager.h"
 #include "MiscPackets.h"
 #include "ObjectMgr.h"
+#include "ScenarioMgr.h"
 #include "ObjectVisitors.hpp"
 #include "OutdoorPvPMgr.h"
 #include "PlayerDefines.h"
@@ -1005,6 +1006,18 @@ bool GameObject::LoadGameObjectFromDB(ObjectGuid::LowType guid, Map* map, bool a
     if (!Create(guid, entry, map, data->phaseMask, Position(data->posX, data->posY, data->posZ, data->orientation), data->rotation, data->animprogress, static_cast<GOState>(data->go_state), data->artKit, data->AiID, data))
         return false;
 
+    // a resumed quest scenario: the object was used in a step already finished (Scenario::RestoreDoneSpawns)
+    if (Scenario* scenario = Scenario::KeepingProgressOn(map))
+        if (scenario->IsDoneGameObject(m_DBTableGuid))
+        {
+            SetGoState(GO_STATE_ACTIVE);
+            if (GetGoType() == GAMEOBJECT_TYPE_GOOBER || GetGoType() == GAMEOBJECT_TYPE_CHEST)
+            {
+                m_lootState = GO_NOT_READY;
+                SetFlag(GAMEOBJECT_FIELD_FLAGS, GO_FLAG_NOT_SELECTABLE);
+            }
+        }
+
     SetPhaseId(data->PhaseID, false);
 
     if (data->spawntimesecs >= 0)
@@ -1537,6 +1550,11 @@ void GameObject::UseDoorOrButton(uint32 time_to_restore, bool alternative /* = f
     SwitchDoorOrButton(true, alternative);
     SetLootState(GO_ACTIVATED, user);
 
+    // a door opened for good in a quest scenario stays open once its step is over
+    if (m_DBTableGuid && !time_to_restore)
+        if (Scenario* scenario = Scenario::KeepingProgressOn(GetMap()))
+            scenario->RecordDoneSpawn(1, m_DBTableGuid);
+
     if (GetGoType() == GAMEOBJECT_TYPE_DOOR)
         AI()->OnStateChanged(GO_ACTIVATED, user);
 
@@ -1610,6 +1628,11 @@ void GameObject::Use(Unit* user)
     Unit* spellCaster = user;
     uint32 spellId = 0;
     bool triggered = false;
+
+    // in a quest scenario, an object a player used stays used once its step is over
+    if (m_DBTableGuid && user->IsPlayer() && (GetGoType() == GAMEOBJECT_TYPE_GOOBER || GetGoType() == GAMEOBJECT_TYPE_CHEST))
+        if (Scenario* scenario = Scenario::KeepingProgressOn(GetMap()))
+            scenario->RecordDoneSpawn(1, m_DBTableGuid);
 
     if (Player* playerUser = user->ToPlayer())
     {

@@ -3664,11 +3664,10 @@ bool InstanceMap::AddPlayerToMap(Player* player, bool initPlayer /*= true*/)
             else
             {
                 // set up a solo bind or continue using it
+                // a quest scenario is bound as well: a reconnection comes back to the same instance, as it was left
+                // (leaving it on purpose unbinds, InstanceMap::RemovePlayerFromMap)
                 if (!playerBind.save || IsGarrison())
-                {
-                    if (!IsScenario())
-                        player->BindToInstance(mapSave, false);
-                }
+                    player->BindToInstance(mapSave, false);
                 else if (playerBind.save && playerBind.save->SaveIsOld() && !playerBind.save->GetExtended())
                 {
                     player->UnbindInstance(GetId(), GetDifficultyID());
@@ -3765,6 +3764,16 @@ void InstanceMap::RemovePlayerFromMap(Player* player, bool remove)
     //if last player set unload timer
     if (!m_unloadTimer && m_mapRefManager.getSize() == 1)
         m_unloadTimer = m_unloadWhenEmpty ? MIN_UNLOAD_DELAY : std::max(sWorld->getIntConfig(CONFIG_INSTANCE_UNLOAD_DELAY), static_cast<uint32>(MIN_UNLOAD_DELAY));
+
+    // leaving a quest scenario on purpose starts it over next time; a disconnection, or a death that sends the ghost
+    // out, keeps the instance and the step reached
+    if (IsScenario() && !player->GetSession()->PlayerLogout() && player->IsAlive())
+    {
+        if (Scenario* scenario = Scenario::KeepingProgressOn(this))
+            scenario->ForgetSavedStep(player);
+        if (!player->GetGroup())
+            player->UnbindInstance(GetId(), GetDifficultyID());
+    }
 
     Map::RemovePlayerFromMap(player, remove);
     // for normal instances schedule the reset after all players have left

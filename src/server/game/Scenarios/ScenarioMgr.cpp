@@ -103,6 +103,7 @@ Scenario* ScenarioMgr::AddScenario(Map* map, lfg::LFGDungeonData const* dungeonD
     }
 
     map->m_scenarios.insert(scenario);
+    scenario->RestoreSavedStep(player);
     return scenario;
 }
 

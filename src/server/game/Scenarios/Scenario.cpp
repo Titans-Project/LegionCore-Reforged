@@ -20,6 +20,26 @@
 #include "InstanceScript.h"
 #include "QuestData.h"
 #include "OutdoorPvP.h"
+#include "Log.h"
+#include "DatabaseEnv.h"
+#include "GameTime.h"
+#include "ObjectMgr.h"
+#include <algorithm>
+
+namespace
+{
+    // steps are indexed by OrderIndex, so the vector can hold holes
+    ScenarioStepEntry const* GetStepAt(ScenarioSteps const& steps, size_t index)
+    {
+        return index < steps.size() ? steps[index] : nullptr;
+    }
+
+    void AddActiveStep(std::vector<uint32>& activeSteps, ScenarioStepEntry const* step)
+    {
+        if (step && std::find(activeSteps.begin(), activeSteps.end(), step->ID) == activeSteps.end())
+            activeSteps.push_back(step->ID);
+    }
+}
 
 Scenario::Scenario(Map* map, lfg::LFGDungeonData const* _dungeonData, Player* player, bool find) : m_achievementMgr(this)
 {
@@ -293,10 +313,155 @@ uint8 Scenario::GetStepCount(bool withBonus) const
     return count;
 }
 
+bool Scenario::KeepsProgress() const
+{
+    // quest scenarios only: not a dungeon's boss list, a keystone or a garrison invasion
+    return curMap && dungeonData && curMap->IsScenario() && !curMap->isChallenge();
+}
+
+void Scenario::SaveStep() const
+{
+    if (_restoringStep || !KeepsProgress())
+        return;
+
+    if (IsCompleted(false))
+    {
+        curMap->ApplyOnEveryPlayer([this](Player* player) { ForgetSavedStep(player); });
+        return;
+    }
+
+    uint32 const id = scenarioId;
+    uint8 const step = currentStep;
+    curMap->ApplyOnEveryPlayer([id, step](Player* player)
+    {
+        CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_REP_CHARACTER_SCENARIO_STEP);
+        stmt->setUInt64(0, player->GetGUIDLow());
+        stmt->setUInt32(1, id);
+        stmt->setUInt8(2, step);
+        CharacterDatabase.Execute(stmt);
+    });
+}
+
+Scenario* Scenario::KeepingProgressOn(Map* map)
+{
+    if (!map || !map->IsScenario())
+        return nullptr;
+
+    Scenario* scenario = sScenarioMgr->GetScenario(map->GetInstanceId());
+    return scenario && scenario->GetMap() == map && scenario->KeepsProgress() ? scenario : nullptr;
+}
+
+void Scenario::RecordDoneSpawn(uint8 type, uint64 spawn)
+{
+    if (!spawn || !KeepsProgress())
+        return;
+
+    uint32 const id = scenarioId;
+    uint8 const step = currentStep;
+    curMap->ApplyOnEveryPlayer([id, step, type, spawn](Player* player)
+    {
+        CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_REP_CHARACTER_SCENARIO_SPAWN);
+        stmt->setUInt64(0, player->GetGUIDLow());
+        stmt->setUInt32(1, id);
+        stmt->setUInt8(2, type);
+        stmt->setUInt64(3, spawn);
+        stmt->setUInt8(4, step);
+        CharacterDatabase.Execute(stmt);
+    });
+}
+
+// before the grids load: what was killed in a finished step does not come back, what was used is set as it was left
+void Scenario::RestoreDoneSpawns(Player* player, uint8 step)
+{
+    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHARACTER_SCENARIO_SPAWNS);
+    stmt->setUInt64(0, player->GetGUIDLow());
+    stmt->setUInt32(1, scenarioId);
+    stmt->setUInt8(2, step);
+    PreparedQueryResult result = CharacterDatabase.Query(stmt);
+    if (!result)
+        return;
+
+    time_t const gone = GameTime::GetGameTime() + WEEK;
+    do
+    {
+        Field* fields = result->Fetch();
+        uint8 const type = fields[0].GetUInt8();
+        uint64 const spawn = fields[1].GetUInt64();
+
+        if (type == 0)
+        {
+            if (sObjectMgr->GetCreatureData(spawn))
+                curMap->SaveCreatureRespawnTime(spawn, gone);
+            continue;
+        }
+
+        GameObjectData const* data = sObjectMgr->GetGOData(spawn);
+        GameObjectTemplate const* goInfo = data ? sObjectMgr->GetGameObjectTemplate(data->id) : nullptr;
+        if (!goInfo)
+            continue;
+
+        // an object taken away at use stays away; the others keep their used state (GameObject::LoadGameObjectFromDB)
+        if (goInfo->GetDespawnPossibility() || goInfo->IsDespawnAtAction())
+            curMap->SaveGORespawnTime(spawn, gone);
+        else
+            _doneGameObjects.insert(spawn);
+    }
+    while (result->NextRow());
+}
+
+void Scenario::ForgetSavedStep(Player* player) const
+{
+    if (!player || !KeepsProgress())
+        return;
+
+    for (CharacterDatabaseStatements index : { CHAR_DEL_CHARACTER_SCENARIO_STEP, CHAR_DEL_CHARACTER_SCENARIO_SPAWNS })
+    {
+        CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(index);
+        stmt->setUInt64(0, player->GetGUIDLow());
+        stmt->setUInt32(1, scenarioId);
+        CharacterDatabase.Execute(stmt);
+    }
+}
+
+void Scenario::RestoreSavedStep(Player* player)
+{
+    if (!player || !KeepsProgress() || steps.empty())
+        return;
+
+    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHARACTER_SCENARIO_STEP);
+    stmt->setUInt64(0, player->GetGUIDLow());
+    stmt->setUInt32(1, scenarioId);
+    PreparedQueryResult result = CharacterDatabase.Query(stmt);
+    if (!result)
+        return;
+
+    uint8 const step = (*result)[0].GetUInt8();
+    if (step <= currentStep || step >= GetStepCount(false))
+        return;
+
+    // the steps before it are done; the one reached starts over from its beginning
+    for (uint8 i = 0; i < step; ++i)
+        if (ScenarioStepEntry const* done = GetStepAt(steps, i))
+        {
+            SetStepState(done, SCENARIO_STEP_DONE);
+            AddActiveStep(ActiveSteps, done);
+        }
+
+    _restoringStep = true;
+    SetCurrentStep(step);
+    _restoringStep = false;
+
+    if (ScenarioStepEntry const* reached = GetStepAt(steps, step))
+        SetStepState(reached, SCENARIO_STEP_IN_PROGRESS);
+
+    RestoreDoneSpawns(player, step);
+}
+
 void Scenario::SetCurrentStep(uint8 step)
 {
     currentStep = step;
     currentTree = GetScenarioCriteriaByStep(currentStep);
+    SaveStep();
 
     SendStepUpdate();
 
@@ -368,6 +533,7 @@ void Scenario::UpdateCurrentStep(bool loading)
         }
 
         SendStepUpdate();
+        SaveStep();
 
         if (IsCompleted(false))
             Reward(false, oldStep);

@@ -859,6 +859,15 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     PrepareStatement(CHAR_SEL_NUM_ACCOUNT_CHARS_REACHED_LEVEL, "SELECT COUNT(guid) FROM characters WHERE account = ? AND level >= ?", CONNECTION_BOTH);
 
     PrepareStatement(CHAR_UPD_SPECIALIZATION, "UPDATE characters SET specialization = ? WHERE guid = ?", CONNECTION_ASYNC);
+
+    PrepareStatement(CHAR_SEL_CHARACTER_SCENARIO_STEP, "SELECT step FROM character_scenario_step WHERE guid = ? AND scenario = ?", CONNECTION_SYNCH);
+    PrepareStatement(CHAR_REP_CHARACTER_SCENARIO_STEP, "REPLACE INTO character_scenario_step (guid, scenario, step) VALUES (?, ?, ?)", CONNECTION_ASYNC);
+    PrepareStatement(CHAR_DEL_CHARACTER_SCENARIO_STEP, "DELETE FROM character_scenario_step WHERE guid = ? AND scenario = ?", CONNECTION_ASYNC);
+    PrepareStatement(CHAR_DEL_CHARACTER_SCENARIO_STEPS, "DELETE FROM character_scenario_step WHERE guid = ?", CONNECTION_ASYNC);
+    PrepareStatement(CHAR_SEL_CHARACTER_SCENARIO_SPAWNS, "SELECT type, spawn FROM character_scenario_spawn WHERE guid = ? AND scenario = ? AND step < ?", CONNECTION_SYNCH);
+    PrepareStatement(CHAR_REP_CHARACTER_SCENARIO_SPAWN, "REPLACE INTO character_scenario_spawn (guid, scenario, type, spawn, step) VALUES (?, ?, ?, ?, ?)", CONNECTION_ASYNC);
+    PrepareStatement(CHAR_DEL_CHARACTER_SCENARIO_SPAWNS, "DELETE FROM character_scenario_spawn WHERE guid = ? AND scenario = ?", CONNECTION_ASYNC);
+    PrepareStatement(CHAR_DEL_CHARACTER_SCENARIO_SPAWNS_ALL, "DELETE FROM character_scenario_spawn WHERE guid = ?", CONNECTION_ASYNC);
 }
 
 CharacterDatabaseConnection::CharacterDatabaseConnection(MySQLConnectionInfo& connInfo, ConnectionFlags connectionFlags) : MySQLConnection(connInfo, connectionFlags)

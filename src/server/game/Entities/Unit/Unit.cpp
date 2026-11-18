@@ -22294,6 +22294,12 @@ void Unit::Kill(Unit* victim, bool durabilityLoss, SpellInfo const* spellProto)
         victim->setDeathState(JUST_DIED);
     }
 
+    // in a quest scenario, a placed creature killed stays dead once its step is over
+    if (Creature* fallen = victim->ToCreature())
+        if (fallen->GetDBTableGUIDLow())
+            if (Scenario* scenario = Scenario::KeepingProgressOn(victim->GetMap()))
+                scenario->RecordDoneSpawn(0, fallen->GetDBTableGUIDLow());
+
     if (Creature* crt = victim->ToCreature())
         if (CreatureAI* ai = crt->AI())
             ai->ComonOnHome();

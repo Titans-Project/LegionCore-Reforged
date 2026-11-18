@@ -254,33 +254,14 @@ public:
             });
         }
 
-        // the step reached survives a server restart: a new instance resumes there
-        void SaveStep(uint8 step)
-        {
-            instance->ApplyOnEveryPlayer([step](Player* player)
-            {
-                CharacterDatabase.PExecute("REPLACE INTO character_scenario_step (guid, scenario, step) VALUES (" UI64FMTD ", %u, %u)",
-                    uint64(player->GetGUIDLow()), uint32(SCENARIO_SHATTRATH), uint32(step));
-            });
-        }
-
+        // the scenario resumed at the step saved for the player (Scenario::RestoreSavedStep): the battlefield is set to match
         void RestoreStep(Scenario* scenario)
         {
-            Player* player = GetReferencePlayer();
-            if (!player)
-                return;
-
             _restoreChecked = true;
-            QueryResult result = CharacterDatabase.PQuery("SELECT step FROM character_scenario_step WHERE guid = " UI64FMTD " AND scenario = %u",
-                uint64(player->GetGUIDLow()), uint32(SCENARIO_SHATTRATH));
-            if (!result)
+            uint8 step = scenario->GetCurrentStep();
+            if (!step || step > STEP_BLACKHAND)
                 return;
 
-            uint8 step = result->Fetch()[0].GetUInt8();
-            if (step <= scenario->GetCurrentStep() || step > STEP_BLACKHAND)
-                return;
-
-            scenario->SetCurrentStep(step);
             // the harbor is already cleared: the heroes wait at the flagship's pier
             if (step >= STEP_THE_WEAPON)
             {
@@ -300,8 +281,6 @@ public:
 
         void OnStepChanged(uint8 step)
         {
-            SaveStep(step);
-
             switch (step)
             {
                 case STEP_IRON_HARBOR:
@@ -617,8 +596,6 @@ public:
             _filmTimer = 3 * MINUTE * IN_MILLISECONDS;
             instance->ApplyOnEveryPlayer([](Player* player)
             {
-                CharacterDatabase.PExecute("DELETE FROM character_scenario_step WHERE guid = " UI64FMTD " AND scenario = %u",
-                    uint64(player->GetGUIDLow()), uint32(SCENARIO_SHATTRATH));
                 player->SendMovieStart(MOVIE_BATTLE_FOR_SHATTRATH);
             });
         }
