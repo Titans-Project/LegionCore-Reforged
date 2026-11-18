@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
 */
 
@@ -165,14 +173,13 @@ struct npc_fshoo : ScriptedAI
                     events.RescheduleEvent(EVENT_1, 3000);
                     break;
                 case EVENT_2:
+                    timeCount = 3;
                     if (Aura* aura = me->GetAura(235202))
                     {
-                        if (aura->GetStackAmount() > 100)
+                        if (aura->GetStackAmount() >= 100)
                             timeCount = 5;
-                        else if (aura->GetStackAmount() >= 50 && aura->GetStackAmount() < 100)
+                        else if (aura->GetStackAmount() >= 50)
                             timeCount = 4;
-                        else if (aura->GetStackAmount() < 50 || !me->HasAura(235202))
-                            timeCount = 3;
 
                         if (aura->GetStackAmount() >= 30 && aura->GetStackAmount() <= 50)
                             me->SetDisplayId(74773);
