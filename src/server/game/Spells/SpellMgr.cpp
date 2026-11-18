@@ -4069,6 +4069,13 @@ void SpellMgr::LoadSpellCustomAttr()
         spellInfo->Effects[EFFECT_0]->TargetB = TARGET_DEST_DB;
     });
 
+    // The Hunt: the Shadow Portal Varedis leaves through is only its look, without its shadow bolts every second
+    ApplySpellFix({ 200604 }, [](SpellInfo* spellInfo)
+    {
+        spellInfo->Effects[EFFECT_0]->ApplyAuraName = SPELL_AURA_DUMMY;
+        spellInfo->Effects[EFFECT_0]->TriggerSpell = 0;
+    });
+
     // Chaos Bomb (Felsoul Obliterator) and the doomlords' fel bolt (The Hunt): fired at the Illidari bats over Felsoul Hold;
     // the channel they aim at does not exist on this core, they go to the point they are cast at
     ApplySpellFix({ 189716, 200740 }, [](SpellInfo* spellInfo)
