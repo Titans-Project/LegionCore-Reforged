@@ -230,6 +230,8 @@ public:
     uint8 GetZoneIndexByZoneId(uint32 zoneId) const;
     std::string GetStatusString() const;
     bool IsInitialized() const { return m_initialized; }
+    // until the next rotation: the end of the invasions in progress (rhythms 1 and 2), or the next start
+    uint32 GetRotationTimeLeft() const { return m_rotationTimer; }
 
     // Static helpers
     static const DemonInvasionZoneInfo& GetZoneInfo(uint8 index);

@@ -8,7 +8,12 @@
 
 /*
  * Demon Invasion Prepatch - Legion Pre-expansion Event
- * Implementation: DemonInvasionMgr, OutdoorPvP handlers, GM commands
+ * Implementation: DemonInvasionMgr, OutdoorPvP handlers, GM commands, the .demoninvasion player command
+ *
+ * World map markers: the invaded zones are shown on the world map only with the AreaPOI rows 5565-5570, which the
+ * 7.3.5 client files no longer have (they were removed after 7.0) and which a hotfix cannot add, the client listing its
+ * map points when it loads the file. Without that file served to the client (CASCHost), no portal nor outline shows
+ * on the map: the players learn where the invasions are from the announcements in game and from .demoninvasion.
  */
 
 #include "DemonInvasion.h"
@@ -21,6 +26,7 @@
 #include "Player.h"
 #include "World.h"
 #include "Log.h"
+#include "DB2Stores.h"
 #include "Creature.h"
 #include "DatabaseEnv.h"
 #include "Item.h"
@@ -1208,9 +1214,56 @@ public:
         static std::vector<ChatCommand> commandTable =
         {
             { "invasion", SEC_GAMEMASTER, false, NULL, "", invasionCommandTable },
+            { "demoninvasion", SEC_PLAYER, false, &HandleDemonInvasionCommand, "" },
         };
 
         return commandTable;
+    }
+
+    // .demoninvasion, for every player: where the demons are, at which stage and for how long, or when they come next
+    static bool HandleDemonInvasionCommand(ChatHandler* handler, char const* /*args*/)
+    {
+        LocaleConstant const locale = handler->GetSessionDbcLocale();
+        bool const french = locale == LOCALE_frFR;
+
+        if (!sWorld->getBoolConfig(CONFIG_DEMON_INVASION_PREPATCH_ENABLE) || !sDemonInvasionMgr->IsInitialized())
+        {
+            handler->SendSysMessage(french ? "Aucune invasion démoniaque n'a lieu en ce moment." : "No demon invasion is taking place.");
+            return true;
+        }
+
+        static char const* const stageFr[DI_STAGE_MAX] = { "", "défendre", "le commandant et ses lieutenants", "repousser les démons", "le seigneur démon" };
+        static char const* const stageEn[DI_STAGE_MAX] = { "", "defend", "the commander and his lieutenants", "push the demons back", "the demon lord" };
+
+        uint8 const week = DemonInvasionMgr::GetInvasionWeek();
+        std::string const timeLeft = secsToTimeString(sDemonInvasionMgr->GetRotationTimeLeft() / IN_MILLISECONDS, true);
+
+        uint32 active = 0;
+        for (uint8 i = 0; i < DI_ZONE_MAX; ++i)
+        {
+            if (!sDemonInvasionMgr->IsZoneActive(i))
+                continue;
+
+            ++active;
+            DemonInvasionZoneInfo const& info = DemonInvasionMgr::GetZoneInfo(i);
+            AreaTableEntry const* area = sAreaTableStore.LookupEntry(info.zoneId);
+            char const* zoneName = area ? area->AreaName->Str[locale] : info.name;
+            uint8 const stage = sDemonInvasionMgr->GetZoneStage(i);
+            char const* stageName = stage < DI_STAGE_MAX ? (french ? stageFr[stage] : stageEn[stage]) : "";
+
+            // the third rhythm keeps every zone invaded until it is pushed back: no end to tell
+            if (week >= 3)
+                handler->PSendSysMessage(french ? "|cFFFF4040%s|r : %s, jusqu'à ce que la zone soit repoussée." : "|cFFFF4040%s|r: %s, until the zone is pushed back.", zoneName, stageName);
+            else
+                handler->PSendSysMessage(french ? "|cFFFF4040%s|r : %s, encore %s." : "|cFFFF4040%s|r: %s, %s left.", zoneName, stageName, timeLeft.c_str());
+        }
+
+        if (!active)
+            handler->PSendSysMessage(french ? "Aucune invasion démoniaque en cours. La prochaine commence dans %s." : "No demon invasion in progress. The next one starts in %s.", timeLeft.c_str());
+        else if (week >= 3 && active < DI_ZONE_MAX)
+            handler->PSendSysMessage(french ? "Les zones repoussées sont de nouveau envahies dans %s." : "The zones pushed back are invaded again in %s.", timeLeft.c_str());
+
+        return true;
     }
 
     // .invasion start [zoneId]
