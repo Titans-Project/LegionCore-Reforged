@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
 */
 
@@ -141,9 +149,10 @@ struct npc_astralaire : ScriptedAI
                 events.RescheduleEvent(EVENT_6, 1000);
                 break;
             case EVENT_6:
+                creatureList.clear();
                 me->GetCreatureListWithEntryInGrid(creatureList, 122138, 50.0f);
-                if (!creatureList.empty())
-                    for (auto& cre : creatureList)
+                for (auto& cre : creatureList)
+                    if (cre->AI())
                         cre->AI()->Talk(0);
 
                 events.RescheduleEvent(EVENT_7, 4000);
@@ -256,9 +265,10 @@ struct npc_dramock: ScriptedAI
                 break;
             case EVENT_5:
                 useEvent = false;
+                playerList.clear();
 
-                if (!playerList.empty())
-                    for (auto& player : playerList)
+                for (auto& guid : playerGUIDs)
+                    if (Player* player = ObjectAccessor::GetPlayer(*me, guid))
                         player->KilledMonsterCredit(me->GetEntry());
                 break;
             }
@@ -395,7 +405,7 @@ struct npc_moonkin_hatchling_pet : ScriptedAI
     explicit npc_moonkin_hatchling_pet(Creature* creature) : ScriptedAI(creature) {}
 
     uint32 checking;
-    uint32 SpellVisualCast;
+    uint32 SpellVisualCast = 0;
 
     void Reset() override
     {
@@ -521,7 +531,7 @@ class spell_item_beanie_boomie : public SpellScript
 
     void Register() override
     {
-        OnEffectHitTarget += SpellEffectFn(spell_item_beanie_boomie::HandleOnHit, EFFECT_0, SPELL_EFFECT_TRIGGER_SPELL);
+        OnEffectLaunch += SpellEffectFn(spell_item_beanie_boomie::HandleOnHit, EFFECT_0, SPELL_EFFECT_TRIGGER_SPELL);
     }
 };
 
