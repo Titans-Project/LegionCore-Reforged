@@ -4078,6 +4078,13 @@ void SpellMgr::LoadSpellCustomAttr()
         spellInfo->Effects[EFFECT_0]->TargetB = TARGET_NONE;
     });
 
+    // Felsoul ward beam (The Hunt): cast from one ward bunny to the next; the nearby-entry target of the data picked the
+    // caster itself, so the bunny's script gives the target
+    ApplySpellFix({ 189204 }, [](SpellInfo* spellInfo)
+    {
+        spellInfo->Effects[EFFECT_0]->TargetA = TARGET_UNIT_TARGET_ANY;
+    });
+
     ApplySpellFix({6203,  // Soulstone
         2641 // Dismiss Pet
     }, [](SpellInfo* spellInfo)
