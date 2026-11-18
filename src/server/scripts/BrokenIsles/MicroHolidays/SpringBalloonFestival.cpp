@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
 */
 
@@ -163,6 +171,19 @@ enum eSpells
     SPELL_JUNIOR_BALLONER_PREPAREDNESS_KIT  = 236323
 };
 
+// players who left the giver, lost their waiting aura or logged out leave the queue; each one counts once
+static void PruneBalloonQueue(Creature* giver, std::list<ObjectGuid>& queue)
+{
+    queue.remove_if([giver](ObjectGuid const& guid) -> bool
+    {
+        Player* player = ObjectAccessor::GetPlayer(*giver, guid);
+        return !player || !player->HasAura(SPELL_WAINTING_FOR_BALLOON) || !player->IsInDist2d(giver, 20.0f);
+    });
+
+    std::set<ObjectGuid> seen;
+    queue.remove_if([&seen](ObjectGuid const& guid) -> bool { return !seen.insert(guid).second; });
+}
+
 struct npc_chens : ScriptedAI
 {
     npc_chens(Creature* creature) : ScriptedAI(creature) {}
@@ -221,6 +242,7 @@ struct npc_chens : ScriptedAI
         {
             if (timer <= diff)
             {
+                PruneBalloonQueue(me, guidList);
                 if (!guidList.empty())
                 {
                     if (guidList.size() >= 3)
@@ -316,6 +338,7 @@ struct npc_scgnottz : ScriptedAI
         {
             if (timer <= diff)
             {
+                PruneBalloonQueue(me, guidList);
                 if (!guidList.empty())
                 {
                     if (guidList.size() >= 3)
@@ -345,11 +368,11 @@ struct npc_scgnottz : ScriptedAI
                         }
                     }
                 }
+                timer = 2000;
             }
-            timer = 2000;
+            else
+                timer -= diff;
         }
-        else
-            timer -= diff;
     }
 };
 
@@ -411,6 +434,7 @@ struct npc_lin_cloudwalker : ScriptedAI
         {
             if (timer <= diff)
             {
+                PruneBalloonQueue(me, guidList);
                 if (!guidList.empty())
                 {
                     if (guidList.size() >= 3)
@@ -507,6 +531,7 @@ struct npc_rungle : ScriptedAI
         {
             if (timer <= diff)
             {
+                PruneBalloonQueue(me, guidList);
                 if (!guidList.empty())
                 {
                     if (guidList.size() >= 3)
@@ -602,6 +627,7 @@ struct npc_zang_cloudwalker : ScriptedAI
         {
             if (timer <= diff)
             {
+                PruneBalloonQueue(me, guidList);
                 if (!guidList.empty())
                 {
                     if (guidList.size() >= 3)
@@ -697,6 +723,7 @@ struct npc_hemet_nesingwary : ScriptedAI
         {
             if (timer <= diff)
             {
+                PruneBalloonQueue(me, guidList);
                 if (!guidList.empty())
                 {
                     if (guidList.size() >= 3)
@@ -792,6 +819,7 @@ struct npc_emi_lan : ScriptedAI
         {
             if (timer <= diff)
             {
+                PruneBalloonQueue(me, guidList);
                 if (!guidList.empty())
                 {
                     if (guidList.size() >= 3)
@@ -878,18 +906,21 @@ struct npc_chens_vh : ScriptedAI
                 events.RescheduleEvent(EVENT_8, 9000);
                 break;
             case EVENT_8:
-                if (auto owner = me->GetAnyOwner())
-                    owner->GetAI()->DoAction(ACTION_1);
+                if (Unit* owner = me->GetAnyOwner())
+                    if (UnitAI* ownerAI = owner->GetAI())
+                        ownerAI->DoAction(ACTION_1);
                 events.RescheduleEvent(EVENT_9, 35000);
                 break;
             case EVENT_9:
-                if (auto owner = me->GetAnyOwner())
-                    owner->GetAI()->DoAction(ACTION_2);
+                if (Unit* owner = me->GetAnyOwner())
+                    if (UnitAI* ownerAI = owner->GetAI())
+                        ownerAI->DoAction(ACTION_2);
                 events.RescheduleEvent(EVENT_10, 33000);
                 break;
             case EVENT_10:
-                if (auto owner = me->GetAnyOwner())
-                    owner->GetAI()->DoAction(ACTION_3);
+                if (Unit* owner = me->GetAnyOwner())
+                    if (UnitAI* ownerAI = owner->GetAI())
+                        ownerAI->DoAction(ACTION_3);
                 events.RescheduleEvent(EVENT_11, 35000);
                 break;
             case EVENT_11:
@@ -1085,8 +1116,8 @@ struct npc_scgnottz_ballon : ScriptedAI
     EventMap events;
     SummonList summon;
     std::list<ObjectGuid> playerList;
-    uint32 vote;
-    uint32 countPlayer;
+    uint32 vote = 0;
+    uint32 countPlayer = 0;
     ObjectGuid Schnottz;
 
     void IsSummonedBy(Unit* /*who*/) override
@@ -1141,8 +1172,9 @@ struct npc_scgnottz_ballon : ScriptedAI
             if (vote == countPlayer)
             {
                 Talk(SAY_LINE_BALLOON);
-                if (auto schnottz = me->FindNearestCreature(NPC_SCHNOTTZ_VH, 5.0f))
-                    schnottz->GetAI()->DoAction(ACTION_1);
+                if (Creature* schnottz = ObjectAccessor::GetCreature(*me, Schnottz))
+                    if (schnottz->AI())
+                        schnottz->AI()->DoAction(ACTION_1);
             }
             break;
         }
@@ -1252,18 +1284,21 @@ struct npc_lin_cloudwalker_vh : ScriptedAI
                 events.RescheduleEvent(EVENT_13, 6000);
                 break;
             case EVENT_13:
-                if (auto owner = me->GetAnyOwner())
-                    owner->GetAI()->DoAction(ACTION_1);
+                if (Unit* owner = me->GetAnyOwner())
+                    if (UnitAI* ownerAI = owner->GetAI())
+                        ownerAI->DoAction(ACTION_1);
                 events.RescheduleEvent(EVENT_14, 36000);
                 break;
             case EVENT_14:
-                if (auto owner = me->GetAnyOwner())
-                    owner->GetAI()->DoAction(ACTION_2);
+                if (Unit* owner = me->GetAnyOwner())
+                    if (UnitAI* ownerAI = owner->GetAI())
+                        ownerAI->DoAction(ACTION_2);
                 events.RescheduleEvent(EVENT_15, 35000);
                 break;
             case EVENT_15:
-                if (auto owner = me->GetAnyOwner())
-                    owner->GetAI()->DoAction(ACTION_3);
+                if (Unit* owner = me->GetAnyOwner())
+                    if (UnitAI* ownerAI = owner->GetAI())
+                        ownerAI->DoAction(ACTION_3);
                 events.RescheduleEvent(EVENT_16, 35000);
                 break;
             case EVENT_16:
@@ -1614,8 +1649,9 @@ struct npc_zang_cloudwalker_vh : ScriptedAI
                 events.RescheduleEvent(EVENT_4, 6000);
                 break;
             case EVENT_4:
-                if (auto owner = me->GetAnyOwner())
-                    owner->GetAI()->DoAction(ACTION_1);
+                if (Unit* owner = me->GetAnyOwner())
+                    if (UnitAI* ownerAI = owner->GetAI())
+                        ownerAI->DoAction(ACTION_1);
                 events.RescheduleEvent(EVENT_5, 11000);
                 break;
             case EVENT_5:
@@ -1623,13 +1659,15 @@ struct npc_zang_cloudwalker_vh : ScriptedAI
                 events.RescheduleEvent(EVENT_6, 6000);
                 break;
             case EVENT_6:
-                if (auto owner = me->GetAnyOwner())
-                    owner->GetAI()->DoAction(ACTION_2);
+                if (Unit* owner = me->GetAnyOwner())
+                    if (UnitAI* ownerAI = owner->GetAI())
+                        ownerAI->DoAction(ACTION_2);
                 events.RescheduleEvent(EVENT_7, 13000);
                 break;
             case EVENT_7:
-                if (auto owner = me->GetAnyOwner())
-                    owner->GetAI()->DoAction(ACTION_3);
+                if (Unit* owner = me->GetAnyOwner())
+                    if (UnitAI* ownerAI = owner->GetAI())
+                        ownerAI->DoAction(ACTION_3);
                 events.RescheduleEvent(EVENT_8, 12000);
                 break;
             case EVENT_8:
@@ -1645,8 +1683,9 @@ struct npc_zang_cloudwalker_vh : ScriptedAI
                 events.RescheduleEvent(EVENT_11, 7000);
                 break;
             case EVENT_11:
-                if (auto owner = me->GetAnyOwner())
-                    owner->GetAI()->DoAction(ACTION_4);
+                if (Unit* owner = me->GetAnyOwner())
+                    if (UnitAI* ownerAI = owner->GetAI())
+                        ownerAI->DoAction(ACTION_4);
                 events.RescheduleEvent(EVENT_12, 16000);
                 break;
             case EVENT_12:
@@ -1658,8 +1697,9 @@ struct npc_zang_cloudwalker_vh : ScriptedAI
                 events.RescheduleEvent(EVENT_14, 7000);
                 break;
             case EVENT_14:
-                if (auto owner = me->GetAnyOwner())
-                    owner->GetAI()->DoAction(ACTION_5);
+                if (Unit* owner = me->GetAnyOwner())
+                    if (UnitAI* ownerAI = owner->GetAI())
+                        ownerAI->DoAction(ACTION_5);
                 events.RescheduleEvent(EVENT_15, 16000);
                 break;
             case EVENT_15:
@@ -1667,8 +1707,9 @@ struct npc_zang_cloudwalker_vh : ScriptedAI
                 events.RescheduleEvent(EVENT_16, 11000);
                 break;
             case EVENT_16:
-                if (auto owner = me->GetAnyOwner())
-                    owner->GetAI()->DoAction(ACTION_6);
+                if (Unit* owner = me->GetAnyOwner())
+                    if (UnitAI* ownerAI = owner->GetAI())
+                        ownerAI->DoAction(ACTION_6);
                 events.RescheduleEvent(EVENT_17, 16000);
                 break;
             case EVENT_17:
@@ -1915,18 +1956,21 @@ struct npc_hemet_nesingwary_vh : ScriptedAI
                 events.RescheduleEvent(EVENT_10, 8000);
                 break;
             case EVENT_10:
-                if (auto owner = me->GetAnyOwner())
-                    owner->GetAI()->DoAction(ACTION_1);
+                if (Unit* owner = me->GetAnyOwner())
+                    if (UnitAI* ownerAI = owner->GetAI())
+                        ownerAI->DoAction(ACTION_1);
                 events.RescheduleEvent(EVENT_11, 4000);
                 break;
             case EVENT_11:
-                if (auto owner = me->GetAnyOwner())
-                    owner->GetAI()->DoAction(ACTION_2);
+                if (Unit* owner = me->GetAnyOwner())
+                    if (UnitAI* ownerAI = owner->GetAI())
+                        ownerAI->DoAction(ACTION_2);
                 events.RescheduleEvent(EVENT_12, 3000);
                 break;
             case EVENT_12:
-                if (auto owner = me->GetAnyOwner())
-                    owner->GetAI()->DoAction(ACTION_3);
+                if (Unit* owner = me->GetAnyOwner())
+                    if (UnitAI* ownerAI = owner->GetAI())
+                        ownerAI->DoAction(ACTION_3);
                 events.RescheduleEvent(EVENT_13, 60000);
                 break;
             case EVENT_13:
@@ -2097,8 +2141,9 @@ struct npc_emi_lan_vh : ScriptedAI
                 events.RescheduleEvent(EVENT_6, 7000);
                 break;
             case EVENT_6:
-                if (auto owner = me->GetAnyOwner())
-                    owner->GetAI()->DoAction(ACTION_1);
+                if (Unit* owner = me->GetAnyOwner())
+                    if (UnitAI* ownerAI = owner->GetAI())
+                        ownerAI->DoAction(ACTION_1);
                 events.RescheduleEvent(EVENT_7, 9000);
                 break;
             case EVENT_7:
@@ -2106,18 +2151,21 @@ struct npc_emi_lan_vh : ScriptedAI
                 events.RescheduleEvent(EVENT_8, 5000);
                 break;
             case EVENT_8:
-                if (auto owner = me->GetAnyOwner())
-                    owner->GetAI()->DoAction(ACTION_2);
+                if (Unit* owner = me->GetAnyOwner())
+                    if (UnitAI* ownerAI = owner->GetAI())
+                        ownerAI->DoAction(ACTION_2);
                 events.RescheduleEvent(EVENT_9, 9000);
                 break;
             case EVENT_9:
-                if (auto owner = me->GetAnyOwner())
-                    owner->GetAI()->DoAction(ACTION_3);
+                if (Unit* owner = me->GetAnyOwner())
+                    if (UnitAI* ownerAI = owner->GetAI())
+                        ownerAI->DoAction(ACTION_3);
                 events.RescheduleEvent(EVENT_10, 6000);
                 break;
             case EVENT_10:
-                if (auto owner = me->GetAnyOwner())
-                    owner->GetAI()->DoAction(ACTION_4);
+                if (Unit* owner = me->GetAnyOwner())
+                    if (UnitAI* ownerAI = owner->GetAI())
+                        ownerAI->DoAction(ACTION_4);
                 events.RescheduleEvent(EVENT_11, 6000);
                 break;
             case EVENT_11:
@@ -2270,9 +2318,19 @@ class spell_schnottz_has_to_go : public SpellScript
 
     void HandleOnCast()
     {
-        if (Unit* caster = GetCaster())
-            if (auto vehicle = caster->GetAnyOwner())
-                vehicle->GetAI()->DoAction(ACTION_1);
+        Unit* caster = GetCaster();
+        if (!caster)
+            return;
+
+        // cast from a seat: the balloon carrying the voter counts it, once for each
+        Unit* balloon = caster->GetVehicleBase();
+        if (!balloon)
+            balloon = caster->GetAnyOwner();
+        if (balloon)
+            if (UnitAI* balloonAI = balloon->GetAI())
+                balloonAI->DoAction(ACTION_1);
+
+        caster->RemoveAurasDueToSpell(SPELL_SCHNOTTZ_HAS_TO_GO_OR);
     }
 
     void Register() override
