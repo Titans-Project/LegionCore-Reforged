@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
 */
 
@@ -228,6 +236,9 @@ public:
     {
         //go->CastSpell(player, spell);
         TempSummon* summons = go->SummonCreature(npc, go->GetPositionX(), go->GetPositionY(), go->GetPositionZ(), player->GetOrientation() - M_PI, TEMPSUMMON_TIMED_OR_DEAD_DESPAWN, 10 * 60 * 1000);
+        if (!summons)
+            return;
+
         summons->CastSpell(summons, 25035, false);
         summons->AI()->Talk(0, player->GetGUID());
         summons->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
@@ -236,16 +247,31 @@ public:
     }
 
 public:
+    static bool IsTwilightCultist(Player* player)
+    {
+        return player->HasAura(234185) && player->HasAura(234184) && player->HasAura(234182);
+    }
+
     bool OnGossipHello(Player* player, GameObject* go) override
     {
-        if (!player->HasAura(234185) || !player->HasAura(234184) || !player->HasAura(234182))
+        if (!IsTwilightCultist(player))
+        {
             go->CastSpell(player, 24803);
+            return true;
+        }
 
         return false;
     }
 
     bool OnGossipSelect(Player* player, GameObject* go, uint32 /*sender*/, uint32 action) override
     {
+        if (!IsTwilightCultist(player))
+        {
+            go->CastSpell(player, 24803);
+            player->CLOSE_GOSSIP_MENU();
+            return true;
+        }
+
         uint32 c_aura[3] = { 234185, 234184, 234182 };
         uint32 c_templar[4] = { NPC_TEMPLAR_FIRE, NPC_TEMPLAR_AIR, NPC_TEMPLAR_EARTH, NPC_TEMPLAR_WATER };
         uint32 c_duke[4] = { 117663, 117665, 117662, 117664 };
