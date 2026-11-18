@@ -1571,6 +1571,7 @@ void World::LoadConfigSettings(bool reload)
     m_bool_configs[CONFIG_LEGIONFALL_MAGE_TOWER_ALWAYS_BUILT] = sConfigMgr->GetBoolDefault("Legionfall.MageTower.AlwaysBuilt", false);
     m_bool_configs[CONFIG_LEGION_INVASIONS_ENABLE] = sConfigMgr->GetBoolDefault("Custom.LegionInvasions.Enable", false);
     m_bool_configs[CONFIG_DEMON_INVASION_PREPATCH_ENABLE] = sConfigMgr->GetBoolDefault("Custom.DemonInvasionPrepatch.Enable", false);
+    m_int_configs[CONFIG_DEMON_INVASION_PREPATCH_WEEK] = std::min<uint32>(std::max<uint32>(sConfigMgr->GetIntDefault("Custom.DemonInvasionPrepatch.Week", 1), 1), 3);
     m_bool_configs[CONFIG_ARGUS_IN_SKY_ENABLE] = sConfigMgr->GetBoolDefault("Custom.ArgusInSky.Enable", false);
     m_bool_configs[CONFIG_SILITHUS_WOUND_DEFAULT] = sConfigMgr->GetBoolDefault("Custom.SilithusWound.Default", true);
 

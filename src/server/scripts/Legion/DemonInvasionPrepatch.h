@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
  * Demon Invasion Prepatch - Legion Pre-expansion Event
  * 6 zones (Azshara, Dun Morogh, Hillsbrad, Northern Barrens, Tanaris, Westfall)
@@ -8,8 +16,11 @@
 #define DEMON_INVASION_PREPATCH_H
 
 #include "OutdoorPvP.h"
+#include <unordered_map>
 
+class Creature;
 class Player;
+class Scenario;
 
 // ============================================================================
 // Enums
@@ -20,7 +31,7 @@ enum DemonInvasionZoneIndex : uint8
     DI_ZONE_AZSHARA          = 0, // Kalimdor, map 1
     DI_ZONE_DUN_MOROGH       = 1, // EK, map 0
     DI_ZONE_HILLSBRAD        = 2, // EK, map 0
-    DI_ZONE_NORTHERN_BARRENS = 3, // Kalimdor, map 1
+    DI_ZONE_NORTHERN_BARRENS = 3, // Kalimdor, map 1 (zone 17)
     DI_ZONE_TANARIS           = 4, // Kalimdor, map 1
     DI_ZONE_WESTFALL          = 5, // EK, map 0
     DI_ZONE_MAX               = 6,
@@ -34,6 +45,18 @@ enum DemonInvasionStage : uint8
     DI_STAGE_REPEL     = 3, // Phase 3: Repel demons zone-wide
     DI_STAGE_BOSS      = 4, // Phase 4: Kill the final boss
     DI_STAGE_MAX       = 5,
+};
+
+// What a creature is worth to the invasion (table demon_invasion_creature): the official NPCs and the old custom ones
+enum DemonInvasionRole : uint8
+{
+    DI_ROLE_NONE        = 0,
+    DI_ROLE_DEMON       = 1,
+    DI_ROLE_ELITE       = 2, // infernals, doomguards, named demons: worth three kills
+    DI_ROLE_COMMANDER   = 3,
+    DI_ROLE_LIEUTENANT  = 4,
+    DI_ROLE_DEMON_LORD  = 5,
+    DI_ROLE_MAX         = 6,
 };
 
 // NPC entries (900001-900099 range)
@@ -109,8 +132,9 @@ struct DemonInvasionVendorItem
 //  Zone 4 Tanaris:          916-919
 //  Zone 5 Westfall:         920-923
 static constexpr uint16 DI_GAME_EVENT_BASE     = 900;
-static constexpr uint32 DI_ROTATION_INTERVAL   = 4 * 3600 * 1000; // 4 hours in ms
-static constexpr uint8  DI_ACTIVE_ZONE_COUNT   = 2;
+static constexpr uint32 DI_CONSTANT_RESTART = HOUR * IN_MILLISECONDS; // last week: delay before a repelled zone is invaded again
+static constexpr uint32 SPELL_DI_INVASION_SKY  = 305164; // hotfix spell: screen effect 1265, Legion invasion skybox
+static constexpr uint32 DI_MAP_MARKER_WORLD_STATE = 19701; // + zone index: lights the zone's invasion marker (AreaPOI 5565-5570 served by CASCHost)
 
 // ============================================================================
 // Zone data
@@ -121,6 +145,22 @@ struct DemonInvasionZoneInfo
     uint32 zoneId;
     uint32 mapId;
     const char* name;
+};
+
+// Official invasion scenario of a zone (client Scenario.db2, type 4) and the scenario events (CriteriaTree type 92)
+// its steps count: defend, commander and lieutenants, repel (weight 1, 10 and 25), demon lord.
+struct DemonInvasionScenarioInfo
+{
+    uint32 scenarioId;
+    uint32 defendEvent;
+    uint32 defendPoints;
+    uint32 commanderEvent;
+    uint32 lieutenantEvent;
+    uint32 lieutenantCount;
+    uint32 repelEliteEvent;
+    uint32 repelStructureEvent;
+    uint32 repelPoints;
+    uint32 demonLordEvent;
 };
 
 struct DemonInvasionZoneState
@@ -145,17 +185,34 @@ public:
 
     // Core mechanics
     void StartInvasion(uint8 zoneIndex);
-    void StopInvasion(uint8 zoneIndex);
+    void StopInvasion(uint8 zoneIndex, bool repelled = false);
     void AdvanceStage(uint8 zoneIndex);
     void RotateInvasions();
+    static uint8 GetInvasionWeek();
 
     void OnCreatureKill(uint32 zoneId, uint32 creatureEntry, Player* killer);
+    void OnInvasionCreatureDied(Creature* creature) const;
+    void LoadCreatureRoles();
+    DemonInvasionRole GetCreatureRole(uint32 entry) const;
 
     // Phase 4: Rewards
     void RewardPlayersInZone(uint8 zoneIndex, uint32 nethershards, uint32 xpMultiplier);
     void OnBossKilled(uint8 zoneIndex);
     void TrackInvasionCompletion(Player* player, uint8 zoneIndex);
     bool HasCompletedAllInvasions(Player* player);
+
+    // Legion sky while the player stands in an invaded zone
+    void UpdateInvasionSky(Player* player, uint32 zoneId) const;
+
+    // Official scenario of each invaded zone, carried by the OutdoorPvP of its continent
+    void RegisterOutdoorPvP(uint32 mapId, OutdoorPvP* outdoor);
+    void OnPlayerEnterZone(Player* player, uint32 zoneId);
+    void OnPlayerLeaveZone(Player* player, uint32 zoneId);
+    void OnScenarioStep(uint32 zoneId, uint32 step);
+
+    // The event follows the crowd: players in the zone (GMs aside) lengthen the bars and quicken the respawns
+    uint32 GetParticipantCount(uint32 zoneId) const;
+    uint32 GetDemonRespawnDelay(uint32 zoneId) const;
 
     // Helpers
     static uint32 GetBaseQuestXP(uint8 level);
@@ -182,10 +239,22 @@ public:
 
 private:
     void BroadcastToZone(uint8 zoneIndex, const char* format, ...);
+    void UpdateInvasionSkyInZone(uint8 zoneIndex) const;
+    void SetMapMarker(uint8 zoneIndex, bool invaded) const;
+    void CreateScenario(uint8 zoneIndex);
+    void DestroyScenario(uint8 zoneIndex, bool repelled);
+    void SendScenarioEvent(uint8 zoneIndex, uint32 eventId, uint32 count, Player* reference);
+    bool SendKillToScenario(uint8 zoneIndex, uint32 creatureEntry, Player* killer);
+    uint32 TakeBarPoints(uint8 zoneIndex, uint32 barPoints, uint32 kills, uint32 killWeight);
+    template<class Fn> void ForEachPlayerInZone(uint8 zoneIndex, Fn&& fn) const;
 
     DemonInvasionZoneState m_zoneStates[DI_ZONE_MAX];
-    uint8 m_activeZones[DI_ACTIVE_ZONE_COUNT];
     uint32 m_rotationTimer;
+    Scenario* m_scenarios[DI_ZONE_MAX];
+    uint32 m_pointCarry[DI_ZONE_MAX];  // thousandths of a bar point not yet sent, so small shares per kill add up exactly
+    std::vector<Scenario*> m_endedScenarios;  // deleted on the next update, never from inside a scenario call
+    OutdoorPvP* m_outdoorByMap[2];
+    std::unordered_map<uint32, uint8> m_roles;
     bool m_initialized;
 };
 
@@ -204,6 +273,10 @@ public:
     }
 
     bool SetupOutdoorPvP() override;
+    void HandlePlayerEnterZone(ObjectGuid guid, uint32 zone) override;
+    void HandlePlayerLeaveZone(ObjectGuid guid, uint32 zone) override;
+    void SetData(uint32 zone, uint32 step) override;
+    void BroadcastPacketByZone(WorldPacket const& data, uint32 zone) override;
     bool Update(uint32 diff) override;
     void HandleKillImpl(Player* killer, Unit* killed) override;
 };
@@ -217,6 +290,10 @@ public:
     }
 
     bool SetupOutdoorPvP() override;
+    void HandlePlayerEnterZone(ObjectGuid guid, uint32 zone) override;
+    void HandlePlayerLeaveZone(ObjectGuid guid, uint32 zone) override;
+    void SetData(uint32 zone, uint32 step) override;
+    void BroadcastPacketByZone(WorldPacket const& data, uint32 zone) override;
     bool Update(uint32 diff) override;
     void HandleKillImpl(Player* killer, Unit* killed) override;
 };

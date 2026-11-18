@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
  * Demon Invasion Prepatch - Legion Pre-expansion Event
  * Implementation: DemonInvasionMgr, OutdoorPvP handlers, GM commands
@@ -16,6 +24,11 @@
 #include "Creature.h"
 #include "DatabaseEnv.h"
 #include "Item.h"
+#include "MapManager.h"
+#include "ObjectAccessor.h"
+#include "Scenario.h"
+#include "ScenarioPackets.h"
+#include "WorldStateMgr.h"
 #include <sstream>
 #include <cstdarg>
 
@@ -28,10 +41,32 @@ static const DemonInvasionZoneInfo s_zoneInfos[DI_ZONE_MAX] =
     { 16,  1, "Azshara"          }, // 0 - Kalimdor
     { 1,   0, "Dun Morogh"       }, // 1 - EK
     { 267, 0, "Hillsbrad"        }, // 2 - EK
-    { 10,  1, "Northern Barrens" }, // 3 - Kalimdor
+    { 17,  1, "Northern Barrens" }, // 3 - Kalimdor
     { 440, 1, "Tanaris"          }, // 4 - Kalimdor
     { 40,  0, "Westfall"         }, // 5 - EK
 };
+
+// Same order as s_zoneInfos
+static const DemonInvasionScenarioInfo s_scenarioInfos[DI_ZONE_MAX] =
+{
+    { 958, 46009, 375, 53355, 53356, 2, 53358, 53359, 1600, 53360 }, // Azshara: Defend the Rear Gate
+    { 959, 46007, 370, 52445, 52404, 2, 52253, 52254, 1250, 52855 }, // Dun Morogh: Defend Kharanos
+    { 916, 46006, 375, 52896, 52897, 2, 52922, 52923, 1650, 53002 }, // Hillsbrad: Defend Tarren Mill
+    { 907, 45729, 525, 51385, 51425, 2, 51162, 51163, 2150, 51382 }, // Northern Barrens: Defend the Crossroads
+    { 806, 46005, 300, 51823, 51810, 2, 50990, 50991, 1900, 52035 }, // Tanaris: Defend Gadgetzan
+    { 897, 46003, 440, 50503, 50532, 3, 50815, 50816, 2000, 51365 }, // Westfall: Defend Sentinel Hill
+};
+
+// Kills one player needs to fill the defend and repel bars (the official totals were made for crowds); each more
+// player adds 35 % up to ten players, and the demons respawn faster so that there is enough to fight
+static constexpr uint32 DI_SOLO_DEFEND_KILLS     = 50;
+static constexpr uint32 DI_SOLO_REPEL_KILLS      = 100;
+static constexpr uint32 DI_EXTRA_PLAYER_PCT      = 35;
+static constexpr uint32 DI_MAX_COUNTED_PLAYERS   = 10;
+static constexpr uint32 DI_SOLO_RESPAWN_SECS     = 300;
+static constexpr uint32 DI_MIN_RESPAWN_SECS      = 60;
+// from level 100 the invasion gives half the experience, so that it does not race the new characters through 100-110
+static constexpr uint32 DI_XP_ABOVE_100_PCT      = 50;
 
 static const uint32 s_killThresholds[DI_STAGE_MAX] =
 {
@@ -69,7 +104,7 @@ static constexpr uint32 DI_VENDOR_ITEM_COUNT = sizeof(s_vendorItems) / sizeof(s_
 // ============================================================================
 
 DemonInvasionMgr::DemonInvasionMgr()
-    : m_rotationTimer(DI_ROTATION_INTERVAL)
+    : m_rotationTimer(0)
     , m_initialized(false)
 {
     for (uint8 i = 0; i < DI_ZONE_MAX; ++i)
@@ -77,8 +112,12 @@ DemonInvasionMgr::DemonInvasionMgr()
         m_zoneStates[i].stage = DI_STAGE_INACTIVE;
         m_zoneStates[i].stageProgress = 0;
     }
-    for (uint8 i = 0; i < DI_ACTIVE_ZONE_COUNT; ++i)
-        m_activeZones[i] = DI_ZONE_MAX; // none
+    for (uint8 i = 0; i < DI_ZONE_MAX; ++i)
+    {
+        m_scenarios[i] = nullptr;
+        m_pointCarry[i] = 0;
+    }
+    m_outdoorByMap[0] = m_outdoorByMap[1] = nullptr;
 }
 
 DemonInvasionMgr* DemonInvasionMgr::instance()
@@ -92,6 +131,15 @@ void DemonInvasionMgr::Initialize()
     if (m_initialized)
         return;
 
+    // world states are saved: a marker left lit by a crash or by a disabled event must not survive the restart
+    static bool markersCleared = false;
+    if (!markersCleared)
+    {
+        markersCleared = true;
+        for (uint8 i = 0; i < DI_ZONE_MAX; ++i)
+            SetMapMarker(i, false);
+    }
+
     // Pre-patch event: off by default, it has no place on a realm opening on established
     // Legion content.
     if (!sWorld->getBoolConfig(CONFIG_DEMON_INVASION_PREPATCH_ENABLE))
@@ -99,19 +147,23 @@ void DemonInvasionMgr::Initialize()
 
     m_initialized = true;
     m_rotationTimer = 10 * 1000; // First rotation 10s after init
+    LoadCreatureRoles();
 
     TC_LOG_INFO("server.loading", "[DemonInvasion] Prepatch invasion system initialized.");
 }
 
 void DemonInvasionMgr::Update(uint32 diff)
 {
+    for (Scenario* scenario : m_endedScenarios)
+        delete scenario;
+    m_endedScenarios.clear();
+
     if (!m_initialized)
         return;
 
     if (m_rotationTimer <= diff)
     {
-        RotateInvasions();
-        m_rotationTimer = DI_ROTATION_INTERVAL;
+        RotateInvasions();  // sets the next delay
     }
     else
         m_rotationTimer -= diff;
@@ -146,7 +198,42 @@ uint32 DemonInvasionMgr::GetKillThreshold(uint8 stage)
 
 bool DemonInvasionMgr::IsInvasionCreature(uint32 entry)
 {
-    return entry >= 900001 && entry <= 900099;
+    return sDemonInvasionMgr->GetCreatureRole(entry) != DI_ROLE_NONE;
+}
+
+void DemonInvasionMgr::LoadCreatureRoles()
+{
+    m_roles.clear();
+    if (QueryResult result = WorldDatabase.Query("SELECT `entry`, `role` FROM `demon_invasion_creature`"))
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+            uint8 role = fields[1].GetUInt8();
+            if (role > DI_ROLE_NONE && role < DI_ROLE_MAX)
+                m_roles[fields[0].GetUInt32()] = role;
+        }
+        while (result->NextRow());
+    }
+
+    TC_LOG_INFO("server.loading", "[DemonInvasion] %u invasion creatures loaded.", uint32(m_roles.size()));
+}
+
+DemonInvasionRole DemonInvasionMgr::GetCreatureRole(uint32 entry) const
+{
+    auto itr = m_roles.find(entry);
+    return itr != m_roles.end() ? DemonInvasionRole(itr->second) : DI_ROLE_NONE;
+}
+
+// the demons come back faster when the zone is crowded (respawn delay used when the corpse is removed)
+void DemonInvasionMgr::OnInvasionCreatureDied(Creature* creature) const
+{
+    if (!creature)
+        return;
+
+    DemonInvasionRole role = GetCreatureRole(creature->GetEntry());
+    if (role == DI_ROLE_DEMON || role == DI_ROLE_ELITE)
+        creature->SetRespawnDelay(GetDemonRespawnDelay(creature->GetCurrentZoneID()));
 }
 
 // ============================================================================
@@ -166,6 +253,10 @@ void DemonInvasionMgr::StartInvasion(uint8 zoneIndex)
     if (eventId)
         sGameEventMgr->StartEvent(eventId, true);
 
+    CreateScenario(zoneIndex);
+    UpdateInvasionSkyInZone(zoneIndex);
+    SetMapMarker(zoneIndex, true);
+
     TC_LOG_INFO("scripts", "[DemonInvasion] Invasion STARTED in %s (zone %u), event %u",
         s_zoneInfos[zoneIndex].name, s_zoneInfos[zoneIndex].zoneId, eventId);
 
@@ -174,7 +265,7 @@ void DemonInvasionMgr::StartInvasion(uint8 zoneIndex)
         s_zoneInfos[zoneIndex].name);
 }
 
-void DemonInvasionMgr::StopInvasion(uint8 zoneIndex)
+void DemonInvasionMgr::StopInvasion(uint8 zoneIndex, bool repelled)
 {
     if (zoneIndex >= DI_ZONE_MAX)
         return;
@@ -191,6 +282,10 @@ void DemonInvasionMgr::StopInvasion(uint8 zoneIndex)
 
     state.stage = DI_STAGE_INACTIVE;
     state.stageProgress = 0;
+
+    DestroyScenario(zoneIndex, repelled);
+    UpdateInvasionSkyInZone(zoneIndex);
+    SetMapMarker(zoneIndex, false);
 
     TC_LOG_INFO("scripts", "[DemonInvasion] Invasion STOPPED in %s",
         s_zoneInfos[zoneIndex].name);
@@ -217,7 +312,7 @@ void DemonInvasionMgr::AdvanceStage(uint8 zoneIndex)
         // Phase 4: Boss kill rewards (nethershards + big XP + achievement tracking)
         OnBossKilled(zoneIndex);
 
-        StopInvasion(zoneIndex);
+        StopInvasion(zoneIndex, true);
         return;
     }
 
@@ -252,40 +347,48 @@ void DemonInvasionMgr::AdvanceStage(uint8 zoneIndex)
     RewardPlayersInZone(zoneIndex, DI_SHARDS_STAGE_BONUS, xpMult);
 }
 
+// Official rhythm of the 2016 pre-patch, picked in the .conf: two zones every four hours (first week), three every
+// two hours (second week), every zone at once (last week)
+uint8 DemonInvasionMgr::GetInvasionWeek()
+{
+    return uint8(sWorld->getIntConfig(CONFIG_DEMON_INVASION_PREPATCH_WEEK));
+}
+
 void DemonInvasionMgr::RotateInvasions()
 {
-    // Stop current active invasions
-    for (uint8 i = 0; i < DI_ACTIVE_ZONE_COUNT; ++i)
+    uint8 week = GetInvasionWeek();
+
+    if (week >= 3)
     {
-        if (m_activeZones[i] < DI_ZONE_MAX)
-            StopInvasion(m_activeZones[i]);
-        m_activeZones[i] = DI_ZONE_MAX;
+        // every zone at once: a repelled zone comes back, the fights in progress go on
+        for (uint8 i = 0; i < DI_ZONE_MAX; ++i)
+            if (m_zoneStates[i].stage == DI_STAGE_INACTIVE)
+                StartInvasion(i);
+
+        m_rotationTimer = DI_CONSTANT_RESTART;
+        return;
     }
 
-    // Build candidate list and shuffle
+    for (uint8 i = 0; i < DI_ZONE_MAX; ++i)
+        if (m_zoneStates[i].stage != DI_STAGE_INACTIVE)
+            StopInvasion(i);
+
     std::vector<uint8> candidates;
     candidates.reserve(DI_ZONE_MAX);
     for (uint8 i = 0; i < DI_ZONE_MAX; ++i)
         candidates.push_back(i);
 
-    // Fisher-Yates shuffle
-    for (int32 i = static_cast<int32>(candidates.size()) - 1; i > 0; --i)
-    {
-        uint32 j = urand(0, static_cast<uint32>(i));
-        std::swap(candidates[i], candidates[j]);
-    }
+    for (int32 i = int32(candidates.size()) - 1; i > 0; --i)
+        std::swap(candidates[i], candidates[urand(0, uint32(i))]);
 
-    // Pick first DI_ACTIVE_ZONE_COUNT zones
-    for (uint8 i = 0; i < DI_ACTIVE_ZONE_COUNT && i < static_cast<uint8>(candidates.size()); ++i)
-    {
-        m_activeZones[i] = candidates[i];
-        StartInvasion(m_activeZones[i]);
-    }
+    uint8 count = week == 1 ? 2 : 3;
+    for (uint8 i = 0; i < count; ++i)
+        StartInvasion(candidates[i]);
 
-    TC_LOG_INFO("scripts", "[DemonInvasion] Rotation complete: %s and %s active. Next rotation in %u hours.",
-        m_activeZones[0] < DI_ZONE_MAX ? s_zoneInfos[m_activeZones[0]].name : "None",
-        m_activeZones[1] < DI_ZONE_MAX ? s_zoneInfos[m_activeZones[1]].name : "None",
-        DI_ROTATION_INTERVAL / 3600000);
+    m_rotationTimer = (week == 1 ? 4 : 2) * HOUR * IN_MILLISECONDS;
+
+    TC_LOG_INFO("scripts", "[DemonInvasion] Week %u: %u zones invaded, next rotation in %u hours.",
+        week, count, m_rotationTimer / (HOUR * IN_MILLISECONDS));
 }
 
 void DemonInvasionMgr::OnCreatureKill(uint32 zoneId, uint32 creatureEntry, Player* killer)
@@ -313,6 +416,14 @@ void DemonInvasionMgr::OnCreatureKill(uint32 zoneId, uint32 creatureEntry, Playe
         }
     }
 
+    // the official scenario counts the kills and moves the stages (OnScenarioStep); the demon lord ends it here
+    if (SendKillToScenario(zi, creatureEntry, killer))
+    {
+        if (state.stage == DI_STAGE_BOSS && GetCreatureRole(creatureEntry) == DI_ROLE_DEMON_LORD)
+            AdvanceStage(zi);
+        return;
+    }
+
     ++state.stageProgress;
 
     uint32 threshold = GetKillThreshold(state.stage);
@@ -337,36 +448,18 @@ bool DemonInvasionMgr::ForceStart(uint32 zoneId)
     if (!m_initialized)
         Initialize();
 
-    // If already active, stop first
     if (m_zoneStates[zi].stage != DI_STAGE_INACTIVE)
         StopInvasion(zi);
 
-    // Find an empty slot or replace first slot
-    for (uint8 i = 0; i < DI_ACTIVE_ZONE_COUNT; ++i)
-    {
-        if (m_activeZones[i] >= DI_ZONE_MAX)
-        {
-            m_activeZones[i] = zi;
-            StartInvasion(zi);
-            return true;
-        }
-    }
-
-    // All slots full - replace slot 0
-    StopInvasion(m_activeZones[0]);
-    m_activeZones[0] = zi;
     StartInvasion(zi);
     return true;
 }
 
 void DemonInvasionMgr::ForceStop()
 {
-    for (uint8 i = 0; i < DI_ACTIVE_ZONE_COUNT; ++i)
-    {
-        if (m_activeZones[i] < DI_ZONE_MAX)
-            StopInvasion(m_activeZones[i]);
-        m_activeZones[i] = DI_ZONE_MAX;
-    }
+    for (uint8 i = 0; i < DI_ZONE_MAX; ++i)
+        if (m_zoneStates[i].stage != DI_STAGE_INACTIVE)
+            StopInvasion(i);
 }
 
 void DemonInvasionMgr::ForceStage(uint8 zoneIndex, uint8 stage)
@@ -388,6 +481,9 @@ void DemonInvasionMgr::ForceStage(uint8 zoneIndex, uint8 stage)
     {
         state.stage = DI_STAGE_INACTIVE;
         state.stageProgress = 0;
+        DestroyScenario(zoneIndex, false);
+        UpdateInvasionSkyInZone(zoneIndex);
+        SetMapMarker(zoneIndex, false);
         return;
     }
 
@@ -398,6 +494,13 @@ void DemonInvasionMgr::ForceStage(uint8 zoneIndex, uint8 stage)
     if (newEvent)
         sGameEventMgr->StartEvent(newEvent, true);
 
+    if (!m_scenarios[zoneIndex])
+        CreateScenario(zoneIndex);
+    if (Scenario* scenario = m_scenarios[zoneIndex])
+        scenario->SetCurrentStep(stage - 1);
+    UpdateInvasionSkyInZone(zoneIndex);
+    SetMapMarker(zoneIndex, true);
+
     TC_LOG_INFO("scripts", "[DemonInvasion] GM forced %s to stage %u (%s), event %u",
         s_zoneInfos[zoneIndex].name, stage, s_stageNames[stage], newEvent);
 }
@@ -405,7 +508,6 @@ void DemonInvasionMgr::ForceStage(uint8 zoneIndex, uint8 stage)
 void DemonInvasionMgr::ForceRotate()
 {
     RotateInvasions();
-    m_rotationTimer = DI_ROTATION_INTERVAL;
 }
 
 // ============================================================================
@@ -440,17 +542,7 @@ std::string DemonInvasionMgr::GetStatusString() const
     ss << "|cFFFFD700=== Demon Invasion Status ===|r\n";
     ss << "Rotation timer: " << (m_rotationTimer / 1000) << "s ("
        << (m_rotationTimer / 60000) << " min)\n";
-    ss << "Active zones: ";
-    for (uint8 i = 0; i < DI_ACTIVE_ZONE_COUNT; ++i)
-    {
-        if (m_activeZones[i] < DI_ZONE_MAX)
-            ss << s_zoneInfos[m_activeZones[i]].name;
-        else
-            ss << "None";
-        if (i < DI_ACTIVE_ZONE_COUNT - 1)
-            ss << ", ";
-    }
-    ss << "\n";
+    ss << "Rhythm (week): " << uint32(GetInvasionWeek()) << "\n";
     for (uint8 i = 0; i < DI_ZONE_MAX; ++i)
     {
         ss << "  " << s_zoneInfos[i].name
@@ -481,6 +573,217 @@ void DemonInvasionMgr::BroadcastToZone(uint8 zoneIndex, const char* format, ...)
     }
 }
 
+void DemonInvasionMgr::UpdateInvasionSky(Player* player, uint32 zoneId) const
+{
+    if (!player)
+        return;
+
+    uint8 zoneIndex = GetZoneIndexByZoneId(zoneId);
+    bool invaded = zoneIndex < DI_ZONE_MAX && IsZoneActive(zoneIndex);
+    if (invaded && !player->HasAura(SPELL_DI_INVASION_SKY))
+        player->AddAura(SPELL_DI_INVASION_SKY, player);
+    else if (!invaded)
+        player->RemoveAurasDueToSpell(SPELL_DI_INVASION_SKY);
+}
+
+template<class Fn>
+void DemonInvasionMgr::ForEachPlayerInZone(uint8 zoneIndex, Fn&& fn) const
+{
+    if (zoneIndex >= DI_ZONE_MAX)
+        return;
+
+    DemonInvasionZoneInfo const& info = s_zoneInfos[zoneIndex];
+    Map* map = sMapMgr->FindMap(info.mapId, 0);
+    if (!map)
+        return;
+
+    Map::PlayerList const& players = map->GetPlayers();
+    for (auto itr = players.begin(); itr != players.end(); ++itr)
+        if (Player* player = itr->getSource())
+            if (player->GetCurrentZoneID() == info.zoneId)
+                fn(player);
+}
+
+void DemonInvasionMgr::UpdateInvasionSkyInZone(uint8 zoneIndex) const
+{
+    if (zoneIndex >= DI_ZONE_MAX)
+        return;
+
+    uint32 zoneId = s_zoneInfos[zoneIndex].zoneId;
+    ForEachPlayerInZone(zoneIndex, [this, zoneId](Player* player) { UpdateInvasionSky(player, zoneId); });
+}
+
+void DemonInvasionMgr::RegisterOutdoorPvP(uint32 mapId, OutdoorPvP* outdoor)
+{
+    if (mapId < 2)
+        m_outdoorByMap[mapId] = outdoor;
+}
+
+void DemonInvasionMgr::CreateScenario(uint8 zoneIndex)
+{
+    if (zoneIndex >= DI_ZONE_MAX || m_scenarios[zoneIndex])
+        return;
+
+    DemonInvasionZoneInfo const& info = s_zoneInfos[zoneIndex];
+    OutdoorPvP* outdoor = info.mapId < 2 ? m_outdoorByMap[info.mapId] : nullptr;
+    Map* map = outdoor ? outdoor->GetMap() : nullptr;
+    if (!map)
+        return;
+
+    Scenario* scenario = new Scenario(map, s_scenarioInfos[zoneIndex].scenarioId);
+    scenario->SetOutdoorPvP(outdoor, info.zoneId);
+    m_scenarios[zoneIndex] = scenario;
+    m_pointCarry[zoneIndex] = 0;
+    scenario->SetCurrentStep(0);
+
+    ForEachPlayerInZone(zoneIndex, [scenario](Player* player) { scenario->SendStepUpdate(player, true); });
+}
+
+void DemonInvasionMgr::DestroyScenario(uint8 zoneIndex, bool repelled)
+{
+    if (zoneIndex >= DI_ZONE_MAX || !m_scenarios[zoneIndex])
+        return;
+
+    Scenario* scenario = m_scenarios[zoneIndex];
+    m_scenarios[zoneIndex] = nullptr;
+
+    uint32 scenarioId = s_scenarioInfos[zoneIndex].scenarioId;
+    // a repelled invasion has already shown its completion (Scenario::Reward): leave it on screen a moment
+    ForEachPlayerInZone(zoneIndex, [scenarioId, repelled](Player* player)
+    {
+        auto boot = [player, scenarioId]()
+        {
+            WorldPackets::Scenario::ScenarioBoot packet;
+            packet.ScenarioID = scenarioId;
+            player->SendDirectMessage(packet.Write());
+        };
+
+        if (repelled)
+            player->AddDelayedEvent(10 * IN_MILLISECONDS, boot);
+        else
+            boot();
+    });
+
+    m_endedScenarios.push_back(scenario);
+}
+
+void DemonInvasionMgr::SendScenarioEvent(uint8 zoneIndex, uint32 eventId, uint32 count, Player* reference)
+{
+    if (zoneIndex < DI_ZONE_MAX && m_scenarios[zoneIndex] && eventId && count && reference)
+        m_scenarios[zoneIndex]->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, eventId, count, 0, nullptr, reference);
+}
+
+bool DemonInvasionMgr::SendKillToScenario(uint8 zoneIndex, uint32 creatureEntry, Player* killer)
+{
+    if (zoneIndex >= DI_ZONE_MAX || !m_scenarios[zoneIndex] || !killer)
+        return false;
+
+    DemonInvasionScenarioInfo const& info = s_scenarioInfos[zoneIndex];
+    uint32 scalePct = 100 + DI_EXTRA_PLAYER_PCT * (GetParticipantCount(s_zoneInfos[zoneIndex].zoneId) - 1);
+    uint32 defendKills = DI_SOLO_DEFEND_KILLS * scalePct / 100;
+    uint32 repelKills = DI_SOLO_REPEL_KILLS * scalePct / 100;
+
+    DemonInvasionRole role = GetCreatureRole(creatureEntry);
+    uint32 weight = role == DI_ROLE_ELITE ? 3 : 1;
+
+    switch (m_zoneStates[zoneIndex].stage)
+    {
+        case DI_STAGE_DEFEND:
+            if (role == DI_ROLE_DEMON || role == DI_ROLE_ELITE)
+                SendScenarioEvent(zoneIndex, info.defendEvent, TakeBarPoints(zoneIndex, info.defendPoints, defendKills, weight), killer);
+            break;
+        case DI_STAGE_COMMANDER:
+            if (role == DI_ROLE_COMMANDER)
+                SendScenarioEvent(zoneIndex, info.commanderEvent, 1, killer);
+            else if (role == DI_ROLE_LIEUTENANT)
+                SendScenarioEvent(zoneIndex, info.lieutenantEvent, (info.lieutenantCount + 1) / 2, killer); // two lieutenants are spawned
+            break;
+        case DI_STAGE_REPEL:  // the repel bar reuses the defend counter, already full
+            if (role == DI_ROLE_DEMON || role == DI_ROLE_ELITE)
+                SendScenarioEvent(zoneIndex, info.defendEvent, TakeBarPoints(zoneIndex, info.repelPoints - info.defendPoints, repelKills, weight), killer);
+            break;
+        case DI_STAGE_BOSS:
+            if (role == DI_ROLE_DEMON_LORD)
+                SendScenarioEvent(zoneIndex, info.demonLordEvent, 1, killer);
+            break;
+        default:
+            return false;
+    }
+
+    return true;
+}
+
+void DemonInvasionMgr::SetMapMarker(uint8 zoneIndex, bool invaded) const
+{
+    if (zoneIndex < DI_ZONE_MAX)
+        sWorldStateMgr.SetWorldState(DI_MAP_MARKER_WORLD_STATE + zoneIndex, 0, invaded ? 1 : 0);
+}
+
+uint32 DemonInvasionMgr::TakeBarPoints(uint8 zoneIndex, uint32 barPoints, uint32 kills, uint32 killWeight)
+{
+    m_pointCarry[zoneIndex] += barPoints * 1000 * killWeight / std::max<uint32>(kills, 1);
+    uint32 points = m_pointCarry[zoneIndex] / 1000;
+    m_pointCarry[zoneIndex] %= 1000;
+    return points;
+}
+
+void DemonInvasionMgr::OnPlayerEnterZone(Player* player, uint32 zoneId)
+{
+    if (!player)
+        return;
+
+    UpdateInvasionSky(player, zoneId);
+
+    uint8 zoneIndex = GetZoneIndexByZoneId(zoneId);
+    if (zoneIndex < DI_ZONE_MAX && m_scenarios[zoneIndex])
+        m_scenarios[zoneIndex]->SendStepUpdate(player, true);
+}
+
+void DemonInvasionMgr::OnPlayerLeaveZone(Player* player, uint32 zoneId)
+{
+    if (!player)
+        return;
+
+    player->RemoveAurasDueToSpell(SPELL_DI_INVASION_SKY);
+
+    uint8 zoneIndex = GetZoneIndexByZoneId(zoneId);
+    if (zoneIndex < DI_ZONE_MAX && m_scenarios[zoneIndex])
+    {
+        WorldPackets::Scenario::ScenarioBoot boot;
+        boot.ScenarioID = s_scenarioInfos[zoneIndex].scenarioId;
+        player->SendDirectMessage(boot.Write());
+    }
+}
+
+uint32 DemonInvasionMgr::GetParticipantCount(uint32 zoneId) const
+{
+    uint32 count = 0;
+    ForEachPlayerInZone(GetZoneIndexByZoneId(zoneId), [&count](Player* player)
+    {
+        if (!player->isGameMaster())
+            ++count;
+    });
+
+    return std::min(std::max<uint32>(count, 1), DI_MAX_COUNTED_PLAYERS);
+}
+
+uint32 DemonInvasionMgr::GetDemonRespawnDelay(uint32 zoneId) const
+{
+    return std::max(DI_SOLO_RESPAWN_SECS / GetParticipantCount(zoneId), DI_MIN_RESPAWN_SECS);
+}
+
+void DemonInvasionMgr::OnScenarioStep(uint32 zoneId, uint32 step)
+{
+    uint8 zoneIndex = GetZoneIndexByZoneId(zoneId);
+    if (zoneIndex >= DI_ZONE_MAX)
+        return;
+
+    // scenario step 0..3 = stage 1..4; the demon lord step never reaches here (the scenario completes instead)
+    auto& state = m_zoneStates[zoneIndex];
+    while (state.stage != DI_STAGE_INACTIVE && state.stage < DI_STAGE_BOSS && uint32(state.stage) < step + 1)
+        AdvanceStage(zoneIndex);
+}
+
 // ============================================================================
 // Phase 4: Static helpers
 // ============================================================================
@@ -500,25 +803,17 @@ uint32 DemonInvasionMgr::GetBaseQuestXP(uint8 level)
 
 uint32 DemonInvasionMgr::GetNethershardDropAmount(uint32 creatureEntry, uint8 stage)
 {
-    switch (creatureEntry)
+    switch (sDemonInvasionMgr->GetCreatureRole(creatureEntry))
     {
-        // Stage 4: Boss
-        case NPC_DI_BOSS:
+        case DI_ROLE_DEMON_LORD:
             return DI_SHARDS_BOSS_KILL;
-        // Stage 2: Commander + Lieutenants (elites)
-        case NPC_DI_COMMANDER:
-        case NPC_DI_LIEUTENANT_A:
-        case NPC_DI_LIEUTENANT_B:
+        case DI_ROLE_COMMANDER:
+        case DI_ROLE_LIEUTENANT:
             return urand(5, 10);
-        // Stage 1/3: Generic demons
-        case NPC_DI_FEL_INVADER:
-        case NPC_DI_FELSTALKER:
-        case NPC_DI_FEL_CASTER:
-        case NPC_DI_INFERNAL:
-            // Stage 1 (Defend): no drops. Stage 3 (Repel): 1-2 shards
-            if (stage == DI_STAGE_REPEL)
-                return urand(1, 2);
-            return 0;
+        case DI_ROLE_ELITE:
+            return stage == DI_STAGE_REPEL ? urand(5, 15) : 0; // official hotfix: minibosses of the repel stage
+        case DI_ROLE_DEMON:
+            return stage == DI_STAGE_REPEL ? urand(1, 2) : 0;
         default:
             return 0;
     }
@@ -557,6 +852,10 @@ void DemonInvasionMgr::RewardPlayersInZone(uint8 zoneIndex, uint32 nethershards,
         if (xpMultiplier > 0 && player->getLevel() < MAX_LEVEL)
         {
             uint32 xp = GetBaseQuestXP(player->getLevel()) * xpMultiplier;
+            if (player->getLevel() >= 100)
+                xp = xp * DI_XP_ABOVE_100_PCT / 100;
+            if (!xp)
+                continue;
             player->GiveXP(xp, nullptr);
             ChatHandler(player->GetSession()).PSendSysMessage(
                 "|cFF8080FF+%u XP (invasion bonus)|r", xp);
@@ -762,10 +1061,41 @@ public:
 
 bool OutdoorPvPDemonInvasionEK::SetupOutdoorPvP()
 {
+    sDemonInvasionMgr->RegisterOutdoorPvP(0, this);
     RegisterZone(1);    // Dun Morogh
     RegisterZone(267);  // Hillsbrad
     RegisterZone(40);   // Westfall
     return true;
+}
+
+void OutdoorPvPDemonInvasionEK::HandlePlayerEnterZone(ObjectGuid guid, uint32 zone)
+{
+    OutdoorPvP::HandlePlayerEnterZone(guid, zone);
+    sDemonInvasionMgr->OnPlayerEnterZone(ObjectAccessor::FindPlayer(guid), zone);
+}
+
+void OutdoorPvPDemonInvasionEK::HandlePlayerLeaveZone(ObjectGuid guid, uint32 zone)
+{
+    sDemonInvasionMgr->OnPlayerLeaveZone(ObjectAccessor::FindPlayer(guid), zone);
+    OutdoorPvP::HandlePlayerLeaveZone(guid, zone);
+}
+
+void OutdoorPvPDemonInvasionEK::SetData(uint32 zone, uint32 step)
+{
+    sDemonInvasionMgr->OnScenarioStep(zone, step);
+}
+
+void OutdoorPvPDemonInvasionEK::BroadcastPacketByZone(WorldPacket const& data, uint32 zone)
+{
+    // the base class would send a zone's scenario to the whole continent
+    if (Map* map = GetMap())
+    {
+        Map::PlayerList const& players = map->GetPlayers();
+        for (auto itr = players.begin(); itr != players.end(); ++itr)
+            if (Player* player = itr->getSource())
+                if (player->GetCurrentZoneID() == zone)
+                    player->SendDirectMessage(&data);
+    }
 }
 
 bool OutdoorPvPDemonInvasionEK::Update(uint32 diff)
@@ -783,6 +1113,8 @@ void OutdoorPvPDemonInvasionEK::HandleKillImpl(Player* killer, Unit* killed)
     if (!killed || !killed->ToCreature())
         return;
 
+    sDemonInvasionMgr->OnInvasionCreatureDied(killed->ToCreature());
+
     sDemonInvasionMgr->OnCreatureKill(
         killed->GetCurrentZoneID(),
         killed->GetEntry(),
@@ -796,10 +1128,41 @@ void OutdoorPvPDemonInvasionEK::HandleKillImpl(Player* killer, Unit* killed)
 
 bool OutdoorPvPDemonInvasionKal::SetupOutdoorPvP()
 {
+    sDemonInvasionMgr->RegisterOutdoorPvP(1, this);
     RegisterZone(16);   // Azshara
-    RegisterZone(10);   // Northern Barrens
+    RegisterZone(17);   // Northern Barrens
     RegisterZone(440);  // Tanaris
     return true;
+}
+
+void OutdoorPvPDemonInvasionKal::HandlePlayerEnterZone(ObjectGuid guid, uint32 zone)
+{
+    OutdoorPvP::HandlePlayerEnterZone(guid, zone);
+    sDemonInvasionMgr->OnPlayerEnterZone(ObjectAccessor::FindPlayer(guid), zone);
+}
+
+void OutdoorPvPDemonInvasionKal::HandlePlayerLeaveZone(ObjectGuid guid, uint32 zone)
+{
+    sDemonInvasionMgr->OnPlayerLeaveZone(ObjectAccessor::FindPlayer(guid), zone);
+    OutdoorPvP::HandlePlayerLeaveZone(guid, zone);
+}
+
+void OutdoorPvPDemonInvasionKal::SetData(uint32 zone, uint32 step)
+{
+    sDemonInvasionMgr->OnScenarioStep(zone, step);
+}
+
+void OutdoorPvPDemonInvasionKal::BroadcastPacketByZone(WorldPacket const& data, uint32 zone)
+{
+    // the base class would send a zone's scenario to the whole continent
+    if (Map* map = GetMap())
+    {
+        Map::PlayerList const& players = map->GetPlayers();
+        for (auto itr = players.begin(); itr != players.end(); ++itr)
+            if (Player* player = itr->getSource())
+                if (player->GetCurrentZoneID() == zone)
+                    player->SendDirectMessage(&data);
+    }
 }
 
 bool OutdoorPvPDemonInvasionKal::Update(uint32 diff)
@@ -812,6 +1175,8 @@ void OutdoorPvPDemonInvasionKal::HandleKillImpl(Player* killer, Unit* killed)
 {
     if (!killed || !killed->ToCreature())
         return;
+
+    sDemonInvasionMgr->OnInvasionCreatureDied(killed->ToCreature());
 
     sDemonInvasionMgr->OnCreatureKill(
         killed->GetCurrentZoneID(),
@@ -969,11 +1334,31 @@ public:
 // Forward declaration from DemonInvasionPrepatch_creatures.cpp
 void AddSC_demon_invasion_creatures();
 
+// From level 100 the invasion gives less experience (demons and stages), so that it does not race the new characters
+// through 100-110
+class demon_invasion_xp : public PlayerScript
+{
+public:
+    demon_invasion_xp() : PlayerScript("demon_invasion_xp") {}
+
+    void OnGiveXP(Player* player, uint32& amount, Unit* victim) override
+    {
+        if (!victim || !victim->ToCreature() || player->getLevel() < 100)
+            return;
+
+        if (sDemonInvasionMgr->GetCreatureRole(victim->GetEntry()) == DI_ROLE_NONE)
+            return;
+
+        amount = amount * DI_XP_ABOVE_100_PCT / 100;
+    }
+};
+
 void AddSC_demon_invasion_prepatch()
 {
     new OutdoorPvP_DemonInvasion_EK();
     new OutdoorPvP_DemonInvasion_Kal();
     new demon_invasion_commandscript();
     new npc_demon_invasion_vendor();
+    new demon_invasion_xp();
     AddSC_demon_invasion_creatures();
 }

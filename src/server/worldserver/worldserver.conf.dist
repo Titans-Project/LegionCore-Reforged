@@ -132,8 +132,14 @@ Custom.LegionInvasions.Enable = 0
 #        Demon invasions on Azeroth (Eastern Kingdoms and Kalimdor), the event that
 #        preceded the Legion launch. Custom code, unrelated to Game.Patch.
 #        Default: 0
+#
+#    Custom.DemonInvasionPrepatch.Week
+#        Official rhythm: 1 = two zones every 4 hours, 2 = three zones every 2 hours,
+#        3 = all six zones at once (a zone pushed back is invaded again an hour later).
+#        Default: 1
 
 Custom.DemonInvasionPrepatch.Enable = 0
+Custom.DemonInvasionPrepatch.Week = 1
 
 #
 #    Custom.ArgusInSky.Enable
