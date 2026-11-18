@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
 */
 
@@ -15,11 +23,12 @@ struct npc_great_gnomeregan_race_gate : ScriptedAI
         if (me->GetDistance(who) > 7.0f)
             return;
 
-        if (who->ToPlayer()->GetQuestStatus(47709) == QUEST_STATUS_NONE)
+        // only during the race; a racer who has finished, or given it up, may run it again once he takes it anew
+        if (who->ToPlayer()->GetQuestStatus(47709) != QUEST_STATUS_INCOMPLETE)
+        {
+            PlayerList.erase(who->GetGUID());
             return;
-
-        if (who->ToPlayer()->GetQuestStatus(47709) == QUEST_STATUS_COMPLETE)
-            return;
+        }
 
         if (PlayerList.find(who->GetGUID()) == PlayerList.end())
         {
@@ -44,11 +53,12 @@ struct npc_great_gnomeregan_race_gate_start : ScriptedAI
         if (me->GetDistance(who) > 7.0f)
             return;
 
-        if (who->ToPlayer()->GetQuestStatus(47709) == QUEST_STATUS_NONE)
+        // only during the race; a racer who has finished, or given it up, may run it again once he takes it anew
+        if (who->ToPlayer()->GetQuestStatus(47709) != QUEST_STATUS_INCOMPLETE)
+        {
+            PlayerList.erase(who->GetGUID());
             return;
-
-        if (who->ToPlayer()->GetQuestStatus(47709) == QUEST_STATUS_COMPLETE)
-            return;
+        }
 
         if (PlayerList.find(who->GetGUID()) == PlayerList.end())
         {
@@ -73,11 +83,12 @@ struct npc_great_gnomeregan_race_gate_finish : ScriptedAI
         if (me->GetDistance(who) > 7.0f)
             return;
 
-        if (who->ToPlayer()->GetQuestStatus(47709) == QUEST_STATUS_NONE)
+        // only during the race; a racer who has finished, or given it up, may run it again once he takes it anew
+        if (who->ToPlayer()->GetQuestStatus(47709) != QUEST_STATUS_INCOMPLETE)
+        {
+            PlayerList.erase(who->GetGUID());
             return;
-
-        if (who->ToPlayer()->GetQuestStatus(47709) == QUEST_STATUS_COMPLETE)
-            return;
+        }
 
         if (PlayerList.find(who->GetGUID()) == PlayerList.end())
         {
