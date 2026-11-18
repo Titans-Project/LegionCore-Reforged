@@ -9263,16 +9263,15 @@ void Spell::EffectForceEquipItem(SpellEffIndex effIndex)
     if (!player)
         return;
 
-    auto const& item = player->GetItemByEntry(m_spellInfo->GetEffect(effIndex, m_diffMode)->MiscValue);
-    if (!item)
+    Item* item = player->GetItemByEntry(m_spellInfo->GetEffect(effIndex, m_diffMode)->MiscValue);
+    if (!item || item->IsEquipped())
         return;
 
-    return;
-
+    // SwapItem takes the item out of its bag, puts back what was worn and equips the child item of an artifact
     uint16 dest;
     if (player->CanEquipItem(NULL_SLOT, dest, item, true) == EQUIP_ERR_OK)
     {
-        player->EquipItem(dest, item, true);
+        player->SwapItem(item->GetPos(), dest);
         player->AutoUnequipOffhandIfNeed();
     }
 }

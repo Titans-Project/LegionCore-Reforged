@@ -17182,11 +17182,7 @@ void Player::SwapItem(uint16 src, uint16 dst)
     else if (IsBankPos(dst))
         BankItem(sDest, pSrcItem, true);
     else if (IsEquipmentPos(dst))
-    {
         EquipItem(eDest, pSrcItem, true);
-        if (!pSrcItem->GetChildItem().IsEmpty())
-            EquipChildItem(srcbag, srcslot, pSrcItem);
-    }
 
     // add to src
     if (IsInventoryPos(src))
@@ -17195,6 +17191,11 @@ void Player::SwapItem(uint16 src, uint16 dst)
         BankItem(sDest2, pDstItem, true);
     else if (IsEquipmentPos(src))
         EquipItem(eDest2, pDstItem, true);
+
+    // only once the swapped item is back in place: the child item looks for a free slot for what it replaces, and would
+    // otherwise take the one kept for it, the item left there being lost
+    if (IsEquipmentPos(dst) && !pSrcItem->GetChildItem().IsEmpty())
+        EquipChildItem(srcbag, srcslot, pSrcItem);
 
     // if player is moving bags and is looting an item inside this bag
     // release the loot
