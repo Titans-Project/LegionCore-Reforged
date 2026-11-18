@@ -2654,7 +2654,9 @@ void AchievementMgr<T>::CompletedAchievement(AchievementEntry const* achievement
             if (Guild* guild = sGuildMgr->GetGuildById(player->GetGuildId()))
                 guild->AddGuildNews(GUILD_NEWS_PLAYER_ACHIEVEMENT, player->GetGUID(), achievement->Flags & ACHIEVEMENT_FLAG_SHOW_IN_GUILD_HEADER, achievement->ID);
 
-        if (!GetOwner()->GetSession()->PlayerLoading())
+        // a character achievement the account already holds (level 50 earned on another character) is recorded for
+        // this one silently: the account's journal already shows it, no banner nor announcement again
+        if (!GetOwner()->GetSession()->PlayerLoading() && !alreadyOnAccount)
             SendAchievementEarned(achievement);
 
         ca = &_completedAchievements[achievement->ID];
