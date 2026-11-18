@@ -31619,28 +31619,51 @@ void Player::UpdateForQuestWorldObjects()
         GetSession()->SendPacket(&packet);
 }
 
+// The step of a story the map shows: resume after the last quest already taken or done, so that a quest whose
+// prerequisite is missing in the data cannot pop up ahead of the beginning of its story
+QuestLineXQuestEntry const* Player::GetNextQuestLineStep(uint32 questLineId)
+{
+    auto const& quests = sDB2Manager.GetQuestsByQuestLine(questLineId);
+    if (!quests)
+        return nullptr;
+
+    size_t start = 0;
+    for (size_t i = 0; i < quests->size(); ++i)
+        if (GetQuestStatus((*quests)[i]->QuestID) != QUEST_STATUS_NONE || GetQuestRewardStatus((*quests)[i]->QuestID))
+            start = i + 1;
+
+    for (size_t i = start; i < quests->size(); ++i)
+    {
+        Quest const* qInfo = sQuestDataStore->GetQuestTemplate((*quests)[i]->QuestID);
+        if (!qInfo)
+            continue;
+
+        // another faction's or class's version of the same step
+        if (!SatisfyQuestClass(qInfo, false) || !SatisfyQuestRace(qInfo, false))
+            continue;
+
+        // the map would show an event quest all year long: its giver only stands there while the event runs
+        if (uint16 eventId = sGameEventMgr->GetEventIdForQuest(qInfo))
+            if (!sGameEventMgr->IsActiveEvent(eventId))
+                return nullptr;
+
+        // a step given by no creature nor object (scouting map, spell, item) cannot be picked up where the map would show it
+        if (!sQuestDataStore->HasQuestStarter(qInfo->GetQuestId()) || !CanTakeQuest(qInfo, false))
+            return nullptr;
+
+        return (*quests)[i];
+    }
+
+    return nullptr;
+}
+
 void Player::UpdateAvailableQuestLines()
 {
     ClearDynamicValue(PLAYER_DYNAMIC_FIELD_AVAILABLE_QUEST_LINE_XQUEST_IDS);
 
     for (auto const& questLineEntry : sQuestLineStore)
-    {
-        if (auto const& quests = sDB2Manager.GetQuestsByQuestLine(questLineEntry->ID))
-        {
-            for (auto const& questLineXQuestEntry : *quests)
-            {
-                auto const& qInfo = sQuestDataStore->GetQuestTemplate(questLineXQuestEntry->QuestID);
-                if (!qInfo)
-                    continue;
-
-                if (CanTakeQuest(qInfo, false))
-                {
-                    AddDynamicValue(PLAYER_DYNAMIC_FIELD_AVAILABLE_QUEST_LINE_XQUEST_IDS, questLineXQuestEntry->ID);
-                    break;
-                }
-            }
-        }
-    }
+        if (QuestLineXQuestEntry const* step = GetNextQuestLineStep(questLineEntry->ID))
+            AddDynamicValue(PLAYER_DYNAMIC_FIELD_AVAILABLE_QUEST_LINE_XQUEST_IDS, step->ID);
 }
 
 void Player::SummonIfPossible(bool agree)

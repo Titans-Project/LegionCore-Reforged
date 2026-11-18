@@ -47,6 +47,7 @@
 class SpectatorAddonMsg;
 struct Mail;
 struct ItemExtendedCostEntry;
+struct QuestLineXQuestEntry;
 
 class Bracket;
 class Channel;
@@ -2044,6 +2045,7 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
         bool HasQuestForCreature(CreatureTemplate const* cInfo) const;
         bool HasQuestForGO(int32 GOId) const;
         void UpdateForQuestWorldObjects();
+        QuestLineXQuestEntry const* GetNextQuestLineStep(uint32 questLineId);
         void UpdateAvailableQuestLines();
         bool CanShareQuest(uint32 quest_id) const;
         void QuestObjectiveSatisfy(uint32 objectId, uint32 amount, QuestObjectiveType type = QUEST_OBJECTIVE_MONSTER, ObjectGuid guid = ObjectGuid::Empty);

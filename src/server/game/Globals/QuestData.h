@@ -239,6 +239,7 @@ public:
     QuestRelationBounds GetCreatureQuestInvolvedRelationBoundsByQuest(uint32 questId);
     QuestRelationBounds GetCreatureQuestInvolvedRelationBounds(uint32 creature_entry);
     QuestRelationBounds GetAreaQuestRelationBounds(uint32 area);
+    bool HasQuestStarter(uint32 questId) const { return _creatureQuestStarter.count(questId) || _goQuestStarter.count(questId); }
     QuestTemplateLocale const* GetQuestLocale(uint32 entry) const;
     QuestRequestItemsLocale const* GetQuestRequestItemsLocale(uint32 entry) const;
     QuestOfferRewardLocale const* GetQuestOfferRewardLocale(uint32 entry) const;
