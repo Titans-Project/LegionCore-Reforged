@@ -111,6 +111,7 @@ void AddSC_world_boss_chiji();
 void AddSC_world_boss_xuen();
 void AddSC_world_boss_yulon();
 void AddSC_world_boss_niuzao();
+void AddSC_world_boss_ordos();
 
 // Scenarios
 void AddSC_instance_arena_of_annihilation();
@@ -268,6 +269,7 @@ void AddPandariaScripts()
     AddSC_world_boss_xuen();
     AddSC_world_boss_yulon();
     AddSC_world_boss_niuzao();
+    AddSC_world_boss_ordos();
 
     // Scenarios
     AddSC_instance_arena_of_annihilation();
