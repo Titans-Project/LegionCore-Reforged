@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
 */
 
@@ -197,7 +205,7 @@ struct npc_fizzle_brassbolts : ScriptedAI
         {
             if (WorldQuest const* wq = sQuestDataStore->GetWorldQuest(sQuestDataStore->GetQuestTemplate(45806)))
             {
-                if (!player->WorldQuestCompleted(45806))
+                if (!player->WorldQuestCompleted(45806) && player->GetQuestStatus(45806) == QUEST_STATUS_INCOMPLETE)
                 {
                     uint32 credit = player->GetQuestObjectiveData(45806, 118140);
 
@@ -232,7 +240,7 @@ struct npc_tu_luak : ScriptedAI
         {
             if (WorldQuest const* wq = sQuestDataStore->GetWorldQuest(sQuestDataStore->GetQuestTemplate(45806)))
             {
-                if (!player->WorldQuestCompleted(45806))
+                if (!player->WorldQuestCompleted(45806) && player->GetQuestStatus(45806) == QUEST_STATUS_INCOMPLETE)
                 {
                     uint32 credit = player->GetQuestObjectiveData(45806, 118141);
 
@@ -267,7 +275,7 @@ struct npc_theldurin_the_lost : ScriptedAI
         {
             if (WorldQuest const* wq = sQuestDataStore->GetWorldQuest(sQuestDataStore->GetQuestTemplate(45806)))
             {
-                if (!player->WorldQuestCompleted(45806))
+                if (!player->WorldQuestCompleted(45806) && player->GetQuestStatus(45806) == QUEST_STATUS_INCOMPLETE)
                 {
                     uint32 credit = player->GetQuestObjectiveData(45806, 118143);
 
@@ -302,7 +310,7 @@ struct npc_ilthine_sunsong : ScriptedAI
         {
             if (WorldQuest const* wq = sQuestDataStore->GetWorldQuest(sQuestDataStore->GetQuestTemplate(45806)))
             {
-                if (!player->WorldQuestCompleted(45806))
+                if (!player->WorldQuestCompleted(45806) && player->GetQuestStatus(45806) == QUEST_STATUS_INCOMPLETE)
                 {
                     uint32 credit = player->GetQuestObjectiveData(45806, 118144);
 
