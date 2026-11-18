@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 #include "MoveSplineInit.h"
 
 enum eSay
@@ -163,6 +171,16 @@ struct npc_jay_maguire : public ScriptedAI
     {
         events.Update(diff);
 
+        // on the stage once his walk there is over: whether an event fires then or not
+        if (finishwp && me->IsSplineFinished())
+        {
+            finishwp = false;
+            me->SetOrientation(1.598367f);
+            me->SetFacingTo(1.598367f);
+            Talk(SAY_JAY_MAGUIRE_START_CONCERT);
+            events.RescheduleEvent(EVENT_READY, 4000);
+        }
+
         if (uint32 eventId = events.ExecuteEvent())
         {
             switch (eventId)
@@ -227,14 +245,6 @@ struct npc_jay_maguire : public ScriptedAI
                 break;
             }
 
-            if (finishwp && me->IsSplineFinished())
-            {
-                finishwp = false;
-                me->SetOrientation(1.598367f);
-                me->SetFacingTo(1.598367f);
-                Talk(SAY_JAY_MAGUIRE_START_CONCERT);
-                events.RescheduleEvent(EVENT_READY, 4000);
-            }
         }
     }
 };
@@ -526,6 +536,7 @@ struct npc_devlynn_styx : public ScriptedAI
             {
                 DoCast(SPELL_STAGE_DIVE);
                 events.RescheduleEvent(EVENT_WHOOOOOOAH, 13000);
+                events.RescheduleEvent(EVENT_JUMP_SCREAM, 120000);
                 Talk(SAY_DEVLYNN_STYX_SCREAM);
                 me->AddDelayedEvent(1000, [=]() -> void { DoCast(SPELL_IN_THE_CROWD); });
                 break;
@@ -534,9 +545,6 @@ struct npc_devlynn_styx : public ScriptedAI
                 std::list<Player*> playerList;
                 GetPlayerListInGrid(playerList, me, 100.0f);
                 Trinity::Containers::RandomResizeList(playerList, 1);
-
-                if (playerList.empty())
-                    return;
 
                 for (auto& player : playerList)
                 {
@@ -560,9 +568,10 @@ class spell_army_of_the_dead : public AuraScript
 
     void Tick(AuraEffect const* aurEff)
     {
-        if (Creature* deathmetal = GetCaster()->ToCreature())
+        // the ten places in turn, round again if the aura lasts longer
+        if (Creature* deathmetal = GetCaster() ? GetCaster()->ToCreature() : nullptr)
         {
-            deathmetal->CastSpell(destSummon[RandSummonCheck], SPELL_SUMMON_GHOUL, false);
+            deathmetal->CastSpell(destSummon[RandSummonCheck % 10], SPELL_SUMMON_GHOUL, false);
             RandSummonCheck++;
         }
     }
