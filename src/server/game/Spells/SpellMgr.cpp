@@ -4069,6 +4069,15 @@ void SpellMgr::LoadSpellCustomAttr()
         spellInfo->Effects[EFFECT_0]->TargetB = TARGET_DEST_DB;
     });
 
+    // Chaos Bomb (Felsoul Obliterator) and the doomlords' fel bolt (The Hunt): fired at the Illidari bats over Felsoul Hold;
+    // the channel they aim at does not exist on this core, they go to the point they are cast at
+    ApplySpellFix({ 189716, 200740 }, [](SpellInfo* spellInfo)
+    {
+        spellInfo->Effects[EFFECT_0]->TargetA = TARGET_DEST_DEST;
+        // and exactly there: the random point within 28 yards of the data let a shot meant to miss land on the hunter
+        spellInfo->Effects[EFFECT_0]->TargetB = TARGET_NONE;
+    });
+
     ApplySpellFix({6203,  // Soulstone
         2641 // Dismiss Pet
     }, [](SpellInfo* spellInfo)
