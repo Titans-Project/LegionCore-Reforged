@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
 */
  
@@ -435,10 +443,8 @@ struct npc_ashtar : ScriptedAI
         case ACTION_5:
             Talk(SAY_GOBLIN);
             for (uint8 i = 0; i < 2; ++i)
-            {
                 me->SummonGameObject(269858, GameObjects_Goblin1[i], 0, 0, 0, 0, 0, 15);
-                me->SummonGameObject(269869, GameObjects_Goblin2[i], 0, 0, 0, 0, 0, 15);
-            }
+            me->SummonGameObject(269869, GameObjects_Goblin2[0], 0, 0, 0, 0, 0, 15);
             me->SummonCreature(121727, 1645.549f, -4447.509f, 19.08538f, 3.405418f, TEMPSUMMON_TIMED_DESPAWN, 15000);
             break;
         case ACTION_6:
@@ -456,6 +462,7 @@ struct npc_ashtar : ScriptedAI
                 me->SummonGameObject(269859, GameObjects_BloodElf[i], 0, 0, 0, 0, 0, 15);
                 me->SummonCreature(121730, Creatures_BloodElf[i], TEMPSUMMON_TIMED_DESPAWN, 15000);
             }
+            break;
         case ACTION_8:
             Talk(SAY_HIGHMOUNTAIN_TAUREN);
             break;
@@ -539,10 +546,10 @@ struct npc_marla : ScriptedAI
 
             for (auto& player : playerList)
             {
-                if (player->HasAura(243089) || player->HasAura(248207))
+                if (player->HasAura(243089) || player->HasAura(248203))
                 {
                     player->RemoveAura(243089);
-                    player->RemoveAura(248207);
+                    player->RemoveAura(248203);
                 }
             }
 
@@ -822,12 +829,12 @@ class spell_teleport_off_stage_horde : public SpellScript
     void HandleScriptEffect(SpellEffIndex effIndex)
     {
         PreventHitDefaultEffect(effIndex);
-        Unit* caster = GetCaster();
-        if (!caster && !caster->IsPlayer())
+        Player* player = GetHitUnit() ? GetHitUnit()->ToPlayer() : nullptr;
+        if (!player)
             return;
 
         uint8 rand = urand(0, 16);
-        caster->ToPlayer()->TeleportTo(1, tpPosHorde[rand].GetPositionX(), tpPosHorde[rand].GetPositionY(), tpPosHorde[rand].GetPositionZ(), 5.340707f);
+        player->TeleportTo(1, tpPosHorde[rand].GetPositionX(), tpPosHorde[rand].GetPositionY(), tpPosHorde[rand].GetPositionZ(), 5.340707f);
     }
 
     void Register() override
@@ -865,12 +872,12 @@ class spell_teleport_off_stage_alliance : public SpellScript
     void HandleScriptEffect(SpellEffIndex effIndex)
     {
         PreventHitDefaultEffect(effIndex);
-        Unit* caster = GetCaster();
-        if (!caster && !caster->IsPlayer())
+        Player* player = GetHitUnit() ? GetHitUnit()->ToPlayer() : nullptr;
+        if (!player)
             return;
 
         uint8 rand = urand(0, 16);
-        caster->ToPlayer()->TeleportTo(0, tpPosAlliance[rand].GetPositionX(), tpPosAlliance[rand].GetPositionY(), tpPosAlliance[rand].GetPositionZ(), 0.06981317f);
+        player->TeleportTo(0, tpPosAlliance[rand].GetPositionX(), tpPosAlliance[rand].GetPositionY(), tpPosAlliance[rand].GetPositionZ(), 0.06981317f);
     }
 
     void Register() override
