@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
 */
 
@@ -62,7 +70,7 @@ struct npc_city_invader : public ScriptedAI
 
     void IsSummonedBy(Unit* owner) override
     {
-        randomClass = urand(0, 7);
+        randomClass = urand(WARRIOR, WARLOCK);
         AttackStart(owner);
     }
 
@@ -351,7 +359,7 @@ struct npc_city_invader : public ScriptedAI
                                 if (aurEff5->GetAmount() > 0)
                                     aurEff5->SetAmount(0);
 
-                            if (AuraEffect* aurEff0 = player->GetAuraEffect(SPELL_VOLUNTEER_CITY_GUARD_HORDE, EFFECT_0))
+                            if (AuraEffect* aurEff0 = player->GetAuraEffect(SPELL_VOLUNTEER_CITY_GUARD_ALLIANCE, EFFECT_0))
                             {
                                 bp0 += aurEff0->GetAmount() + 1;
                                 aurEff0->SetAmount(bp0);
@@ -380,7 +388,7 @@ struct npc_city_invader : public ScriptedAI
                                 if (aurEff5->GetAmount() > 0)
                                     aurEff5->SetAmount(0);
 
-                            if (AuraEffect* aurEff0 = player->GetAuraEffect(SPELL_VOLUNTEER_CITY_GUARD_HORDE, EFFECT_0))
+                            if (AuraEffect* aurEff0 = player->GetAuraEffect(SPELL_VOLUNTEER_CITY_GUARD_ALLIANCE, EFFECT_0))
                             {
                                 bp0 += aurEff0->GetAmount() + 1;
                                 aurEff0->SetAmount(bp0);
@@ -409,7 +417,7 @@ struct npc_city_invader : public ScriptedAI
                                 if (aurEff5->GetAmount() > 0)
                                     aurEff5->SetAmount(0);
 
-                            if (AuraEffect* aurEff0 = player->GetAuraEffect(SPELL_VOLUNTEER_CITY_GUARD_HORDE, EFFECT_0))
+                            if (AuraEffect* aurEff0 = player->GetAuraEffect(SPELL_VOLUNTEER_CITY_GUARD_ALLIANCE, EFFECT_0))
                             {
                                 bp0 += aurEff0->GetAmount() + 1;
                                 aurEff0->SetAmount(bp0);
@@ -438,7 +446,7 @@ struct npc_city_invader : public ScriptedAI
                                 if (aurEff5->GetAmount() > 0)
                                     aurEff5->SetAmount(0);
 
-                            if (AuraEffect* aurEff0 = player->GetAuraEffect(SPELL_VOLUNTEER_CITY_GUARD_HORDE, EFFECT_0))
+                            if (AuraEffect* aurEff0 = player->GetAuraEffect(SPELL_VOLUNTEER_CITY_GUARD_ALLIANCE, EFFECT_0))
                             {
                                 bp0 += aurEff0->GetAmount() + 1;
                                 aurEff0->SetAmount(bp0);
@@ -472,7 +480,7 @@ struct npc_city_invader : public ScriptedAI
                                 if (aurEff2->GetAmount() > 0)
                                     aurEff2->SetAmount(0);
 
-                            if (AuraEffect* aurEff0 = player->GetAuraEffect(SPELL_VOLUNTEER_CITY_GUARD_HORDE, EFFECT_0))
+                            if (AuraEffect* aurEff0 = player->GetAuraEffect(SPELL_VOLUNTEER_CITY_GUARD_ALLIANCE, EFFECT_0))
                             {
                                 bp0 += aurEff0->GetAmount() + 1;
                                 aurEff0->SetAmount(bp0);
@@ -630,8 +638,8 @@ class spell_volunteer_city_guard : public AuraScript
 
     void OnUpdate(uint32 diff, AuraEffect* aurEff)
     {
-        Unit* caster = GetCaster();
-        if (!caster)
+        Unit* caster = GetTarget();
+        if (!caster || !caster->IsPlayer())
             return;
 
         if (timer)
