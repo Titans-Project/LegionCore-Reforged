@@ -4062,6 +4062,13 @@ void SpellMgr::LoadSpellCustomAttr()
         spellInfo->AttributesCu[1] |= SPELL_ATTR1_CU_VISIBLE_TO_OWNER_ONLY;
     });
 
+    // Shadow Nova (Taldath, By Any Means): the hunter is thrown down to the ground floor of the Violet Hold, to the
+    // spell_target_position spot; the channel caster it aims at does not exist on this core and drew him to Taldath
+    ApplySpellFix({ 191144 }, [](SpellInfo* spellInfo)
+    {
+        spellInfo->Effects[EFFECT_0]->TargetB = TARGET_DEST_DB;
+    });
+
     ApplySpellFix({6203,  // Soulstone
         2641 // Dismiss Pet
     }, [](SpellInfo* spellInfo)
