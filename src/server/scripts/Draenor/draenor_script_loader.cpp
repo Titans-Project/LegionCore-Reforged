@@ -7,9 +7,13 @@
 ////////////////////////////////////////////
 
 void AddSC_wod_gorgrond();
+void AddSC_world_boss_drov();
+void AddSC_world_boss_tarlna();
 void AddSC_wod_spires_of_arak();
+void AddSC_world_boss_rukhmar();
 void AddSC_wod_talador();
-void AddSC_wod_tanaan_jungle();
+void AddSC_world_boss_kazzak();
+void AddSC_zone_tanaan_jungle();
 void AddSC_edge_of_reality();
 void AddSC_wod_dark_portal();
 void AddSC_wod_frostfire_ridge();
@@ -102,13 +106,22 @@ void AddSC_AshranSpells();
 void AddSC_AshranAreaTrigger();
 void AddSC_AshranNPCNeutral();
 void AddSC_AshranQuest();
+void AddSC_garrison_general();
+void AddSC_garrison_instance();
+void AddSC_garrison_invasions();
+void AddSC_garrison_apexis_assaults();
+void AddSC_garrison_town_hall_dailies();
 
 void AddDraenorScripts()
 {
     AddSC_wod_gorgrond();
+    AddSC_world_boss_drov();
+    AddSC_world_boss_tarlna();
     AddSC_wod_spires_of_arak();
+    AddSC_world_boss_rukhmar();
     AddSC_wod_talador();
-    AddSC_wod_tanaan_jungle();
+    AddSC_world_boss_kazzak();
+    AddSC_zone_tanaan_jungle();
     AddSC_edge_of_reality();
     AddSC_wod_dark_portal();
     AddSC_wod_frostfire_ridge();
@@ -201,4 +214,9 @@ void AddDraenorScripts()
     AddSC_AshranAreaTrigger();
     AddSC_AshranNPCNeutral();
     AddSC_AshranQuest();
+    AddSC_garrison_general();
+    AddSC_garrison_instance();
+    AddSC_garrison_invasions();
+    AddSC_garrison_apexis_assaults();
+    AddSC_garrison_town_hall_dailies();
 }

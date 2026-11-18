@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 void AddSC_instance_temple_of_jade_serpent();       // Temple of Jade Serpent
 void AddSC_boss_wise_mari();
 void AddSC_boss_lorewalker_stonestep();
@@ -96,6 +104,13 @@ void AddSC_kun_lai_summit();
 
 void AddSC_WanderingIsland();
 void AddSC_timeless_isle();
+void AddSC_zone_isle_of_giants();
+void AddSC_zone_isle_of_thunder();
+void AddSC_emperor_shaohao();
+void AddSC_world_boss_chiji();
+void AddSC_world_boss_xuen();
+void AddSC_world_boss_yulon();
+void AddSC_world_boss_niuzao();
 
 // Scenarios
 void AddSC_instance_arena_of_annihilation();
@@ -246,6 +261,13 @@ void AddPandariaScripts()
 
     AddSC_WanderingIsland();
     AddSC_timeless_isle();
+    AddSC_zone_isle_of_giants();
+    AddSC_zone_isle_of_thunder();
+    AddSC_emperor_shaohao();
+    AddSC_world_boss_chiji();
+    AddSC_world_boss_xuen();
+    AddSC_world_boss_yulon();
+    AddSC_world_boss_niuzao();
 
     // Scenarios
     AddSC_instance_arena_of_annihilation();
