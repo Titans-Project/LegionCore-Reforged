@@ -40,6 +40,59 @@
 #include "WorldPacket.h"
 
 class Aura;
+
+// Mastery: Harmony (Restoration): bonus percent from the caster's Restoration heal over time effects on the target.
+// Summons (Efflorescence flower) borrow the mastery of their druid owner.
+float GetDruidHarmonyPct(Unit* source, Unit* target, SpellInfo const* spellInfo)
+{
+    if (!source || !target)
+        return 0.f;
+
+    Unit* druid = source;
+    Aura* harmony = druid->GetAura(77495); // Mastery: Harmony
+    if (!harmony && spellInfo && spellInfo->ClassOptions.SpellClassSet == SPELLFAMILY_DRUID)
+    {
+        druid = source->GetAnyOwner();
+        harmony = druid ? druid->GetAura(77495) : nullptr;
+    }
+    if (!harmony)
+        return 0.f;
+
+    AuraEffect const* perHot = harmony->GetEffect(EFFECT_0);
+    if (!perHot || !perHot->GetAmount())
+        return 0.f;
+
+    uint32 maxCount = 9;
+    if (AuraEffect const* cap = harmony->GetEffect(EFFECT_1))
+        maxCount = cap->GetAmount();
+
+    // Restoration heal over time auras carry bit 0x00400000 of SpellClassMask[3]
+    std::vector<uint32> counted;
+    for (AuraEffect const* eff : target->GetAuraEffectsByType(SPELL_AURA_PERIODIC_HEAL))
+    {
+        SpellInfo const* hotInfo = eff->GetSpellInfo();
+        if (hotInfo->ClassOptions.SpellClassSet != SPELLFAMILY_DRUID || !(hotInfo->ClassOptions.SpellClassMask[3] & 0x00400000))
+            continue;
+
+        if (eff->GetCasterGUID() != druid->GetGUID())
+        {
+            if (!eff->GetCasterGUID().IsCreature())
+                continue;
+            Unit* hotCaster = eff->GetCaster();
+            if (!hotCaster || hotCaster->GetAnyOwner() != druid)
+                continue;
+        }
+
+        if (std::find(counted.begin(), counted.end(), hotInfo->Id) != counted.end())
+            continue;
+
+        counted.push_back(hotInfo->Id);
+        if (counted.size() >= maxCount)
+            break;
+    }
+
+    return perHot->GetAmount() * counted.size();
+}
 //
 // EFFECT HANDLER NOTES
 //
@@ -7182,24 +7235,7 @@ void AuraEffect::HandlePeriodicDummyAuraTick(Unit* target, Unit* caster, SpellEf
                         break;
 
                     float heal = CalculatePct(caster->GetMaxHealth(), m_amount); // hack
-                    if (Aura* aura = caster->GetAura(77495)) // Mastery: Harmony
-                    {
-                        float modDif = 0.f;
-                        uint32 modCount = 0;
-                        uint32 modMaxCount = 9;
-                        if (AuraEffect* eff = aura->GetEffect(EFFECT_0))
-                            modDif = eff->GetAmount();
-                        Unit::AuraEffectList const& mPeriodic = target->GetAuraEffectsByType(SPELL_AURA_PERIODIC_HEAL);
-                        for (Unit::AuraEffectList::const_iterator i = mPeriodic.begin(); i != mPeriodic.end(); ++i)
-                            if ((*i)->GetCasterGUID() == caster->GetGUID())
-                                modCount++;
-
-                        if (modCount >= modMaxCount)
-                            modCount = modMaxCount;
-
-                        if (modCount && modDif)
-                            AddPct(heal, modDif * modCount);
-                    }
+                    AddPct(heal, GetDruidHarmonyPct(caster, target, GetSpellInfo()));
                     caster->CastCustomSpell(caster, 224392, &heal, nullptr, nullptr, true);
                     break;
                 }
@@ -8387,23 +8423,7 @@ void AuraEffect::HandlePeriodicHealAurasTick(Unit* target, Unit* caster, SpellEf
                 damage = CalculatePct(damage, pct);
             }
 
-            if (Aura* aura = caster->GetAura(77495)) // Mastery: Harmony
-            {
-                float modDif = 0.f;
-                uint32 modCount = 0;
-                uint32 modMaxCount = 9;
-                if (AuraEffect* eff = aura->GetEffect(EFFECT_0))
-                    modDif = eff->GetAmount();
-                Unit::AuraEffectList const& mPeriodic = target->GetAuraEffectsByType(SPELL_AURA_PERIODIC_HEAL);
-                for (Unit::AuraEffectList::const_iterator i = mPeriodic.begin(); i != mPeriodic.end(); ++i)
-                    if ((*i)->GetCasterGUID() == caster->GetGUID())
-                        modCount++;
-
-                if (modCount >= modMaxCount)
-                    modCount = modMaxCount;
-                if (modCount && modDif)
-                    damage += CalculatePct(damage, modDif * modCount);
-            }
+            damage += CalculatePct(damage, GetDruidHarmonyPct(caster, target, m_spellInfo));
         }
 
         switch (m_spellInfo->Id)

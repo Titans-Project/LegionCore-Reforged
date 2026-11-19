@@ -76,6 +76,8 @@
 #include "WorldPacket.h"
 #include <G3D/Quat.h>
 
+float GetDruidHarmonyPct(Unit* source, Unit* target, SpellInfo const* spellInfo); // SpellAuraEffects.cpp
+
 pEffect SpellEffects[TOTAL_SPELL_EFFECTS] =
 {
     &Spell::EffectNULL,                                     //  0
@@ -2666,36 +2668,11 @@ void Spell::EffectHeal(SpellEffIndex effIndex)
                 unitTarget->CastSpell(unitTarget, 120717, true);  // Revitalized Spirit
         }
 
+        if (!m_spellInfo->HasAttribute(SPELL_ATTR3_NO_DONE_BONUS))
+            addhealth += CalculatePct(addhealth, GetDruidHarmonyPct(caster, unitTarget, m_spellInfo));
+
         switch (m_caster->getClass())
         {
-            case CLASS_DRUID:
-            {
-                if (m_spellInfo->HasAttribute(SPELL_ATTR3_NO_DONE_BONUS))
-                    break;
-
-                Aura* aura = m_caster->GetAura(77495); // Mastery: Harmony
-                if (!aura)
-                    break;
-
-                float modDif = 0.f;
-                uint32 modCount = 0;
-                uint32 modMaxCount = 9;
-                if (AuraEffect* eff = aura->GetEffect(EFFECT_1))
-                    modMaxCount = eff->GetAmount();
-                if (AuraEffect* eff = aura->GetEffect(EFFECT_0))
-                    modDif = eff->GetAmount();
-                Unit::AuraEffectList const& mPeriodic = unitTarget->GetAuraEffectsByType(SPELL_AURA_PERIODIC_HEAL);
-                for (Unit::AuraEffectList::const_iterator i = mPeriodic.begin(); i != mPeriodic.end(); ++i)
-                {
-                    if ((*i)->GetCasterGUID() == m_caster->GetGUID())
-                        modCount++;
-                    if (modCount >= modMaxCount)
-                        break;
-                }
-                if (modCount && modDif)
-                    addhealth += CalculatePct(addhealth, modDif * modCount);
-                break;
-            }
             case CLASS_PALADIN:
             {
                 if (m_spellInfo->HasAttribute(SPELL_ATTR3_NO_DONE_BONUS))
