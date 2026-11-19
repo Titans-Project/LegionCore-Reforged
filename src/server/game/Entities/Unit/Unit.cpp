@@ -24382,6 +24382,7 @@ bool Unit::HandleSpellClick(Unit* clicker, int8 seatId)
     bool res = false;
     uint32 spellClickEntry = GetVehicleKit() ? GetVehicleKit()->GetCreatureEntry() : GetEntry();
     SpellClickInfoMapBounds clickPair = sObjectMgr->GetSpellClickInfoMapBounds(spellClickEntry);
+    bool const hasClickSpells = clickPair.first != clickPair.second;
     for (SpellClickInfoContainer::const_iterator itr = clickPair.first; itr != clickPair.second; ++itr)
     {
         //! First check simple relations from clicker to clickee
@@ -24444,8 +24445,10 @@ bool Unit::HandleSpellClick(Unit* clicker, int8 seatId)
         }
     }
 
+    // a click refused by every click spell's requirements or conditions is not one; a script-only clickable
+    // creature (no click spell) still hears of it
     Creature* creature = ToCreature();
-    if (creature && creature->IsAIEnabled)
+    if (creature && creature->IsAIEnabled && (res || !hasClickSpells))
         creature->AI()->OnSpellClick(clicker);
 
     if (Player* player = clicker->ToPlayer())
