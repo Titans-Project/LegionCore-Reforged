@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
     Paladin: SilverHand
 */
@@ -6,6 +14,7 @@
 #include "ScriptedCreature.h"
 #include "CreatureTextMgr.h"
 #include "GameObjectAI.h"
+#include "ObjectAccessor.h"
 
 
 // 106429
@@ -16,6 +25,9 @@ public:
 
     bool OnGossipSelect(Player* player, Creature* creature, uint32 /*sender*/, uint32 action) override
     {
+        if (!creature->HasFlag(UNIT_FIELD_NPC_FLAGS, UNIT_NPC_FLAG_GOSSIP))
+            return true;
+
         creature->GetMotionMaster()->MovePath(10993804, false);
         player->CLOSE_GOSSIP_MENU();
         creature->SetUInt32Value(UNIT_FIELD_NPC_FLAGS, 0); // госсип
@@ -227,11 +239,13 @@ public:
             {
                 _introDone = true;
                 Talk(0);
-                me->AddDelayedEvent(5000, [this, who]() -> void
+                ObjectGuid playerGuid = who->GetGUID();
+                me->AddDelayedEvent(5000, [this, playerGuid]() -> void
                 {
                     Talk(1);
                     me->GetMotionMaster()->MovePoint(1, 2137.70f, 2397.60f, 118.54f);
-                    who->ToPlayer()->KilledMonsterCredit(106416);
+                    if (Player* player = ObjectAccessor::GetPlayer(*me, playerGuid))
+                        player->KilledMonsterCredit(106416);
                 });
             }
         }
@@ -294,6 +308,9 @@ public:
 
     bool OnGossipSelect(Player* player, Creature* creature, uint32 /*sender*/, uint32 action) override
     {
+        if (!creature->HasFlag(UNIT_FIELD_NPC_FLAGS, UNIT_NPC_FLAG_GOSSIP))
+            return true;
+
         if (Creature* efrin = creature->FindNearestCreature(106371, 30.0f, true))
             efrin->GetMotionMaster()->MoveFollow(creature, PET_FOLLOW_DIST, float(- PET_FOLLOW_ANGLE), MOTION_SLOT_IDLE);
         if (Creature* duval = creature->FindNearestCreature(106370, 30.0f, true))
@@ -984,17 +1001,19 @@ public:
 
     void OnLootStateChanged(GameObject* go, uint32 state, Unit* target) override
     {
+        // the chest has no loot of its own (Data1 = 0): the weapon is given here, once
         if (target && state == GO_ACTIVATED)
         {
-            if (target->GetTypeId() == TYPEID_PLAYER)
+            Player* owner = target->ToPlayer();
+            if (owner && !owner->HasAura(211838) && !owner->GetQuestRewardStatus(42120))
             {
                 target->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50966);
                 target->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_COMPLETE_SCENARIO, 1092, 1);
                 if (Creature* trigger = go->FindNearestCreature(106781, 10.0f))
                     trigger->DespawnOrUnsummon(1000);
 
-                if (!target->ToPlayer()->HasItemCount(128823, 1))
-                    target->ToPlayer()->AddItem(128823, 1);
+                if (!owner->HasItemCount(128823, 1))
+                    owner->AddItem(128823, 1);
 
                 target->CastSpell(target, 211838, true);
 

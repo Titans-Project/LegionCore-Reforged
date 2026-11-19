@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
     Paladin Specialization: Retribution
 */
@@ -21,7 +29,7 @@ public:
         instance_broken_shore_InstanceMapScript(InstanceMap* map) : InstanceScript(map) {}
 
         std::list<Creature*> trashGUIDconteiner;
-        std::list<GameObject*> DoorGUIDconteiner;
+        GuidSet DoorGUIDconteiner;
         ObjectGuid tyrosusGUID;
         uint8 alliesFight;
 
@@ -85,9 +93,15 @@ public:
                 case GO_ZERUS_DOOR:
                 case GO_BOSS_ZERUS_DOOR_1:
                 case GO_BOSS_ZERUS_DOOR_2:
-                    DoorGUIDconteiner.push_back(go);
+                    DoorGUIDconteiner.insert(go->GetGUID());
                     break;
             }
+        }
+
+        void OnGameObjectRemove(GameObject* go) override
+        {
+            DoorGUIDconteiner.erase(go->GetGUID());
+            InstanceScript::OnGameObjectRemove(go);
         }
 
         void SetData(uint32 type, uint32 data) override
@@ -157,9 +171,10 @@ public:
             switch (newStep)
             {
                 case DATA_STAGE_3:
-                    for (auto go : DoorGUIDconteiner)
-                        if (go->GetEntry() == GO_ZERUS_DOOR)
-                            HandleGameObject(go->GetGUID(), true);
+                    for (ObjectGuid const& guid : DoorGUIDconteiner)
+                        if (GameObject* go = instance->GetGameObject(guid))
+                            if (go->GetEntry() == GO_ZERUS_DOOR)
+                                HandleGameObject(guid, true);
                     break;
             }
         }
@@ -184,10 +199,14 @@ public:
                     break;
                 case NPC_JAILER_ZERUS_BOSS:
                     DoUpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 46064); //Set Stage 4
-                    for (auto go : DoorGUIDconteiner)
+                    for (ObjectGuid const& guid : DoorGUIDconteiner)
                     {
+                        GameObject* go = instance->GetGameObject(guid);
+                        if (!go)
+                            continue;
+
                         if (go->GetEntry() == GO_BOSS_ZERUS_DOOR_1)
-                            HandleGameObject(go->GetGUID(), true);
+                            HandleGameObject(guid, true);
                         if (go->GetEntry() == GO_BOSS_ZERUS_DOOR_2)
                             go->SetPhaseMask(1, true);
                     }

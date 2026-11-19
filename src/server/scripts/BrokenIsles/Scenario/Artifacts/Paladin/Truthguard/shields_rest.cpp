@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
     Paladin Specialization: Protection
 */
@@ -140,7 +148,8 @@ public:
             if (damage >= me->GetHealth())
             {
                 damage = 0;
-                attacker->getThreatManager().modifyThreatPercent(me, -90);
+                if (attacker)
+                    attacker->getThreatManager().modifyThreatPercent(me, -90);
             }
         }
 
@@ -536,7 +545,7 @@ public:
 
         EventMap events;
         bool checkWindPos;
-        uint32 windSpell;
+        uint32 windSpell = 0;
 
         void Reset() override
         {
@@ -574,7 +583,8 @@ public:
                 switch (eventId)
                 {
                     case EVENT_1:
-                        DoCast(windSpell);
+                        if (windSpell)
+                            DoCast(windSpell);
                         events.RescheduleEvent(EVENT_1, urand(6, 12) * IN_MILLISECONDS);
                         break;
                     case EVENT_2:
@@ -606,19 +616,23 @@ public:
             me->SetReactState(REACT_PASSIVE);
         }
 
-        uint16 startTimer;
+        uint16 startTimer = 0;
+        uint32 lifetime = 0;
 
         void Reset() override {}
         
         void IsSummonedBy(Unit* summoner) override
         {
             startTimer = 500;
+            lifetime = 30000;
         }
 
         void MovementInform(uint32 type, uint32 id) override
         {
-            if (type != POINT_MOTION_TYPE)
+            if (type != POINT_MOTION_TYPE || id != 1)
                 return;
+
+            lifetime = 0;
 
             if (me->GetVehicleKit())
             {
@@ -629,6 +643,18 @@ public:
 
         void UpdateAI(uint32 diff) override
         {
+            // A storm whose path fails would otherwise stay in the corridor forever.
+            if (lifetime)
+            {
+                if (lifetime <= diff)
+                {
+                    lifetime = 0;
+                    me->DespawnOrUnsummon();
+                    return;
+                }
+                lifetime -= diff;
+            }
+
             if (startTimer)
             {
                 if (startTimer <= diff)
@@ -864,7 +890,7 @@ public:
                         me->GetMotionMaster()->MovePoint(2, 4878.36f, 523.51f, -49.09f);
                         break;
                     case EVENT_4:
-                        me->GetMotionMaster()->MoveJump(4880.58f, 532.99f, -43.42f, 20.0f, 10.0f, 111);
+                        me->GetMotionMaster()->MoveJump(4880.58f, 532.99f, -43.42f, me->GetOrientation(), 20.0f, 10.0f, 111);
                         me->SetHomePosition(4880.58f, 532.99f, -43.42f, 1.57f);
                         break;
                     case EVENT_5:
@@ -1043,7 +1069,11 @@ public:
         void IsSummonedBy(Unit* summoner) override
         {
             SetFlyMode(true);
-            summoner->CastSpell(me, 52391, true); //Ride Veh
+            if (!summoner)
+                return;
+
+            if (summoner->CastSpell(me, 52391, true) != SPELL_CAST_OK) //Ride Veh
+                me->DespawnOrUnsummon(1);
         }
 
         void PassengerBoarded(Unit* who, int8 /*seatId*/, bool apply) override
@@ -1087,8 +1117,8 @@ public:
                     QuestStatus status = player->GetQuestStatus(42017);
                     if (status == QUEST_STATUS_INCOMPLETE)
                     {
-                        player->CastSpell(player, SPELL_SUMMON_HIPPO, true);
-                        me->DestroyForPlayer(player);
+                        if (player->CastSpell(player, SPELL_SUMMON_HIPPO, true) == SPELL_CAST_OK)
+                            me->DestroyForPlayer(player);
                     }
                 }
                 if (me->GetEntry() == NPC_HIPPOGRYPH_SCENARIO)
@@ -1096,8 +1126,8 @@ public:
                     if (InstanceScript* instance = player->GetInstanceScript())
                         if (instance->GetData(DATA_YRGRIM_EVENT) == 7)
                         {
-                            player->CastSpell(player, SPELL_SUMMON_HIPPO_INST, true);
-                            me->DestroyForPlayer(player);
+                            if (player->CastSpell(player, SPELL_SUMMON_HIPPO_INST, true) == SPELL_CAST_OK)
+                                me->DestroyForPlayer(player);
                         }
                 }
             }

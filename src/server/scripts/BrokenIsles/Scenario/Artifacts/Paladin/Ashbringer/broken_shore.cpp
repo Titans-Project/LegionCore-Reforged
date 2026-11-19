@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
     Paladin Specialization: Retribution
 */
@@ -672,12 +680,13 @@ public:
                 switch (eventId)
                 {
                     case EVENT_1:
-                        events.RescheduleEvent(EVENT_1, 1000);
-                        for (uint8 i = 0; i < 3; i++)
+                        for (uint8 i = 0; i < 3 && flameCastCount < std::size(flameTarget); i++)
                         {
                             me->CastSpell(flameTarget[flameCastCount], 190666, true);
                             flameCastCount++;
                         }
+                        if (flameCastCount < std::size(flameTarget))
+                            events.RescheduleEvent(EVENT_1, 1000);
                         break;
                 }
             }
@@ -744,7 +753,7 @@ public:
 
         void MovementInform(uint32 type, uint32 id) override
         {
-            if (type != POINT_MOTION_TYPE)
+            if (type != POINT_MOTION_TYPE || (id != 1 && id != 2))
                 return;
 
             if (id == 1)
@@ -1150,8 +1159,20 @@ public:
                 {
                     if (state == GO_JUST_DEACTIVATED || player->HasItemCount(120978))
                     {
+                        // The retrieval spell creates the weapon: a full bag must leave the object usable.
+                        if (!player->HasItemCount(120978))
+                        {
+                            ItemPosCountVec destination;
+                            InventoryResult result = player->CanStoreNewItem(NULL_BAG, NULL_SLOT, destination, 120978, 1);
+                            if (result != EQUIP_ERR_OK)
+                            {
+                                player->SendEquipError(result, nullptr, nullptr, 120978);
+                                go->SetLootState(GO_READY);
+                                return;
+                            }
+                        }
+
                         instance->DoUpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 46130); //Step 4
-                        instance->DoUpdateAchievementCriteria(CRITERIA_TYPE_COMPLETE_SCENARIO, 775, 1);
                         if (Creature* trigger = go->FindNearestCreature(103454, 10.0f))
                             trigger->DespawnOrUnsummon();
 

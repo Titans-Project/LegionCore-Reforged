@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
     Paladin Specialization: Protection
 */
@@ -22,7 +30,7 @@ public:
     {
         instance_shields_rest_InstanceMapScript(InstanceMap* map) : InstanceScript(map) {}
 
-        std::list<GameObject*> goDoorList;
+        GuidSet goDoorList;
         std::list<ObjectGuid> trashList;
         ObjectGuid eventDoorGUID;
 
@@ -71,12 +79,18 @@ public:
             }
         }
 
+        void OnGameObjectRemove(GameObject* go) override
+        {
+            goDoorList.erase(go->GetGUID());
+            InstanceScript::OnGameObjectRemove(go);
+        }
+
         void OnGameObjectCreate(GameObject* go) override
         {
             switch (go->GetEntry())
             {
                 case GO_FIRST_DOOR:
-                    goDoorList.push_back(go);
+                    goDoorList.insert(go->GetGUID());
                     break;
                 case GO_EVENT_DOOR:
                     eventDoorGUID = go->GetGUID();
@@ -110,10 +124,11 @@ public:
                     if (cryptstalkersDiedCount == 2)
                     {
                         if (!goDoorList.empty())
-                            for (auto go : goDoorList)
+                            for (ObjectGuid const& doorGuid : goDoorList)
                             {
-                                if (go->GetDistance(doorPos[0]) < go->GetDistance(doorPos[1]))
-                                    HandleGameObject(go->GetGUID(), true);
+                                GameObject* go = instance->GetGameObject(doorGuid);
+                                if (go && go->GetDistance(doorPos[0]) < go->GetDistance(doorPos[1]))
+                                    HandleGameObject(doorGuid, true);
                             }
                         if (!trashList.empty())
                             for (auto trashGuid : trashList)
@@ -234,10 +249,11 @@ public:
                     {
                         DoUpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50566); //Step 4
                         if (!goDoorList.empty())
-                            for (auto go : goDoorList)
+                            for (ObjectGuid const& doorGuid : goDoorList)
                             {
-                                if (go->GetDistance(doorPos[1]) < go->GetDistance(doorPos[0]))
-                                    HandleGameObject(go->GetGUID(), true);
+                                GameObject* go = instance->GetGameObject(doorGuid);
+                                if (go && go->GetDistance(doorPos[1]) < go->GetDistance(doorPos[0]))
+                                    HandleGameObject(doorGuid, true);
                             }
                     }
                     if (GameObject* go = instance->GetGameObject(eventDoorGUID))
