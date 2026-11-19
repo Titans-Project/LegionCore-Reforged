@@ -220,7 +220,7 @@ public:
         void JustDied(Unit* who) override
         {
             Talk(0);
-            if (InstanceScript* instance = who->GetInstanceScript())
+            if (InstanceScript* instance = me->GetInstanceScript())
             {
                 instance->DoUpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 49959);
                 instance->DoUpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 49960);
@@ -319,7 +319,7 @@ public:
         void JustDied(Unit* who) override
         {
             DoCast(208395); // convers
-            if (InstanceScript* instance = who->GetInstanceScript())
+            if (InstanceScript* instance = me->GetInstanceScript())
             {
                 instance->DoUpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 47079);
             }
@@ -529,12 +529,12 @@ public:
                 {
                     introDone = true;
                     who->CastSpell(who, 208459); // convers
-                    me->GetMotionMaster()->MoveJump(-2748.06f, -328.11f, 38.42f, 0.0f, 10.0f, 15.0f);
+                    me->GetMotionMaster()->MoveJump(-2748.06f, -328.11f, 38.42f, me->GetOrientation(), 10.0f, 15.0f);
                 }
             }
             if (me->GetDistance2d(-2748.06f, -328.11f) <= 5.0f && !introDone2)
             {
-                if ((me->GetDistance(who) < 53.0f) && !introDone)
+                if ((me->GetDistance(who) < 53.0f) && !introDone2)
                 {
                     introDone2 = true;
                     who->CastSpell(who, 208460); // convers
@@ -553,7 +553,7 @@ public:
             DoCast(208475); // convers
             // me->SummonGameObject(248785, -2748.406f, -328.1875f, 38.34308f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, DAY);
         //    me->SummonCreature(105155, -2748.406f, -328.1875f, 38.34308f, 1.93f);
-            if (InstanceScript* instance = who->GetInstanceScript())
+            if (InstanceScript* instance = me->GetInstanceScript())
                     instance->DoUpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 47080); //Step last - complete
         }
         
