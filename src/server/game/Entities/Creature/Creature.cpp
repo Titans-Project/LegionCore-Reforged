@@ -2607,9 +2607,17 @@ bool Creature::CanAlwaysSee(WorldObject const* obj) const
     return IsAIEnabled && AI() && AI()->CanSeeAlways(obj);
 }
 
-bool Creature::IsNeverVisible(WorldObject const* /*seer*/) const
+bool Creature::IsNeverVisible(WorldObject const* seer) const
 {
-    return WorldObject::IsNeverVisible();
+    if (WorldObject::IsNeverVisible())
+        return true;
+
+    if (seer && IsAIEnabled)
+        if (Player const* player = seer->ToPlayer())
+            if (CreatureAI const* ai = AI())
+                return ai->IsHiddenFor(player);
+
+    return false;
 }
 
 bool Creature::canStartAttack(Unit const* who, bool force) const
