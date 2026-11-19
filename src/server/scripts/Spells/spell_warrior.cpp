@@ -1,19 +1,14 @@
-/*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 /*
  * Scripts for spells with SPELLFAMILY_WARRIOR and SPELLFAMILY_GENERIC spells used by warrior players.
@@ -26,6 +21,31 @@
 #include "ScriptUtils.h"
 #include "SpellAuraEffects.h"
 #include "PathGenerator.h"
+
+enum WarriorLegionSpells
+{
+    SPELL_WARRIOR_WAR_MACHINE_BUFF      = 215562,
+    SPELL_WARRIOR_T21_FURY_2P           = 251880,
+    SPELL_WARRIOR_T21_FURY_BLEED        = 253384
+};
+
+// War Machine - 215556. The client proc applies an inert marker to the dead
+// enemy; the actual buff is a self aura.
+class spell_warr_war_machine : public AuraScript
+{
+    PrepareAuraScript(spell_warr_war_machine);
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& /*eventInfo*/)
+    {
+        PreventDefaultAction();
+        GetTarget()->CastSpell(GetTarget(), SPELL_WARRIOR_WAR_MACHINE_BUFF, true, nullptr, aurEff);
+    }
+
+    void Register() override
+    {
+        OnEffectProc += AuraEffectProcFn(spell_warr_war_machine::HandleProc, EFFECT_0, SPELL_AURA_PROC_TRIGGER_SPELL);
+    }
+};
 
 //Arms Execute - 163201
 class spell_warr_execute : public SpellScriptLoader
@@ -1102,6 +1122,17 @@ class spell_warr_rampage : public SpellScriptLoader
                             if (GetSpell()->IsCritForTarget(GetHitUnit()))
                                 plr->CastSpell(plr, 248179, true);
                     }
+
+                    // Fury T21 2P (251880, dummy aura): each hit leaves a bleed worth a share of its damage
+                    if (AuraEffect const* bonus = plr->GetAuraEffect(SPELL_WARRIOR_T21_FURY_2P, EFFECT_0))
+                        if (Unit* target = GetHitUnit())
+                            if (int32 damage = GetHitDamage())
+                                if (SpellInfo const* bleed = sSpellMgr->GetSpellInfo(SPELL_WARRIOR_T21_FURY_BLEED))
+                                    if (uint32 ticks = bleed->GetMaxTicks())
+                                    {
+                                        float perTick = CalculatePct(damage, bonus->GetAmount()) / float(ticks);
+                                        plr->CastCustomSpell(target, SPELL_WARRIOR_T21_FURY_BLEED, &perTick, nullptr, nullptr, true, nullptr, bonus);
+                                    }
                 }
             }
 
@@ -1155,6 +1186,7 @@ class spell_warr_shield_visual : public SpellScriptLoader
 
 void AddSC_warrior_spell_scripts()
 {
+    RegisterAuraScript(spell_warr_war_machine);
     new spell_warr_shield_block();
     new spell_warr_heroic_leap();
     new spell_war_intervene();

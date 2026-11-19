@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
     Warriors: Intro Scenario
 */
@@ -442,8 +450,44 @@ public:
             if (!outro && me->HealthBelowPct(20))
             {
                 DoCast(186382);
-                events.RescheduleEvent(EVENT_5, 5500);
                 outro = true;
+                // Not an AI event: it must run even if Malgalor loses its victim or is still casting
+                me->AddDelayedEvent(5500, [boss = me]() -> void
+                {
+                    boss->Kill(boss);
+
+                    // Every scenario member gets the victory and the way out, not only the nearest one
+                    bool criteriaDone = false;
+                    Map::PlayerList const& players = boss->GetMap()->GetPlayers();
+                    for (Map::PlayerList::const_iterator itr = players.begin(); itr != players.end(); ++itr)
+                    {
+                        Player* targ = itr->getSource();
+                        if (!targ)
+                            continue;
+
+                        if (!criteriaDone)
+                        {
+                            targ->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 46881);
+                            criteriaDone = true;
+                        }
+                        targ->CastSpell(targ, 191979);
+                        targ->AddDelayedEvent(4000, [targ]() -> void
+                        {
+                            Conversation* conversation = new Conversation;
+                            if (!conversation->CreateConversation(sObjectMgr->GetGenerator<HighGuid::Conversation>()->Generate(), 826, targ, NULL, *targ))
+                                delete conversation;
+                        });
+
+                        targ->AddDelayedEvent(8000, [targ]() -> void
+                        {
+                            if (Creature* add = targ->FindNearestCreature(93818, 50.0f, true))
+                                add->CastSpell(targ, 185714);
+                            targ->KilledMonsterCredit(103661);
+                            targ->RemoveAura(191979);
+                            targ->TeleportTo(1479, 1071.81f, 7224.32f, 97.891f, 3.15048f);
+                        });
+                    }
+                });
             }
             if (outro)
                 damage = 0;
@@ -485,29 +529,6 @@ public:
                     case EVENT_4:
                         DoCast(197818);
                         events.RescheduleEvent(EVENT_4, 21000); // 197818
-                        break;
-                    case EVENT_5:
-                        me->Kill(me);
-                        if (Player* targ = me->FindNearestPlayer(200.0f))
-                        {
-                            targ->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 46881);
-                            targ->CastSpell(targ, 191979);
-                            targ->AddDelayedEvent(4000, [targ]() -> void
-                            {
-                                Conversation* conversation = new Conversation;
-                                if (!conversation->CreateConversation(sObjectMgr->GetGenerator<HighGuid::Conversation>()->Generate(), 826, targ, NULL, *targ))
-                                    delete conversation;
-                            });
-
-                            targ->AddDelayedEvent(8000, [targ]() -> void
-                            {
-                                if (Creature* add = targ->FindNearestCreature(93818, 50.0f, true))
-                                    add->CastSpell(targ, 185714);
-                                targ->KilledMonsterCredit(103661);
-                                targ->RemoveAura(191979);
-                                targ->TeleportTo(1479, 1071.81f, 7224.32f, 97.891f, 3.15048f);
-                            });
-                        }
                         break;
                 }
             }

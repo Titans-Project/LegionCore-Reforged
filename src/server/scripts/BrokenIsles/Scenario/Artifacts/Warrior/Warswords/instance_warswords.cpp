@@ -1,9 +1,20 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
     Warrior: Warswords
 */
 
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
+#include "Scenario.h"
+#include "ScenarioMgr.h"
+#include "MapManager.h"
 
 
 class instance_warswords : public InstanceMapScript
@@ -26,6 +37,22 @@ public:
         uint32 count;
         uint32 count_wave;
         bool myscenario;
+        WorldLocation graveyard;
+
+        // The Fury scenario drops players in mid-air at the entrance, so a corpse needs the grounded graveyard
+        WorldLocation* GetClosestGraveYard(float /*x*/, float /*y*/, float /*z*/) override
+        {
+            Scenario* scenario = sScenarioMgr->GetScenario(instance->GetInstanceId());
+            if (!scenario || scenario->GetScenarioId() != 944)
+                return nullptr;
+
+            WorldSafeLocsEntry const* safe = sWorldSafeLocsStore.LookupEntry(5228);
+            if (!safe || safe->MapID != 1511 || !MapManager::IsValidMapCoord(safe->MapID, safe->Loc.X, safe->Loc.Y, safe->Loc.Z))
+                return nullptr;
+
+            graveyard.WorldRelocate(safe->MapID, safe->Loc.X, safe->Loc.Y, safe->Loc.Z, safe->Loc.O * float(M_PI) / 180.0f);
+            return &graveyard;
+        }
 
         void Initialize() override
         {
@@ -49,6 +76,10 @@ public:
                     return;
                 }
                 myscenario = true;
+
+                // A player coming back later in the scenario must not be thrown through the opening again
+                if (getScenarionStep() != 0)
+                    return;
 
                 player->CastSpell(player, 205534);
                 player->CastSpell(player, 189695);
@@ -127,6 +158,7 @@ public:
                     {
                         player->SummonCreature(97649, 3363.17f, 1469.68f, 57.40f);
                     }
+                    break; // one wave per call, whatever the group size
                 }
         }
 

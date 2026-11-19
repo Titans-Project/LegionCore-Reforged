@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
     Warrior: EarthWarder
 */
@@ -388,8 +396,8 @@ public:
         {
             summons.Despawn(summon);
             trashList.remove(summon->GetGUID());
-            count_dies--;
-            if (count_dies == 0)
+            // A summon killed outside a wave must not wrap the counter around
+            if (count_dies && --count_dies == 0)
             {
                 LaunchEventWave(wave);
                 wave++;
