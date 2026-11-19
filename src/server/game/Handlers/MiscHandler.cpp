@@ -10,6 +10,7 @@
 ///                                      ///
 ////////////////////////////////////////////
 
+#include "ConditionMgr.h"
 #include "AccountMgr.h"
 #include "AreaTriggerData.h"
 #include "CharacterPackets.h"
@@ -696,6 +697,10 @@ void WorldSession::HandleChoiceResponse(WorldPackets::Misc::ChoiceResponse& pack
 
     auto playerChoiceResponse = playerChoice->GetResponse(packet.ResponseID);
     if (!playerChoiceResponse)
+        return;
+
+    // a response hidden by its conditions cannot be picked either
+    if (!sConditionMgr->IsObjectMeetToConditions(_player, sConditionMgr->GetConditionsForNotGroupedEntry(CONDITION_SOURCE_TYPE_PLAYER_CHOICE_RESPONS, packet.ResponseID)))
         return;
 
     _player->ClearOpenPlayerChoice();

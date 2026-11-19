@@ -38536,8 +38536,8 @@ void Player::SendDisplayPlayerChoice(ObjectGuid sender, int32 choiceId)
     if (!playerChoice)
         return;
 
-//    if (!sConditionMgr->IsObjectMeetToConditions(this, sConditionMgr->GetConditionsForNotGroupedEntry(CONDITION_SOURCE_TYPE_PLAYER_CHOICE, choiceId)))
-//        return;
+    if (!sConditionMgr->IsObjectMeetToConditions(this, sConditionMgr->GetConditionsForNotGroupedEntry(CONDITION_SOURCE_TYPE_PLAYER_CHOICE, choiceId)))
+        return;
 
     auto locale = GetSession()->GetSessionDbLocaleIndex();
     auto playerChoiceLocale = locale != DEFAULT_LOCALE ? sObjectMgr->GetPlayerChoiceLocale(choiceId) : nullptr;
@@ -38557,9 +38557,10 @@ void Player::SendDisplayPlayerChoice(ObjectGuid sender, int32 choiceId)
     {
         auto const& playerChoiceResponseTemplate = playerChoice->Responses[i];
 
-//        if (!sConditionMgr->IsObjectMeetToConditions(this, sConditionMgr->GetConditionsForNotGroupedEntry(CONDITION_SOURCE_TYPE_PLAYER_CHOICE_RESPONS, playerChoiceResponseTemplate.ResponseId)))
-//            continue;
-//
+        if (!sConditionMgr->IsObjectMeetToConditions(this, sConditionMgr->GetConditionsForNotGroupedEntry(CONDITION_SOURCE_TYPE_PLAYER_CHOICE_RESPONS, playerChoiceResponseTemplate.ResponseId)))
+            continue;
+
+        // a response is not hidden because its reward is already owned (no such rule on TrinityCore)
 //        if (playerChoiceResponseTemplate.Reward)
 //        {
 //            bool rewardNotNeed = false;
