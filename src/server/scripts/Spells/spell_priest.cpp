@@ -1955,6 +1955,25 @@ struct npc_pri_void_tendril : public Scripted_NoMovementAI
     }
 };
 
+// 202324 - portal to Netherlight Temple during "The Netherlight Temple" (40938): Velen has led the priest to it,
+// so "Follow Velen to the portal" (102466) is credited before the portal's own credit (102465), which follows it
+class spell_pri_netherlight_portal_follow_velen : public SpellScript
+{
+    PrepareSpellScript(spell_pri_netherlight_portal_follow_velen);
+
+    void HandleCredit(SpellEffIndex /*effIndex*/)
+    {
+        if (Player* player = GetHitUnit() ? GetHitUnit()->ToPlayer() : nullptr)
+            if (player->GetQuestStatus(40938) == QUEST_STATUS_INCOMPLETE)
+                player->KilledMonsterCredit(102466);
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_pri_netherlight_portal_follow_velen::HandleCredit, EFFECT_1, SPELL_EFFECT_KILL_CREDIT);
+    }
+};
+
 void AddSC_priest_spell_scripts()
 {
     RegisterCreatureAI(npc_pri_void_tendril);
@@ -2000,4 +2019,5 @@ void AddSC_priest_spell_scripts()
     RegisterSpellScript(spell_pri_archangel);
     RegisterAuraScript(spell_pri_mind_flay);
     RegisterSpellScript(spell_pri_mass_dispel);
+    RegisterSpellScript(spell_pri_netherlight_portal_follow_velen);
 }
