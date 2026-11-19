@@ -587,9 +587,10 @@ void QuestDataStoreMgr::LoadQuests()
         } while (result->NextRow());
     }
 
-    // Load `quest_objectives` order by descending storage index to reduce resizes
+    // Load `quest_objectives` in display order: StorageIndex is only the save slot, and the client shows (and sequences)
+    // the objectives in the order they are sent
     //                                   0   1        2     3             4         5       6      7       8         9            10
-    result = WorldDatabase.Query("SELECT ID, QuestID, Type, StorageIndex, ObjectID, Amount, Flags, Flags2, TaskStep, Description, Bugged FROM quest_objectives ORDER BY StorageIndex ASC");
+    result = WorldDatabase.Query("SELECT ID, QuestID, Type, StorageIndex, ObjectID, Amount, Flags, Flags2, TaskStep, Description, Bugged FROM quest_objectives ORDER BY `Order` ASC, StorageIndex ASC");
 
     if (!result)
     {
