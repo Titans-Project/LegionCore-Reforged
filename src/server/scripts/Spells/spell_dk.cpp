@@ -1,19 +1,14 @@
-/*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 /*
  * Scripts for spells with SPELLFAMILY_DEATHKNIGHT and SPELLFAMILY_GENERIC spells used by deathknight players.
@@ -163,6 +158,9 @@ enum DeathKnightSpells
     SPELL_DK_RECENTLY_USED_DEATH_STRIKE         = 180612,
     SPELL_DK_FROST                              = 137006,
     SPELL_DK_DEATH_STRIKE_OFFHAND               = 66188,
+    SPELL_DK_T21_BLOOD_4P                       = 251877,
+    SPELL_DK_T21_COILS_OF_DEVASTATION           = 253367,
+    SPELL_DK_T21_RUNE_MASTER                    = 253381,
 };
 
 // Desecrated ground - 118009
@@ -1364,6 +1362,96 @@ class spell_dk_frost_strike : public SpellScript
     }
 };
 
+// Item - Death Knight T21 Unholy 2P Bonus - 251871
+class spell_dk_t21_unholy_2p : public AuraScript
+{
+    PrepareAuraScript(spell_dk_t21_unholy_2p);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ SPELL_DK_T21_COILS_OF_DEVASTATION });
+    }
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        DamageInfo* damageInfo = eventInfo.GetDamageInfo();
+        return damageInfo && damageInfo->GetDamage() > 0 && damageInfo->GetSpellInfo() &&
+            damageInfo->GetSpellInfo()->Id == SPELL_DK_DEATH_COIL_DAMAGE && eventInfo.GetActionTarget();
+    }
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+
+        SpellInfo const* dot = sSpellMgr->GetSpellInfo(SPELL_DK_T21_COILS_OF_DEVASTATION);
+        uint32 totalTicks = dot ? dot->GetMaxTicks() : 0;
+        if (!totalTicks)
+            return;
+
+        // The bonus is a percentage of the Death Coil hit, spread over the whole damage-over-time.
+        float damagePerTick = CalculatePct(eventInfo.GetDamageInfo()->GetDamage(), aurEff->GetAmount()) / totalTicks;
+        GetTarget()->CastCustomSpell(eventInfo.GetActionTarget(), SPELL_DK_T21_COILS_OF_DEVASTATION,
+            &damagePerTick, nullptr, nullptr, true, nullptr, aurEff);
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_dk_t21_unholy_2p::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_dk_t21_unholy_2p::HandleProc, EFFECT_0, SPELL_AURA_DUMMY);
+    }
+};
+
+// Item - Death Knight T21 Unholy 4P Bonus - 251872
+class spell_dk_t21_unholy_4p : public AuraScript
+{
+    PrepareAuraScript(spell_dk_t21_unholy_4p);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        DamageInfo* damageInfo = eventInfo.GetDamageInfo();
+        return damageInfo && damageInfo->GetDamage() > 0 && damageInfo->GetSpellInfo() &&
+            damageInfo->GetSpellInfo()->Id == SPELL_DK_DEATH_COIL_DAMAGE && eventInfo.GetActionTarget();
+    }
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+        GetTarget()->CastSpell(eventInfo.GetActionTarget(), SPELL_DK_DEATH_COIL_DAMAGE, true, nullptr, aurEff);
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_dk_t21_unholy_4p::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_dk_t21_unholy_4p::HandleProc, EFFECT_0, SPELL_AURA_DUMMY);
+    }
+};
+
+// Dancing Rune Weapon - 49028; Item - Death Knight T21 Blood 4P Bonus - 251877
+class spell_dk_t21_blood_4p : public AuraScript
+{
+    PrepareAuraScript(spell_dk_t21_blood_4p);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ SPELL_DK_T21_RUNE_MASTER });
+    }
+
+    void HandleRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+    {
+        if (GetTargetApplication()->GetRemoveMode() != AURA_REMOVE_BY_EXPIRE)
+            return;
+
+        Unit* target = GetTarget();
+        if (target->HasAura(SPELL_DK_T21_BLOOD_4P))
+            target->CastSpell(target, SPELL_DK_T21_RUNE_MASTER, true);
+    }
+
+    void Register() override
+    {
+        AfterEffectRemove += AuraEffectRemoveFn(spell_dk_t21_blood_4p::HandleRemove, EFFECT_2, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
+    }
+};
+
 // Glacial Advance - 194913
 class spell_dk_glacial_advance : public SpellScriptLoader
 {
@@ -1499,8 +1587,10 @@ class spell_dk_scourge_strike : public SpellScript
                     count = aura->GetStackAmount();
 
                 for (int i = 0; i < count; i++)
+                {
                     caster->CastSpell(target, 194311, true);
                     caster->CastSpell(target, 195757, true);
+                }
 
                 aura->ModStackAmount(-count);
             }
@@ -2594,6 +2684,9 @@ void AddSC_deathknight_spell_scripts()
     new spell_dk_bonestorm();
     new spell_dk_blood_mirror();
     RegisterSpellScript(spell_dk_frost_strike);
+    RegisterAuraScript(spell_dk_t21_unholy_2p);
+    RegisterAuraScript(spell_dk_t21_unholy_4p);
+    RegisterAuraScript(spell_dk_t21_blood_4p);
     new spell_dk_glacial_advance();
     new spell_dk_glacial_advance_damage();
     RegisterSpellScript(spell_dk_scourge_strike);
