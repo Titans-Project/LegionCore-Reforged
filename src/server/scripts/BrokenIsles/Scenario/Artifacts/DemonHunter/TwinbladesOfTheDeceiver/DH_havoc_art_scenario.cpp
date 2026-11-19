@@ -390,12 +390,15 @@ Position NearMiss(Unit const* shooter, Unit const* target)
     return { best.x, best.y, best.z };
 }
 
+void FlySpline(Creature* bat, std::vector<Position> const& points, float speed);
+
 struct npc_illidari_fel_bat_the_hunt : public ScriptedAI
 {
     npc_illidari_fel_bat_the_hunt(Creature* creature) : ScriptedAI(creature) { }
 
     EventMap events;
     ObjectGuid hunterGuid;
+    ObjectGuid hiddenWingmen[2];
     ObjectGuid leaderGuid;
     ObjectGuid riderGuid;
     ObjectGuid escortGuids[2];
@@ -404,6 +407,7 @@ struct npc_illidari_fel_bat_the_hunt : public ScriptedAI
     bool flying = false;
     bool diving = false;
     int8 side = 0;
+    uint8 boardTries = 0;
 
     Player* GetHunter() const { return ObjectAccessor::GetPlayer(*me, hunterGuid); }
 
@@ -525,6 +529,7 @@ struct npc_illidari_fel_bat_the_hunt : public ScriptedAI
 
         if (apply)
         {
+            who->SetDisableGravity(false);
             if (flying)
                 return;
             flying = true;
@@ -547,6 +552,9 @@ struct npc_illidari_fel_bat_the_hunt : public ScriptedAI
     // the takeoff from Krasus' Landing is one smooth curve through its points, then the teleport to Felsoul Hold
     void TakeOff()
     {
+        // the flight ends far out over the sea where the hunter leaves: with nobody near, a creature is no longer updated
+        // and would hang there, its despawn never come, until he is back at that very spot on his way home
+        me->setActive(true);
         Movement::MoveSplineInit init(*me);
         init.Path().push_back(G3D::Vector3(me->GetPositionX(), me->GetPositionY(), me->GetPositionZ()));
         for (Position const& point : HuntDalaranPath)
@@ -556,11 +564,74 @@ struct npc_illidari_fel_bat_the_hunt : public ScriptedAI
         init.SetUncompressed();
         init.SetVelocity(HuntFlightSpeed);
         init.Launch();
-        events.ScheduleEvent(EVENT_TELEPORT_HUNTER, uint32(me->movespline->Duration()));
+        uint32 const duration = uint32(me->movespline->Duration());
+        events.ScheduleEvent(EVENT_TELEPORT_HUNTER, duration);
+        TakeOffWingmen(duration);
+    }
+
+    // Lyana and Illysanna wait on their bats at the edge of the landing and follow the hunter once he is off, on his left,
+    // a little behind. Copies only he sees: the two at the edge stay there for everyone else, hidden from him meanwhile
+    void TakeOffWingmen(uint32 duration)
+    {
+        Player* hunter = GetHunter();
+        if (!hunter)
+            return;
+
+        static constexpr uint32 NPC_LYANA_DARKSORROW = 103491;
+        static constexpr uint32 NPC_ILLYSANNA_RAVENCREST = 103492;
+        struct Wingman { uint32 entry; float aside; float behind; uint32 delay; };
+        static Wingman const wingmen[2] = { { NPC_ILLYSANNA_RAVENCREST, 9.0f, 4.0f, 700 }, { NPC_LYANA_DARKSORROW, 18.0f, 9.0f, 1200 } };
+
+        for (uint8 i = 0; i < 2; ++i)
+        {
+            Creature* original = me->FindNearestCreature(wingmen[i].entry, 60.0f);
+            if (!original)
+                continue;
+
+            original->AddToHideList(hunter->GetGUID());
+            original->DestroyForPlayer(hunter);
+            hiddenWingmen[i] = original->GetGUID();
+
+            TempSummon* copy = me->SummonCreature(wingmen[i].entry, original->GetPosition(), TEMPSUMMON_TIMED_DESPAWN, duration + 2000, 0, hunter->GetGUID());
+            if (!copy)
+                continue;
+
+            copy->setActive(true);
+            copy->SetReactState(REACT_PASSIVE);
+            copy->RemoveFlag(UNIT_FIELD_NPC_FLAGS, UNIT_NPC_FLAG_GOSSIP | UNIT_NPC_FLAG_QUESTGIVER);
+            copy->SetCanFly(true);
+            copy->SetDisableGravity(true);
+
+            // the hunter's way, moved to his left and back: each point beside the leg that leads to it
+            std::vector<Position> path;
+            Position from = me->GetPosition();
+            for (Position const& to : HuntDalaranPath)
+            {
+                float const angle = std::atan2(to.GetPositionY() - from.GetPositionY(), to.GetPositionX() - from.GetPositionX());
+                float const left = angle + float(M_PI) / 2.0f;
+                path.push_back({ to.GetPositionX() + wingmen[i].aside * std::cos(left) - wingmen[i].behind * std::cos(angle),
+                    to.GetPositionY() + wingmen[i].aside * std::sin(left) - wingmen[i].behind * std::sin(angle), to.GetPositionZ() + 1.0f });
+                from = to;
+            }
+
+            copy->AddDelayedEvent(wingmen[i].delay, [copy, path]() -> void { FlySpline(copy, path, HuntFlightSpeed); });
+        }
+    }
+
+    // once he is gone from the landing, the two at the edge are his to see again
+    void RestoreWingmen()
+    {
+        for (ObjectGuid& guid : hiddenWingmen)
+        {
+            if (Creature* original = ObjectAccessor::GetCreature(*me, guid))
+                original->RemoveFromHideList(hunterGuid);
+            guid.Clear();
+        }
     }
 
     void End(uint32 delay)
     {
+        RestoreWingmen();
         for (ObjectGuid const& guid : escortGuids)
             if (Creature* escort = ObjectAccessor::GetCreature(*me, guid))
                 if (escort->IsAlive())
@@ -705,11 +776,30 @@ struct npc_illidari_fel_bat_the_hunt : public ScriptedAI
             switch (eventId & 0xF)
             {
                 case EVENT_BOARD:
-                    if (Player* hunter = GetHunter())
-                        hunter->CastSpell(me, SPELL_RIDE_VEHICLE_HARDCODED, true);
-                    else
+                {
+                    Player* hunter = GetHunter();
+                    if (!hunter || hunter->GetMapId() != me->GetMapId() || ++boardTries > 40)
+                    {
+                        if (hunter)
+                            hunter->SetDisableGravity(false);
                         End(0);
+                        break;
+                    }
+                    if (hunter->GetVehicleBase() == me)
+                        break;
+                    if (!hunter->IsBeingTeleported())
+                    {
+                        // a client still loading Felsoul Hold ignored the first order and fell once it was done: hold him
+                        // in the air again, and back beside the bat if he drifted out of the ride's reach
+                        hunter->SetDisableGravity(true);
+                        if (hunter->GetExactDist(me) > 3.0f)
+                            hunter->NearTeleportTo(me->GetPositionX(), me->GetPositionY(), me->GetPositionZ(), me->GetOrientation());
+                        else
+                            hunter->CastSpell(me, SPELL_RIDE_VEHICLE_HARDCODED, true);
+                    }
+                    events.ScheduleEvent(EVENT_BOARD, 400);
                     break;
+                }
                 case EVENT_ESCORT_DOWN:
                     EscortDown(uint8(eventId >> 4));
                     break;
@@ -748,6 +838,7 @@ struct npc_illidari_fel_bat_the_hunt : public ScriptedAI
                     events.ScheduleEvent(EVENT_CANNON_FIRE, urand(3000, 5000));
                     break;
                 case EVENT_TELEPORT_HUNTER:
+                    RestoreWingmen();
                     if (Player* hunter = GetHunter())
                         hunter->CastSpell(hunter, SPELL_FLY_TO_FELSOUL_HOLD, true);
                     break;
@@ -832,6 +923,7 @@ struct npc_felsoul_ward_bunny : public ScriptedAI
     static constexpr uint64 SPAWN_MIDDLE = 376297;
     static constexpr uint64 SPAWN_EAST = 376294;
     static constexpr uint32 NPC_WARD_BUNNY = 600112;
+    static constexpr uint32 GO_FEL_BARRIER = 243467;
 
     uint32 beamTimer = 2000;
     uint32 blastTimer = 10000;
@@ -871,7 +963,23 @@ struct npc_felsoul_ward_bunny : public ScriptedAI
                 // after the use that called us has set it activated
                 go->AddDelayedEvent(300, [go]() -> void { go->SetLootState(GO_NOT_READY); });
             }
+        LowerBarrierIfAllWardsDown();
         me->DespawnOrUnsummon(500);
+    }
+
+    // the Fel Barrier in front of Varedis' courtyard falls with the last of the three wards; nothing else removes it, the
+    // whole scenario sharing one phase
+    void LowerBarrierIfAllWardsDown()
+    {
+        for (uint32 ward : { 243428u, 243472u, 243473u })
+        {
+            GameObject* go = me->FindNearestGameObject(ward, 600.0f);
+            if (!go || !go->HasFlag(GAMEOBJECT_FIELD_FLAGS, GO_FLAG_NOT_SELECTABLE))
+                return;
+        }
+
+        if (GameObject* barrier = me->FindNearestGameObject(GO_FEL_BARRIER, 600.0f))
+            barrier->Delete();
     }
 
     void UpdateAI(uint32 diff) override
@@ -884,6 +992,7 @@ struct npc_felsoul_ward_bunny : public ScriptedAI
                 if (GameObject* go = me->FindNearestGameObject(ward, 40.0f))
                     if (go->HasFlag(GAMEOBJECT_FIELD_FLAGS, GO_FLAG_NOT_SELECTABLE))
                     {
+                        LowerBarrierIfAllWardsDown();
                         me->DespawnOrUnsummon();
                         return;
                     }
@@ -891,8 +1000,10 @@ struct npc_felsoul_ward_bunny : public ScriptedAI
 
         if (blastTimer <= diff)
         {
+            // the flight of step 1 and the dive pass within reach: a hunter on his bat is not the wards' to blast
             if (Player* player = me->FindNearestPlayer(60.0f))
-                me->CastSpell(player, SPELL_WARD_BLAST, true);
+                if (!player->GetVehicle())
+                    me->CastSpell(player, SPELL_WARD_BLAST, true);
             blastTimer = 10000;
         }
         else
@@ -987,8 +1098,9 @@ struct npc_fist_of_the_deceiver : public ScriptedAI
 };
 
 // The Hunt, step 3: the Felsoul Crusher, an infernal. Its arrival (185302) hides it about two seconds as an invisible
-// stalker before it shows with its spawn animation: cast as it is summoned, before the client is told of it, or the
-// hunter sees it standing there first
+// stalker, then lands it with its impact and spawn animation. The cast must reach a client that already knows the
+// creature, or the impact is sent to nobody: the infernal waits half a second wearing an invisible model, so it is
+// never seen standing there before it lands
 struct npc_felsoul_crusher : public ScriptedAI
 {
     npc_felsoul_crusher(Creature* creature) : ScriptedAI(creature) { }
@@ -996,12 +1108,16 @@ struct npc_felsoul_crusher : public ScriptedAI
     static constexpr uint32 SPELL_INFERNAL_ARRIVAL = 185302;
     static constexpr uint32 SPELL_FEL_STREAK = 190083;
     static constexpr uint32 CRITERIA_CRUSHER_SOULS = 54742;
+    static constexpr uint32 MODEL_INVISIBLE_STALKER = 11686;
 
     EventMap events;
+    uint32 arrivalTimer = 0;
 
     void IsSummonedBy(Unit* /*summoner*/) override
     {
-        DoCast(me, SPELL_INFERNAL_ARRIVAL, true);
+        me->SetDisplayId(MODEL_INVISIBLE_STALKER);
+        me->SetReactState(REACT_PASSIVE);
+        arrivalTimer = 500;
     }
 
     void Reset() override
@@ -1022,6 +1138,19 @@ struct npc_felsoul_crusher : public ScriptedAI
 
     void UpdateAI(uint32 diff) override
     {
+        if (arrivalTimer)
+        {
+            if (arrivalTimer > diff)
+            {
+                arrivalTimer -= diff;
+                return;
+            }
+            arrivalTimer = 0;
+            // the transform of the arrival takes over, and gives back the infernal's own model when it ends
+            DoCast(me, SPELL_INFERNAL_ARRIVAL, true);
+            me->SetReactState(REACT_AGGRESSIVE);
+        }
+
         if (!UpdateVictim())
             return;
 
@@ -1333,11 +1462,11 @@ struct npc_varedis_felsoul_the_hunt : public ScriptedAI
                     hunter->RemoveAurasDueToSpell(SPELL_VAREDIS_FINAL_STUN);
                     hunter->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, CRITERIA_VAREDIS_SLAIN, 0, 0, me, true);
                 }
-                // the portal closes behind him
+                // the portal closes as soon as he is through, and is gone once its closing has played
                 if (Creature* portal = ObjectAccessor::GetCreature(*me, portalGuid))
                 {
-                    portal->AddDelayedEvent(1500, [portal]() -> void { portal->RemoveAurasDueToSpell(SPELL_SHADOW_PORTAL); });
-                    portal->DespawnOrUnsummon(2500);
+                    portal->RemoveAurasDueToSpell(SPELL_SHADOW_PORTAL);
+                    portal->DespawnOrUnsummon(1000);
                 }
                 me->DespawnOrUnsummon(100);
                 break;
@@ -1505,8 +1634,16 @@ void FlySpline(Creature* bat, std::vector<Position> const& points, float speed)
 {
     Movement::MoveSplineInit init(*bat);
     init.Path().push_back(G3D::Vector3(bat->GetPositionX(), bat->GetPositionY(), bat->GetPositionZ()));
+    // a point where the bat already is (the way back starts where the hunter arrived) is a leg of no length: the whole
+    // flight would be refused and last no time at all
     for (Position const& point : points)
-        init.Path().push_back(G3D::Vector3(point.GetPositionX(), point.GetPositionY(), point.GetPositionZ()));
+    {
+        G3D::Vector3 const next(point.GetPositionX(), point.GetPositionY(), point.GetPositionZ());
+        if ((next - init.Path().back()).length() > 1.0f)
+            init.Path().push_back(next);
+    }
+    if (init.Path().size() < 2)
+        return;
     init.SetSmooth();
     init.SetFly();
     init.SetUncompressed();
@@ -1514,14 +1651,19 @@ void FlySpline(Creature* bat, std::vector<Position> const& points, float speed)
     init.Launch();
 }
 
-// the bat by the bridge: hidden while Kayn speaks, then it comes down and waits to be clicked
+// the bat by the bridge: hidden while Kayn speaks and the scene of the Twinblades plays, then it comes down and waits to
+// be clicked
 struct npc_illidari_fel_bat_hunt_return : public ScriptedAI
 {
     npc_illidari_fel_bat_hunt_return(Creature* creature) : ScriptedAI(creature) { }
 
     enum { EVENT_COME_DOWN = 1, EVENT_LANDED };
 
+    static constexpr uint32 SPELL_SCENE_TWINBLADES = 189916;
+
     EventMap events;
+    ObjectGuid hunterGuid;
+    uint8 sceneWaits = 0;
     bool started = false;
     bool taken = false;
 
@@ -1539,7 +1681,10 @@ struct npc_illidari_fel_bat_hunt_return : public ScriptedAI
             started = true;
             me->SetVisible(false);
             if (Player* hunter = me->FindNearestPlayer(150.0f))
+            {
+                hunterGuid = hunter->GetGUID();
                 hunter->CastSpell(hunter, SPELL_CONV_WELL_DONE, true);
+            }
             events.ScheduleEvent(EVENT_COME_DOWN, 4500);
         }
 
@@ -1547,6 +1692,13 @@ struct npc_illidari_fel_bat_hunt_return : public ScriptedAI
         switch (events.ExecuteEvent())
         {
             case EVENT_COME_DOWN:
+                // the scene plays while its aura is on the hunter: not before it is over (a minute at most)
+                if (Player* hunter = ObjectAccessor::GetPlayer(*me, hunterGuid))
+                    if (hunter->HasAura(SPELL_SCENE_TWINBLADES) && ++sceneWaits < 120)
+                    {
+                        events.ScheduleEvent(EVENT_COME_DOWN, 500);
+                        break;
+                    }
                 me->SetVisible(true);
                 FlySpline(me, { HuntReturnLanding }, 14.0f);
                 events.ScheduleEvent(EVENT_LANDED, uint32(me->movespline->Duration()));
@@ -1592,10 +1744,12 @@ struct npc_illidari_fel_bat_hunt_mount : public ScriptedAI
 {
     npc_illidari_fel_bat_hunt_mount(Creature* creature) : ScriptedAI(creature) { }
 
-    enum { EVENT_FLY_OFF = 1, EVENT_TO_DALARAN, EVENT_LAND };
+    enum { EVENT_TO_DALARAN = 1, EVENT_LAND };
 
     EventMap events;
     ObjectGuid hunterGuid;
+    // a mount nobody got on (its hunter gone, or replaced by another) does not stay hanging in the sky
+    uint32 unboardedTimer = 60000;
 
     void Reset() override
     {
@@ -1608,32 +1762,65 @@ struct npc_illidari_fel_bat_hunt_mount : public ScriptedAI
 
     void PassengerBoarded(Unit* passenger, int8 /*seatId*/, bool apply) override
     {
-        if (!apply || !passenger->IsPlayer() || hunterGuid)
+        if (!passenger->IsPlayer())
+            return;
+
+        if (!apply)
+        {
+            // taking the bat from his client also moved his view onto it: both given back to him, or once the bat is gone
+            // he can neither move nor see what is around him. Again a moment later, after the vehicle's own release
+            Player* hunter = passenger->ToPlayer();
+            hunter->SetClientControl(hunter, true);
+            ObjectGuid const guid = hunter->GetGUID();
+            hunter->AddDelayedEvent(200, [hunter, guid]() -> void
+            {
+                if (hunter->GetGUID() == guid && hunter->IsInWorld() && !hunter->GetVehicle())
+                    hunter->SetClientControl(hunter, true);
+            });
+            return;
+        }
+
+        if (hunterGuid)
             return;
 
         hunterGuid = passenger->GetGUID();
-        events.ScheduleEvent(EVENT_FLY_OFF, 500);
+        // its seat hands the bat over to the rider's client, which held it still in the air and ignored the flight until
+        // it gave it back: the demon hunter rides, he does not steer
+        passenger->ToPlayer()->SetClientControl(me, false);
+        FlyOff();
+    }
+
+    void FlyOff()
+    {
+        if (me->GetMapId() == MAP_FELSOUL_HOLD_SCENARIO)
+        {
+            FlySpline(me, std::vector<Position>(std::begin(HuntReturnTakeOff), std::end(HuntReturnTakeOff)), HuntFlightSpeed);
+            events.ScheduleEvent(EVENT_TO_DALARAN, uint32(me->movespline->Duration()));
+        }
+        else
+        {
+            std::vector<Position> path(std::rbegin(HuntDalaranPath), std::rend(HuntDalaranPath));
+            path.push_back(HuntDalaranLanding);
+            FlySpline(me, path, HuntFlightSpeed);
+            events.ScheduleEvent(EVENT_LAND, uint32(me->movespline->Duration()));
+        }
     }
 
     void UpdateAI(uint32 diff) override
     {
+        if (!hunterGuid)
+        {
+            if (unboardedTimer <= diff)
+            {
+                me->DespawnOrUnsummon();
+                return;
+            }
+            unboardedTimer -= diff;
+        }
+
         events.Update(diff);
         switch (events.ExecuteEvent())
         {
-            case EVENT_FLY_OFF:
-                if (me->GetMapId() == MAP_FELSOUL_HOLD_SCENARIO)
-                {
-                    FlySpline(me, std::vector<Position>(std::begin(HuntReturnTakeOff), std::end(HuntReturnTakeOff)), HuntFlightSpeed);
-                    events.ScheduleEvent(EVENT_TO_DALARAN, uint32(me->movespline->Duration()));
-                }
-                else
-                {
-                    std::vector<Position> path(std::rbegin(HuntDalaranPath), std::rend(HuntDalaranPath));
-                    path.push_back(HuntDalaranLanding);
-                    FlySpline(me, path, HuntFlightSpeed);
-                    events.ScheduleEvent(EVENT_LAND, uint32(me->movespline->Duration()));
-                }
-                break;
             case EVENT_TO_DALARAN:
                 if (Player* hunter = ObjectAccessor::GetPlayer(*me, hunterGuid))
                 {
@@ -1648,7 +1835,19 @@ struct npc_illidari_fel_bat_hunt_mount : public ScriptedAI
                 break;
             case EVENT_LAND:
                 if (Player* hunter = ObjectAccessor::GetPlayer(*me, hunterGuid))
+                {
                     hunter->ExitVehicle(&HuntDalaranLanding);
+                    // set down on Krasus' Landing from the sky over the sea: his zone, and with it the map of the landing's
+                    // people, taken from where he stands now
+                    hunter->AddDelayedEvent(500, [hunter]() -> void
+                    {
+                        if (!hunter->IsInWorld() || hunter->GetMapId() != MAP_DALARAN_BROKEN_ISLES)
+                            return;
+                        uint32 zoneId, areaId;
+                        hunter->GetZoneAndAreaId(zoneId, areaId);
+                        hunter->UpdateZone(zoneId, areaId);
+                    });
+                }
                 me->DespawnOrUnsummon(1000);
                 break;
             default:
@@ -1755,8 +1954,9 @@ public:
             return;
         }
 
+        // the arrival is handled outside the map's thread: the mount is summoned at the hunter's first update, in it
         if (player->GetMapId() == MAP_DALARAN_BROKEN_ISLES)
-            BringHunterBack(player);
+            player->AddDelayedEvent(0, [player]() -> void { BringHunterBack(player); });
 
         for (uint32 mapId : { MAP_VIOLET_HOLD_QUEST_COPY, uint32(MAP_FELSOUL_HOLD_SCENARIO) })
         {
@@ -1772,31 +1972,91 @@ public:
         }
     }
 
+    // the hunter is seated on his bat the moment his loading screen goes, so he never sees the ground: the bat of Felsoul
+    // Hold on the way in, the return mount over Dalaran on the way back (both summoned as he reached the map). Not before:
+    // a client still loading drops him off the vehicle again as it finishes
+    void OnLoadingScreenEnd(Player* player) override
+    {
+        if (player->getClass() != CLASS_DEMON_HUNTER)
+            return;
+
+        // this packet is handled by the world thread while the map runs in its own: the boarding, and with it the escorts
+        // and the flight, is left to the hunter's next update, in the map's thread
+        player->AddDelayedEvent(0, [player]() -> void { BoardOwnMount(player); });
+    }
+
+    static void BoardOwnMount(Player* player)
+    {
+        if (!player->IsInWorld() || player->GetVehicle())
+            return;
+
+        uint32 const entry = player->GetMapId() == MAP_FELSOUL_HOLD_SCENARIO ? uint32(NPC_ILLIDARI_FEL_BAT_HUNT)
+            : player->GetMapId() == MAP_DALARAN_BROKEN_ISLES ? uint32(NPC_HUNT_RETURN_MOUNT) : 0;
+        if (!entry)
+            return;
+
+        std::list<Creature*> mounts;
+        player->GetCreatureListWithEntryInGrid(mounts, entry, 100.0f);
+        for (Creature* mount : mounts)
+            if (TempSummon* summon = mount->ToTempSummon())
+                if (summon->GetSummonerGUID() == player->GetGUID())
+                {
+                    player->SetDisableGravity(true);
+                    player->CastSpell(mount, SPELL_RIDE_VEHICLE_HARDCODED, true);
+                    if (entry == NPC_HUNT_RETURN_MOUNT)
+                        BoardReturnMount(player, mount->GetGUID(), 0, 400);
+                    return;
+                }
+    }
+
     // back from Felsoul Hold: a bat takes the hunter where he arrived, high over Dalaran, and brings him down on Krasus' Landing
     static void BringHunterBack(Player* player)
     {
+        if (!player->IsInWorld() || player->GetMapId() != MAP_DALARAN_BROKEN_ISLES)
+            return;
+
         {
             std::lock_guard<std::mutex> lock(HuntReturningLock);
-            if (!HuntReturningHunters.erase(player->GetGUID()))
+            bool const returning = HuntReturningHunters.erase(player->GetGUID()) != 0;
+            if (!returning)
                 return;
         }
 
-        if (TempSummon* mount = player->SummonCreature(NPC_HUNT_RETURN_MOUNT, HuntDalaranArrival, TEMPSUMMON_MANUAL_DESPAWN))
+        TempSummon* summoned = player->SummonCreature(NPC_HUNT_RETURN_MOUNT, HuntDalaranArrival, TEMPSUMMON_MANUAL_DESPAWN);
+        if (TempSummon* mount = summoned)
         {
-            // he hangs in the air where he arrived until he is on its back: the client may still be loading Dalaran
+            // he hangs in the air where he arrived until he is on its back, at the end of his loading screen; these tries
+            // only if the client never says it is done
             player->SetDisableGravity(true);
-            BoardReturnMount(player, mount->GetGUID(), 0);
+            BoardReturnMount(player, mount->GetGUID(), 0, 8000);
         }
     }
 
-    static void BoardReturnMount(Player* player, ObjectGuid mountGuid, uint8 tries)
+    static void BoardReturnMount(Player* player, ObjectGuid mountGuid, uint8 tries, uint32 delay = 400)
     {
-        player->AddDelayedEvent(400, [player, mountGuid, tries]() -> void
+        player->AddDelayedEvent(delay, [player, mountGuid, tries]() -> void
         {
             Creature* mount = ObjectAccessor::GetCreature(*player, mountGuid);
-            if (mount && player->GetVehicleBase() != mount && tries < 25)
+            // left behind in another zone map of Dalaran (the hunter moved to his zone after it was summoned): a new one
+            if (!mount && !player->GetVehicle() && !player->IsBeingTeleported() && tries < 40
+                && player->GetMapId() == MAP_DALARAN_BROKEN_ISLES && player->GetExactDist(&HuntDalaranArrival) < 30.0f)
+                if (TempSummon* summon = player->SummonCreature(NPC_HUNT_RETURN_MOUNT, HuntDalaranArrival, TEMPSUMMON_MANUAL_DESPAWN))
+                {
+                    BoardReturnMount(player, summon->GetGUID(), tries + 1);
+                    return;
+                }
+
+            if (mount && player->GetVehicleBase() != mount && tries < 40)
             {
-                player->CastSpell(mount, SPELL_RIDE_RETURN_MOUNT, true);
+                if (!player->IsBeingTeleported())
+                {
+                    // held in the air again, and back beside the bat if he drifted out of the ride's reach
+                    player->SetDisableGravity(true);
+                    if (player->GetExactDist(mount) > 3.0f)
+                        player->NearTeleportTo(mount->GetPositionX(), mount->GetPositionY(), mount->GetPositionZ(), mount->GetOrientation());
+                    else
+                        player->CastSpell(mount, SPELL_RIDE_RETURN_MOUNT, true);
+                }
                 BoardReturnMount(player, mountGuid, tries + 1);
                 return;
             }
@@ -1815,19 +2075,48 @@ public:
         if (step)
             return;
 
-        player->AddDelayedEvent(1000, [player]() -> void
+        // he arrives high over the hold: held there until the bat has him, the bat there before his loading screen is gone
+        player->SetDisableGravity(true);
+        player->AddDelayedEvent(100, [player]() -> void
         {
             if (player->GetMapId() != MAP_FELSOUL_HOLD_SCENARIO || player->GetVehicle()
                 || player->FindNearestCreature(NPC_ILLIDARI_FEL_BAT_HUNT, 100.0f))
+            {
+                // a bat still boarding him holds him up itself at its next try
+                if (!player->GetVehicle())
+                    player->SetDisableGravity(false);
                 return;
+            }
 
             player->SummonCreature(NPC_ILLIDARI_FEL_BAT_HUNT, HuntArrival, TEMPSUMMON_MANUAL_DESPAWN);
         });
     }
 };
 
+// Kor'vas of Krasus' Landing, there before The Hunt. Once the hunter has it, and after he turned it in, the Kor'vas he
+// deals with (102799, shown by a phase of his own from then on) stands a few steps away: this one is no longer his to see
+struct npc_korvas_bloodthorn_krasus_landing : public ScriptedAI
+{
+    npc_korvas_bloodthorn_krasus_landing(Creature* creature) : ScriptedAI(creature) { }
+
+    static constexpr uint32 QUEST_THE_HUNT_VENGEANCE = 41863;
+
+    bool IsHiddenFor(Player const* player) const override
+    {
+        for (uint32 questId : { uint32(QUEST_THE_HUNT), QUEST_THE_HUNT_VENGEANCE })
+        {
+            QuestStatus const status = player->GetQuestStatus(questId);
+            if (status == QUEST_STATUS_INCOMPLETE || status == QUEST_STATUS_COMPLETE || status == QUEST_STATUS_FAILED
+                || player->GetQuestRewardStatus(questId))
+                return true;
+        }
+        return false;
+    }
+};
+
 void AddSC_DH_havoc_art_scenario()
 {
+    RegisterCreatureAI(npc_korvas_bloodthorn_krasus_landing);
     new player_violet_hold_quest_copy();
     RegisterCreatureAI(npc_taldath_by_any_means);
     RegisterCreatureAI(npc_illidari_fel_bat_the_hunt);
