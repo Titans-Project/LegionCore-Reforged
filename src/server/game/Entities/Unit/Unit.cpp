@@ -13546,6 +13546,16 @@ bool Unit::isSpellCrit(Unit* victim, SpellInfo const* spellProto, SpellSchoolMas
 					}
 					case SPELLFAMILY_MAGE:
 					{
+						switch (spellProto->Id)
+						{
+							case 194466: // Phoenix's Flames
+							case 224637: // Phoenix's Flames (splash)
+								critChance = 100.0f;
+								return true;
+							default:
+								break;
+						}
+
 						if (victim)
 							if (HasAura(213541) && int32(victim->GetHealthPct()) >= 80) // Mage Initiation PvP Talent
 								crit_chance += 30;
@@ -13607,6 +13617,12 @@ bool Unit::isSpellCrit(Unit* victim, SpellInfo const* spellProto, SpellSchoolMas
                             case 118000: // Dragon Roar is always a critical hit
                                 critChance = 100.0f;
                                 return true;
+                            case 23881: // Bloodthirst - Fresh Meat
+                                if (AuraEffect const* threshold = GetAuraEffect(215568, EFFECT_1))
+                                    if (victim->GetHealthPct() >= float(threshold->GetAmount())) // SimulationCraft 7.3.5: 80% included
+                                        if (AuraEffect const* bonus = GetAuraEffect(215568, EFFECT_0))
+                                            crit_chance += bonus->GetAmount();
+                                break;
                             default:
                                 break;
                         }
@@ -23422,10 +23438,9 @@ float Unit::MeleeSpellMissChance(const Unit* victim, WeaponAttackType attType, u
     else
         missChance -= victim->GetTotalAuraModifier(SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE);
 
-    if (!spellId && haveOffhandWeapon() && !IsInFeralForm())
+    // Focus in Chaos is a boolean rule: its amount is not a hit modifier
+    if (!spellId && haveOffhandWeapon() && !IsInFeralForm() && !HasAuraType(SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY))
         missChance += 17.0f;
-
-    missChance -= GetTotalAuraModifier(SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY);
 
     if (IsCreature() && ToCreature()->GetCreatureTemplate()->TypeFlags[0] & CREATURE_TYPEFLAGS_BOSS)
         missChance = 0.0f;
