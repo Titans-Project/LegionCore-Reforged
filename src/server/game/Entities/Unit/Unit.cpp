@@ -12802,10 +12802,21 @@ uint32 Unit::SpellDamageBonusDone(Unit* victim, SpellInfo const* spellProto, uin
     float tmpDamage = 0.0f;
 
     // Chaos Bolt - 116858
-    // damage is increased by your critical strike chance
-    if (IsPlayer() && spellProto && (spellProto->Id == 116858 || spellProto->Id == 215279))
+    // damage is increased by your critical strike chance; a Chaos Tear's bolt uses its owner's
+    Unit* chaosBoltSource = nullptr;
+    if (spellProto && (spellProto->Id == 116858 || spellProto->Id == 215279))
     {
-        float crit_chance = GetFloatValue(PLAYER_FIELD_SPELL_CRIT_PERCENTAGE/* + GetFirstSchoolInMask(spellProto->GetSchoolMask())*/);
+        if (IsPlayer())
+            chaosBoltSource = this;
+        else if (spellProto->Id == 215279 && IsCreature())
+            if (Unit* owner = GetOwner())
+                if (owner->IsPlayer())
+                    chaosBoltSource = owner;
+    }
+
+    if (chaosBoltSource)
+    {
+        float crit_chance = chaosBoltSource->GetFloatValue(PLAYER_FIELD_SPELL_CRIT_PERCENTAGE/* + GetFirstSchoolInMask(spellProto->GetSchoolMask())*/);
         int32 modif = victim->GetTotalAuraModifier(SPELL_AURA_MOD_ATTACKER_SPELL_AND_WEAPON_CRIT_CHANCE);
         if(modif < -100)
             crit_chance -= 50.0f;
@@ -22429,6 +22440,12 @@ void Unit::Kill(Unit* victim, bool durabilityLoss, SpellInfo const* spellProto)
             if (Unit* summoner = summon->GetSummoner())
                 if (summoner->ToCreature() && summoner->IsAIEnabled)
                     summoner->ToCreature()->AI()->SummonedCreatureDies(creature, this);
+
+        // The Expendables: a dying Wild Imp inspires the warlock's other demons
+        if (creature->GetEntry() == 55659 || creature->GetEntry() == 99737)
+            if (Unit* imp_owner = creature->GetAnyOwner())
+                if (imp_owner->HasAura(211219))
+                    imp_owner->CastSpell(imp_owner, 211218, true);
 
         // Call instance script.
         if (InstanceScript* script = creature->GetInstanceScript())

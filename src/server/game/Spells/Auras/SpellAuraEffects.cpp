@@ -7996,8 +7996,9 @@ void AuraEffect::HandlePeriodicDamageAurasTick(Unit* target, Unit* caster, Spell
 
             if (target->GetHealthPct() <= deathsEmbrace->Effects[EFFECT_1]->BasePoints)
             {
-                int32 bp = CalculatePct((100 - target->GetHealthPct()), deathsEmbrace->Effects[EFFECT_0]->BasePoints);
-                AddPct(damage, bp);
+                // full bonus at 0% health, none at the threshold
+                float const threshold = deathsEmbrace->Effects[EFFECT_1]->BasePoints;
+                AddPct(damage, deathsEmbrace->Effects[EFFECT_0]->BasePoints * (threshold - target->GetHealthPct()) / threshold);
             }
         }
     }
@@ -8215,8 +8216,9 @@ void AuraEffect::HandlePeriodicHealthLeechAuraTick(Unit* target, Unit* caster, S
 
             if (target->GetHealthPct() <= deathsEmbrace->Effects[EFFECT_1]->BasePoints)
             {
-                int32 bp = CalculatePct((100 - target->GetHealthPct()), deathsEmbrace->Effects[EFFECT_0]->BasePoints);
-                AddPct(damage, bp);
+                // full bonus at 0% health, none at the threshold
+                float const threshold = deathsEmbrace->Effects[EFFECT_1]->BasePoints;
+                AddPct(damage, deathsEmbrace->Effects[EFFECT_0]->BasePoints * (threshold - target->GetHealthPct()) / threshold);
             }
         }
     }

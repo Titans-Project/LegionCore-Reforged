@@ -692,8 +692,9 @@ void Spell::EffectSchoolDMG(SpellEffIndex effIndex)
                     SpellInfo const* deathsEmbrace = sSpellMgr->GetSpellInfo(234876);
                     if (unitTarget->GetHealthPct() <= deathsEmbrace->Effects[EFFECT_1]->BasePoints)
                     {
-                        int32 bp = CalculatePct((100 - unitTarget->GetHealthPct()), deathsEmbrace->Effects[EFFECT_0]->BasePoints);
-                        AddPct(m_damage, bp);
+                        // full bonus at 0% health, none at the threshold
+                        float const threshold = deathsEmbrace->Effects[EFFECT_1]->BasePoints;
+                        AddPct(m_damage, deathsEmbrace->Effects[EFFECT_0]->BasePoints * (threshold - unitTarget->GetHealthPct()) / threshold);
                     }
                 }
                 break;
@@ -2845,8 +2846,8 @@ void Spell::EffectHealthLeech(SpellEffIndex effIndex)
             SpellInfo const* deathsEmbrace = sSpellMgr->GetSpellInfo(234876);
             if (unitTarget->GetHealthPct() <= deathsEmbrace->Effects[EFFECT_1]->BasePoints)
             {
-                int32 bp = CalculatePct((100 - unitTarget->GetHealthPct()), deathsEmbrace->Effects[EFFECT_0]->BasePoints);
-                AddPct(bonus, bp);
+                float const threshold = deathsEmbrace->Effects[EFFECT_1]->BasePoints;
+                AddPct(bonus, deathsEmbrace->Effects[EFFECT_0]->BasePoints * (threshold - unitTarget->GetHealthPct()) / threshold);
             }
         }
     }
