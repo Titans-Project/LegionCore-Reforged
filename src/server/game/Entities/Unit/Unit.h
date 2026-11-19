@@ -832,6 +832,8 @@ public:
     }
 
     uint32 GetHeal() const { return m_heal; };
+    SpellInfo const* GetSpellInfo() const { return m_spellInfo; }
+    SpellSchoolMask GetSchoolMask() const { return m_schoolMask; }
 };
 
 class ProcEventInfo
@@ -857,8 +859,9 @@ public:
     uint32 GetSpellPhaseMask() const { return _spellPhaseMask; }
     uint32 GetHitMask() const { return _hitMask; }
     Spell* GetSpell() const { return _spell; }
-    SpellInfo const* GetSpellInfo() const { return nullptr; }
-    SpellSchoolMask GetSchoolMask() const { return SPELL_SCHOOL_MASK_NONE; }
+    // the spell behind the event: its cast, else the damage or the heal that triggered it
+    SpellInfo const* GetSpellInfo() const;
+    SpellSchoolMask GetSchoolMask() const;
     DamageInfo* GetDamageInfo() const { return _damageInfo; }
     HealInfo* GetHealInfo() const { return _healInfo; }
 };
