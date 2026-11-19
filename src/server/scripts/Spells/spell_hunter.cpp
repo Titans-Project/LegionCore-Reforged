@@ -1,19 +1,14 @@
-/*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 /*
  * Scripts for spells with SPELLFAMILY_HUNTER, SPELLFAMILY_PET and SPELLFAMILY_GENERIC spells used by hunter players.
@@ -27,9 +22,54 @@
 #include "GridNotifiers.h"
 #include "AreaTriggerAI.h"
 #include "AreaTrigger.h"
+#include "ScriptedCreature.h"
 
 enum HunterSpells
 {
+    HUNTER_AIMED_SHOT                            = 19434,
+    HUNTER_AIMED_SHOT_TARGET_MARKER              = 236641,
+    HUNTER_ARCANE_SHOT                           = 185358,
+    HUNTER_ASPECT_OF_THE_CHEETAH                 = 186257,
+    HUNTER_ASPECT_OF_THE_EAGLE                   = 186289,
+    HUNTER_ASPECT_OF_THE_TURTLE                  = 186265,
+    HUNTER_ASPECT_OF_THE_WILD                    = 193530,
+    HUNTER_BESTIAL_WRATH                         = 19574,
+    HUNTER_BLACK_ARROW                           = 194599,
+    HUNTER_CHIMAERA_SHOT_FROST                   = 171454,
+    HUNTER_CHIMAERA_SHOT_NATURE                  = 171457,
+    HUNTER_COBRA_SPIT                            = 206685,
+    HUNTER_COBRA_SHOT                            = 193455,
+    HUNTER_DISENGAGE                             = 781,
+    HUNTER_EXHILARATION                          = 109304,
+    HUNTER_FLANKING_STRIKE                       = 202800,
+    HUNTER_FLUFFY_GO                             = 203669,
+    HUNTER_FLUFFY_GO_PET_HASTE                   = 218955,
+    HUNTER_FROZEN_WAKE                           = 201142,
+    HUNTER_FURY_OF_THE_EAGLE                     = 203415,
+    HUNTER_FURY_OF_THE_EAGLE_DAMAGE              = 203413,
+    HUNTER_HARPOON                               = 190925,
+    HUNTER_HUNTERS_MARK                          = 185365,
+    HUNTER_HUNTERS_MARK_READY                    = 185743,
+    HUNTER_HUNTERS_BOUNTY                        = 203749,
+    HUNTER_KILL_COMMAND                          = 34026,
+    HUNTER_LEGACY_WIND_ARROW                     = 191043,
+    HUNTER_LACERATE                              = 185855,
+    HUNTER_MARKED_SHOT                           = 185901,
+    HUNTER_MARKED_SHOT_DAMAGE                    = 212621,
+    HUNTER_MARKING_TARGETS                       = 223138,
+    HUNTER_MULTI_SHOT                            = 2643,
+    HUNTER_POSTHASTE                             = 109215,
+    HUNTER_POSTHASTE_SPEED                       = 118922,
+    HUNTER_RAPTOR_STRIKE                         = 186270,
+    HUNTER_MONGOOSE_BITE                         = 190928,
+    HUNTER_MONGOOSE_FURY                         = 190931,
+    HUNTER_TALON_STRIKE_DAMAGE                   = 203525,
+    HUNTER_TALON_SLASH                           = 242735,
+    HUNTER_TERMS_OF_ENGAGEMENT                   = 203754,
+    HUNTER_THROWING_AXES_DAMAGE                  = 200167,
+    HUNTER_EXPERT_TRAPPER                        = 199543,
+    HUNTER_SUPER_STICKY_TAR                      = 201158,
+    HUNTER_TRUESHOT                              = 193526,
     DIRE_BEAST_JADE_FOREST                       = 121118,
     DIRE_BEAST_KALIMDOR                          = 122802,
     DIRE_BEAST_EASTERN_KINGDOMS                  = 122804,
@@ -43,6 +83,39 @@ enum HunterSpells
     DIRE_BEAST_DREAD_WASTES                      = 126216,
     DIRE_BEAST_DUNGEONS                          = 132764,
     DIRE_FRENZY                                  = 217200
+};
+
+// Spitting Cobra - 104493. The summon carries Cobra Spit in creature_template,
+// but non-Pet guardians do not autocast creature template spells in AnyPetAI.
+struct npc_hun_spitting_cobra : public ScriptedAI
+{
+    explicit npc_hun_spitting_cobra(Creature* creature) : ScriptedAI(creature) { }
+
+    void IsSummonedBy(Unit* summoner) override
+    {
+        Unit* target = me->GetTargetUnit();
+        if (!target && summoner)
+            target = summoner->getVictim();
+
+        if (target)
+            AttackStartCaster(target, 24.0f);
+    }
+
+    void UpdateAI(uint32 /*diff*/) override
+    {
+        if (!UpdateVictim())
+        {
+            if (Unit* owner = me->GetAnyOwner())
+                if (Unit* target = owner->getVictim())
+                    AttackStartCaster(target, 24.0f);
+
+            if (!me->getVictim())
+                return;
+        }
+
+        if (!me->HasUnitState(UNIT_STATE_CASTING))
+            DoCastVictim(HUNTER_COBRA_SPIT);
+    }
 };
 
 // Dire Beast - 120679
@@ -283,28 +356,18 @@ class spell_hun_kill_command : public SpellScriptLoader
                 return true;
             }
 
-            void FilterTargets(WorldObject*& target)
-            {
-                if (Unit* caster = GetCaster())
-                    if (Unit* pet = caster->GetGuardianPet())
-                        if (pet->getVictim())
-                            target = pet->getVictim();
-            }
-
             SpellCastResult CheckCastMeet()
             {
                 Unit* caster = GetCaster();
                 if (!caster || caster->GetTypeId() != TYPEID_PLAYER)
                     return SPELL_FAILED_NO_PET;
 
-                Player* player = caster->ToPlayer();
                 Unit* pet = caster->GetGuardianPet();
-                Unit* target = player->GetSelectedUnit();
+                Unit* target = GetExplTargetUnit();
 
                 if (!pet || pet->isDead())
                     return SPELL_FAILED_NO_PET;
 
-                // pet has a target and target is within 5 yards
                 if (!target || !pet->IsWithinDist(target, GetSpellInfo()->Effects[EFFECT_2]->BasePoints, true))
                 {
                     SetCustomCastResultMessage(SPELL_CUSTOM_ERROR_TARGET_TOO_FAR);
@@ -312,29 +375,12 @@ class spell_hun_kill_command : public SpellScriptLoader
                 }
                 
                 if (pet->HasUnitState(UNIT_STATE_CONTROLLED))
-                {
                     return SPELL_FAILED_CANT_DO_THAT_RIGHT_NOW;
-                }
+
+                if (!pet->IsWithinLOSInMap(target))
+                    return SPELL_FAILED_LINE_OF_SIGHT;
                 
                 return SPELL_CAST_OK;
-            }
-            
-            SpellCastResult CheckIfPetInLOS()
-            {
-                Unit* caster = GetCaster();
-                if (Player* player = GetCaster()->ToPlayer())
-                {
-                    if (Unit* pet = GetCaster()->GetGuardianPet())
-                    {
-                        float x, y, z;
-                        pet->GetPosition(x, y, z);
-                        
-                        if(Unit* target = player->GetSelectedUnit())
-                           if (target->IsWithinLOS(x, y, z))
-                               return SPELL_CAST_OK;
-                    }
-                }
-                return SPELL_FAILED_LINE_OF_SIGHT;
             }
             
             void HandleDummy(SpellEffIndex /*effIndex*/)
@@ -348,6 +394,9 @@ class spell_hun_kill_command : public SpellScriptLoader
                             float damage = caster->GetTotalAttackPowerValue(WeaponAttackType(RANGED_ATTACK)) * 3.6f;
                             pet->CastCustomSpell(target, 83381, &damage, nullptr, nullptr, false);
 
+                            if (Creature* petCreature = pet->ToCreature())
+                                petCreature->AI()->AttackStart(target);
+
                             if (!pet->IsWithinMeleeRange(target))
                                 pet->CastSpell(target, 118171, false);
 
@@ -355,6 +404,9 @@ class spell_hun_kill_command : public SpellScriptLoader
                                 if (Unit* hati = caster->GetHati())
                                 {
                                     hati->CastCustomSpell(target, 83381, &damage, nullptr, nullptr, false);
+
+                                    if (Creature* hatiCreature = hati->ToCreature())
+                                        hatiCreature->AI()->AttackStart(target);
 
                                     if (!hati->IsWithinMeleeRange(target))
                                         hati->CastSpell(target, 118171, false);
@@ -385,9 +437,7 @@ class spell_hun_kill_command : public SpellScriptLoader
 
             void Register() override
             {
-                OnObjectTargetSelect += SpellObjectTargetSelectFn(spell_hun_kill_command_SpellScript::FilterTargets, EFFECT_0, TARGET_UNIT_TARGET_ENEMY);
                 OnCheckCast += SpellCheckCastFn(spell_hun_kill_command_SpellScript::CheckCastMeet);
-                OnCheckCast += SpellCheckCastFn(spell_hun_kill_command_SpellScript::CheckIfPetInLOS);
                 OnEffectHitTarget += SpellEffectFn(spell_hun_kill_command_SpellScript::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
             }
         };
@@ -714,8 +764,9 @@ class spell_hun_flanking_strike : public SpellScriptLoader
             {
                 Unit* target = GetHitUnit();
                 Unit* caster = GetCaster();
-                Pet* pet = caster->ToPlayer()->GetPet();
-                if (!caster || !target || !caster->ToPlayer() || !caster->ToPlayer()->GetPet())
+                Player* player = caster ? caster->ToPlayer() : nullptr;
+                Pet* pet = player ? player->GetPet() : nullptr;
+                if (!target || !pet)
                     return;
                 
                 float _damage = caster->GetTotalAttackPowerValue(WeaponAttackType(BASE_ATTACK)) * 3.75f;
@@ -758,25 +809,9 @@ class spell_hun_flanking_strike : public SpellScriptLoader
 
             void HandleOnCast()
             {
-                Unit* caster = GetCaster();
                 if (Unit* target = GetExplTargetUnit())
-                    if (target->getVictim() == caster)
+                    if (target->getVictim() == GetCaster())
                         targetOnOwner = true;
-                if (caster && caster->HasSpell(204315))//Animal Instincts
-                {
-                    switch (urand(0,2))
-                    {
-                        case 0:
-                            caster->CastSpell(caster, 204333, true);
-                            break;
-                        case 1:
-                            caster->CastSpell(caster, 204321, true);
-                            break;
-                        case 2:
-                            caster->CastSpell(caster, 204324, true);
-                            break;
-                    }
-                }
             }
 
             void Register() override
@@ -790,6 +825,416 @@ class spell_hun_flanking_strike : public SpellScriptLoader
         {
             return new spell_hun_flanking_strike_SpellScript();
         }
+};
+
+// Animal Instincts - 204315. Only Flanking Strike may trigger the talent and
+// it selects one ability that can actually benefit from the cooldown reduction.
+class spell_hun_animal_instincts : public AuraScript
+{
+    PrepareAuraScript(spell_hun_animal_instincts);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ HUNTER_FLANKING_STRIKE, HUNTER_MONGOOSE_BITE,
+            HUNTER_ASPECT_OF_THE_EAGLE, HUNTER_HARPOON, 232646 });
+    }
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        return spell && spell->GetSpellInfo()->Id == HUNTER_FLANKING_STRIKE;
+    }
+
+    void HandleProc(AuraEffect const* /*aurEff*/, ProcEventInfo& /*eventInfo*/)
+    {
+        PreventDefaultAction();
+
+        Player* player = GetCaster() ? GetCaster()->ToPlayer() : nullptr;
+        if (!player)
+            return;
+
+        std::vector<uint32> candidates;
+        for (uint32 spellId : { HUNTER_FLANKING_STRIKE, HUNTER_ASPECT_OF_THE_EAGLE, HUNTER_HARPOON })
+            if (player->HasSpellCooldown(spellId))
+                candidates.push_back(spellId);
+
+        SpellInfo const* mongooseBite = sSpellMgr->GetSpellInfo(HUNTER_MONGOOSE_BITE);
+        SpellCategoryEntry const* mongooseCategory = mongooseBite
+            ? sSpellCategoryStore.LookupEntry(mongooseBite->Categories.ChargeCategory) : nullptr;
+        if (mongooseBite && mongooseCategory
+            && player->GetChargesForSpell(mongooseBite) < player->GetMaxSpellCategoryCharges(mongooseCategory))
+            candidates.push_back(HUNTER_MONGOOSE_BITE);
+
+        if (candidates.empty())
+            return;
+
+        uint32 selected = candidates[urand(0, uint32(candidates.size() - 1))];
+        int32 reduction = int32(sSpellMgr->GetSpellInfo(232646)->Effects[EFFECT_0]->CalcValue(player) * float(IN_MILLISECONDS));
+        if (selected == HUNTER_MONGOOSE_BITE)
+            player->ModSpellChargeCooldown(selected, reduction);
+        else
+            player->ModifySpellCooldown(selected, -reduction);
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_animal_instincts::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_hun_animal_instincts::HandleProc, EFFECT_0, SPELL_AURA_DUMMY);
+    }
+};
+
+// Snake Hunter - 201078
+class spell_hun_snake_hunter : public SpellScript
+{
+    PrepareSpellScript(spell_hun_snake_hunter);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ HUNTER_MONGOOSE_BITE });
+    }
+
+    void HandleDummy(SpellEffIndex /*effIndex*/)
+    {
+        Player* player = GetCaster()->ToPlayer();
+        SpellInfo const* mongooseBite = sSpellMgr->GetSpellInfo(HUNTER_MONGOOSE_BITE);
+        if (player && mongooseBite && mongooseBite->Categories.ChargeCategory)
+            player->RestoreSpellCategoryCharges(mongooseBite->Categories.ChargeCategory);
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_hun_snake_hunter::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
+    }
+};
+
+// Throwing Axes - 200163
+class spell_hun_throwing_axes : public SpellScript
+{
+    PrepareSpellScript(spell_hun_throwing_axes);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ HUNTER_THROWING_AXES_DAMAGE });
+    }
+
+    void HandleOnCast()
+    {
+        Unit* caster = GetCaster();
+        Unit* target = GetExplTargetUnit();
+        if (!caster || !target)
+            return;
+
+        uint32 axeCount = uint32(std::max(0.0f, GetSpellInfo()->Effects[EFFECT_0]->CalcValue(caster)));
+        for (uint32 axe = 0; axe < axeCount; ++axe)
+            caster->CastSpellDelay(target, HUNTER_THROWING_AXES_DAMAGE, true, axe * 500);
+    }
+
+    void Register() override
+    {
+        OnCast += SpellCastFn(spell_hun_throwing_axes::HandleOnCast);
+    }
+};
+
+// Mortal Wounds - 201075
+class spell_hun_mortal_wounds : public AuraScript
+{
+    PrepareAuraScript(spell_hun_mortal_wounds);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ HUNTER_LACERATE, HUNTER_MONGOOSE_BITE });
+    }
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        DamageInfo* damageInfo = eventInfo.GetDamageInfo();
+        return damageInfo && damageInfo->GetSpellInfo()
+            && damageInfo->GetSpellInfo()->Id == HUNTER_LACERATE;
+    }
+
+    void HandleProc(AuraEffect const* /*aurEff*/, ProcEventInfo& /*eventInfo*/)
+    {
+        PreventDefaultAction();
+        if (Player* player = GetCaster() ? GetCaster()->ToPlayer() : nullptr)
+            player->ModSpellCharge(HUNTER_MONGOOSE_BITE, 1);
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_mortal_wounds::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_hun_mortal_wounds::HandleProc, EFFECT_0, SPELL_AURA_PROC_TRIGGER_SPELL);
+    }
+};
+
+// Way of the Mok'Nathal - 201082
+class spell_hun_way_of_the_moknathal : public AuraScript
+{
+    PrepareAuraScript(spell_hun_way_of_the_moknathal);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        return spell && spell->GetSpellInfo()->Id == HUNTER_RAPTOR_STRIKE;
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_way_of_the_moknathal::CheckProc);
+    }
+};
+
+// Bird of Prey - 224764
+class spell_hun_bird_of_prey : public AuraScript
+{
+    PrepareAuraScript(spell_hun_bird_of_prey);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        return spell && spell->GetSpellInfo()->Id == HUNTER_RAPTOR_STRIKE;
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_bird_of_prey::CheckProc);
+    }
+};
+
+// Aspect of the Skylord - 203755
+class spell_hun_aspect_of_the_skylord : public AuraScript
+{
+    PrepareAuraScript(spell_hun_aspect_of_the_skylord);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        return spell && spell->GetSpellInfo()->Id == HUNTER_ASPECT_OF_THE_EAGLE;
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_aspect_of_the_skylord::CheckProc);
+    }
+};
+
+// Eagle's Bite - 203757
+class spell_hun_eagles_bite_trait : public AuraScript
+{
+    PrepareAuraScript(spell_hun_eagles_bite_trait);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        return spell && spell->GetSpellInfo()->Id == HUNTER_HARPOON;
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_eagles_bite_trait::CheckProc);
+    }
+};
+
+// Echoes of Ohn'ara - 238125
+class spell_hun_echoes_of_ohnara : public AuraScript
+{
+    PrepareAuraScript(spell_hun_echoes_of_ohnara);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        return spell && spell->GetSpellInfo()->Id == HUNTER_FLANKING_STRIKE;
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_echoes_of_ohnara::CheckProc);
+    }
+};
+
+// Talon Strike - 203563; Talon Bond - 238089
+class spell_hun_talon_strike : public AuraScript
+{
+    PrepareAuraScript(spell_hun_talon_strike);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ HUNTER_TALON_STRIKE_DAMAGE, HUNTER_TALON_SLASH, 238089 });
+    }
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        DamageInfo* damageInfo = eventInfo.GetDamageInfo();
+        return damageInfo && !damageInfo->GetSpellInfo()
+            && damageInfo->GetAttackType() == BASE_ATTACK && roll_chance_i(10);
+    }
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+
+        Unit* caster = GetCaster();
+        Unit* target = eventInfo.GetActionTarget();
+        if (!caster || !target || !caster->IsValidAttackTarget(target))
+            return;
+
+        caster->CastSpell(target, HUNTER_TALON_STRIKE_DAMAGE, true, nullptr, aurEff);
+        caster->CastSpell(target, HUNTER_TALON_STRIKE_DAMAGE, true, nullptr, aurEff);
+
+        if (AuraEffect const* talonBond = caster->GetAuraEffect(238089, EFFECT_0))
+            if (Pet* pet = caster->ToPlayer() ? caster->ToPlayer()->GetPet() : nullptr)
+                for (int32 attack = 0; attack < talonBond->GetAmount(); ++attack)
+                    pet->CastSpell(target, HUNTER_TALON_SLASH, true, nullptr, aurEff);
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_talon_strike::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_hun_talon_strike::HandleProc, EFFECT_0, SPELL_AURA_DUMMY);
+    }
+};
+
+// Fury of the Eagle - 203415. Snapshot Mongoose Fury at the beginning of the
+// channel; the damage spell (203413) is otherwise not covered by its class mask.
+class spell_hun_fury_of_the_eagle : public AuraScript
+{
+    PrepareAuraScript(spell_hun_fury_of_the_eagle);
+
+    void HandleApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+    {
+        uint8 stacks = 0;
+        if (Aura const* mongooseFury = GetTarget()->GetAura(HUNTER_MONGOOSE_FURY))
+            stacks = mongooseFury->GetStackAmount();
+
+        GetAura()->SetCustomData(stacks);
+    }
+
+    void Register() override
+    {
+        AfterEffectApply += AuraEffectApplyFn(spell_hun_fury_of_the_eagle::HandleApply,
+            EFFECT_0, SPELL_AURA_PERIODIC_TRIGGER_SPELL, AURA_EFFECT_HANDLE_REAL);
+    }
+};
+
+// Fluffy, Go - 203669
+// Pet::InitStatsForLevel applies the haste aura to newly created pets. Keep an
+// already active pet synchronized when the artifact trait is learned, ranked
+// up, or removed.
+class spell_hun_fluffy_go : public AuraScript
+{
+    PrepareAuraScript(spell_hun_fluffy_go);
+
+    void ApplyToPet(AuraEffect const* aurEff, AuraEffectHandleModes /*mode*/)
+    {
+        Player* player = GetTarget()->ToPlayer();
+        Pet* pet = player ? player->GetPet() : nullptr;
+        if (!pet)
+            return;
+
+        pet->RemoveAurasDueToSpell(HUNTER_FLUFFY_GO_PET_HASTE);
+        float amount = aurEff->GetAmount();
+        pet->CastCustomSpell(pet, HUNTER_FLUFFY_GO_PET_HASTE, &amount, nullptr, nullptr, true);
+    }
+
+    void RemoveFromPet(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+    {
+        if (Player* player = GetTarget()->ToPlayer())
+            if (Pet* pet = player->GetPet())
+                pet->RemoveAurasDueToSpell(HUNTER_FLUFFY_GO_PET_HASTE);
+    }
+
+    void Register() override
+    {
+        AfterEffectApply += AuraEffectApplyFn(spell_hun_fluffy_go::ApplyToPet, EFFECT_0, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_CHANGE_AMOUNT_MASK);
+        AfterEffectRemove += AuraEffectRemoveFn(spell_hun_fluffy_go::RemoveFromPet, EFFECT_0, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_CHANGE_AMOUNT_MASK);
+    }
+};
+
+// Fury of the Eagle damage - 203413
+class spell_hun_fury_of_the_eagle_damage : public SpellScript
+{
+    PrepareSpellScript(spell_hun_fury_of_the_eagle_damage);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ HUNTER_FURY_OF_THE_EAGLE, HUNTER_MONGOOSE_FURY });
+    }
+
+    void HandleDamage(SpellEffIndex /*effIndex*/)
+    {
+        Unit* caster = GetCaster();
+        Aura* channel = caster ? caster->GetAura(HUNTER_FURY_OF_THE_EAGLE) : nullptr;
+        SpellInfo const* mongooseFury = sSpellMgr->GetSpellInfo(HUNTER_MONGOOSE_FURY);
+        if (!channel || !mongooseFury)
+            return;
+
+        int32 stacks = channel->GetCustomData();
+        int32 percentPerStack = mongooseFury->Effects[EFFECT_0]->CalcValue(caster);
+        SetHitDamage(GetHitDamage() + CalculatePct(GetHitDamage(), stacks * percentPerStack));
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_hun_fury_of_the_eagle_damage::HandleDamage,
+            EFFECT_0, SPELL_EFFECT_SCHOOL_DAMAGE);
+    }
+};
+
+// Freezing Trap - 3355; Expert Trapper's Frozen Wake - 201142
+class spell_hun_freezing_trap_expert : public AuraScript
+{
+    PrepareAuraScript(spell_hun_freezing_trap_expert);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ HUNTER_EXPERT_TRAPPER, HUNTER_FROZEN_WAKE });
+    }
+
+    void HandleRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+    {
+        Unit* caster = GetCaster();
+        Unit* target = GetTarget();
+        if (caster && target && caster->HasAura(HUNTER_EXPERT_TRAPPER))
+            caster->CastSpell(target, HUNTER_FROZEN_WAKE, true);
+    }
+
+    void Register() override
+    {
+        AfterEffectRemove += AuraEffectRemoveFn(spell_hun_freezing_trap_expert::HandleRemove,
+            EFFECT_0, SPELL_AURA_MOD_STUN, AURA_EFFECT_HANDLE_REAL);
+    }
+};
+
+// Tar Trap slow - 135299; Expert Trapper's Super Sticky Tar - 201158
+class spell_hun_tar_trap_aura : public AuraScript
+{
+    PrepareAuraScript(spell_hun_tar_trap_aura);
+
+    uint32 updateTimer = 0;
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ HUNTER_EXPERT_TRAPPER, HUNTER_SUPER_STICKY_TAR });
+    }
+
+    void HandleUpdate(uint32 diff, AuraEffect* /*aurEff*/)
+    {
+        updateTimer += diff;
+        if (updateTimer < IN_MILLISECONDS)
+            return;
+
+        updateTimer %= IN_MILLISECONDS;
+        Unit* caster = GetCaster();
+        Unit* target = GetUnitOwner();
+        if (caster && target && caster->HasAura(HUNTER_EXPERT_TRAPPER)
+            && !target->HasAura(HUNTER_SUPER_STICKY_TAR) && roll_chance_i(20))
+            caster->CastSpell(target, HUNTER_SUPER_STICKY_TAR, true);
+    }
+
+    void Register() override
+    {
+        OnEffectUpdate += AuraEffectUpdateFn(spell_hun_tar_trap_aura::HandleUpdate,
+            EFFECT_0, SPELL_AURA_MOD_DECREASE_SPEED);
+    }
 };
 
 // Explosive Shot: Detonate! - 212679
@@ -853,6 +1298,34 @@ class spell_hun_explosive_shot : public SpellScriptLoader
         {
             return new spell_hun_explosive_shot_SpellScript();
         }
+};
+
+// Chimaera Shot - 53209
+class spell_hun_chimaera_shot : public SpellScript
+{
+    PrepareSpellScript(spell_hun_chimaera_shot);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ HUNTER_CHIMAERA_SHOT_FROST, HUNTER_CHIMAERA_SHOT_NATURE });
+    }
+
+    void HandleOnHit()
+    {
+        Unit* target = GetHitUnit();
+        if (!target)
+            return;
+
+        // The primary head deals Nature damage and the chained head deals Frost damage.
+        // Both child spells carry their own 10 Focus energize from the 7.3.5 DB2 data.
+        uint32 headSpell = target == GetExplTargetUnit() ? HUNTER_CHIMAERA_SHOT_NATURE : HUNTER_CHIMAERA_SHOT_FROST;
+        GetCaster()->CastSpell(target, headSpell, true);
+    }
+
+    void Register() override
+    {
+        OnHit += SpellHitFn(spell_hun_chimaera_shot::HandleOnHit);
+    }
 };
 
 // Cobra Shot - 193455
@@ -1554,7 +2027,7 @@ class spell_hun_hatis_bond : public SpellScriptLoader
                 {
                     update = 0;
                     Unit* caster = GetCaster();
-                    if (!caster || !caster->IsAlive())
+                    if (!caster || !caster->IsAlive() || !caster->ToPlayer())
                         return;
 
                     bool findHati = false;
@@ -1573,17 +2046,17 @@ class spell_hun_hatis_bond : public SpellScriptLoader
                                 case 106550:
                                 case 106551:
                                     findHati = true;
-									if (creature->IsAlive())
-									{
-										hati = creature;
-										if (Player* player = caster->ToPlayer())
-											if (Pet* pet = player->GetPet())
-												if (ReactStates reactState = pet->GetReactState())
-													hati->SetReactState(reactState);
-									}
+                                    if (creature->IsAlive())
+                                    {
+                                        hati = creature;
+                                        if (Player* player = caster->ToPlayer())
+                                            if (Pet* pet = player->GetPet())
+                                                hati->SetReactState(pet->GetReactState());
+                                    }
                                     break;
                                 default:
-                                    findPet = true;
+                                    if (creature == caster->ToPlayer()->GetPet())
+                                        findPet = true;
                                     break;
                             }
                         }
@@ -1652,6 +2125,9 @@ class spell_hun_broken_bond : public SpellScriptLoader
                         }
                     }
                 }
+                if (!caster->ToPlayer() || !caster->ToPlayer()->GetPet())
+                    return;
+
                 if (Aura* aura = caster->GetAura(197344))
                     caster->CastSpell(caster, aura->GetCustomData(), true);
             }
@@ -1666,6 +2142,271 @@ class spell_hun_broken_bond : public SpellScriptLoader
         {
             return new spell_hun_broken_bond_AuraScript();
         }
+};
+
+// Lock and Load - 194595
+class spell_hun_lock_and_load : public AuraScript
+{
+    PrepareAuraScript(spell_hun_lock_and_load);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        return spell && spell->GetSpellInfo()->Id == 75; // Auto Shot
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_lock_and_load::CheckProc);
+    }
+};
+
+// Bombardment - 35110. Its DB2 proc mask is broader than the talent text:
+// only a critical Multi-Shot may grant the cost-reduction aura (82921).
+class spell_hun_bombardment : public AuraScript
+{
+    PrepareAuraScript(spell_hun_bombardment);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        return spell && spell->GetSpellInfo()->Id == HUNTER_MULTI_SHOT
+            && (eventInfo.GetHitMask() & PROC_HIT_CRITICAL) != 0;
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_bombardment::CheckProc);
+    }
+};
+
+// Marking Targets - 223138. The spell links apply Hunter's Mark; this guard
+// prevents unrelated ranged abilities from consuming its single proc charge.
+class spell_hun_marking_targets : public AuraScript
+{
+    PrepareAuraScript(spell_hun_marking_targets);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        if (!spell)
+            return false;
+
+        switch (spell->GetSpellInfo()->Id)
+        {
+            case HUNTER_MULTI_SHOT:
+            case HUNTER_ARCANE_SHOT:
+            case 214579: // Sidewinders
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_marking_targets::CheckProc);
+    }
+};
+
+// True Aim - 199527
+class spell_hun_true_aim : public AuraScript
+{
+    PrepareAuraScript(spell_hun_true_aim);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        if (!spell)
+            return false;
+
+        uint32 spellId = spell->GetSpellInfo()->Id;
+        return spellId == HUNTER_AIMED_SHOT || spellId == HUNTER_ARCANE_SHOT;
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_true_aim::CheckProc);
+    }
+};
+
+// Call of the Hunter - 191048
+class spell_hun_call_of_the_hunter : public AuraScript
+{
+    PrepareAuraScript(spell_hun_call_of_the_hunter);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        return spell && spell->GetSpellInfo()->Id == HUNTER_MARKED_SHOT;
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_call_of_the_hunter::CheckProc);
+    }
+};
+
+// Critical Focus - 191328. Sidewinders receives its extra Focus from the
+// trait's native modifier effect; only Arcane Shot criticals use this proc.
+class spell_hun_critical_focus : public AuraScript
+{
+    PrepareAuraScript(spell_hun_critical_focus);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        return spell && spell->GetSpellInfo()->Id == HUNTER_ARCANE_SHOT
+            && (eventInfo.GetHitMask() & PROC_HIT_CRITICAL) != 0;
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_critical_focus::CheckProc);
+    }
+};
+
+// Rapid Killing - 191339
+class spell_hun_rapid_killing : public AuraScript
+{
+    PrepareAuraScript(spell_hun_rapid_killing);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        return spell && spell->GetSpellInfo()->Id == HUNTER_TRUESHOT;
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_rapid_killing::CheckProc);
+    }
+};
+
+// Healing Shell - 190503
+class spell_hun_healing_shell : public AuraScript
+{
+    PrepareAuraScript(spell_hun_healing_shell);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        return spell && spell->GetSpellInfo()->Id == HUNTER_ASPECT_OF_THE_TURTLE;
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_healing_shell::CheckProc);
+    }
+};
+
+// Feet of Wind - 238088
+class spell_hun_feet_of_wind : public AuraScript
+{
+    PrepareAuraScript(spell_hun_feet_of_wind);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        return spell && spell->GetSpellInfo()->Id == HUNTER_ASPECT_OF_THE_CHEETAH;
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_feet_of_wind::CheckProc);
+    }
+};
+
+// Bullseye - 204089
+class spell_hun_bullseye : public AuraScript
+{
+    PrepareAuraScript(spell_hun_bullseye);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Unit* target = eventInfo.GetActionTarget();
+        AuraEffect const* effect = GetEffect(EFFECT_0);
+        return target && effect && target->HealthBelowPct(effect->GetAmount());
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_bullseye::CheckProc);
+    }
+};
+
+// Legacy of the Windrunners - 190852. The native trigger spell (190854) is
+// only a hidden bookkeeping aura; each successful proc actually launches six
+// copies of the dedicated Aimed Shot variant (191043). That variant carries
+// the original 7.3.5 weapon scaling and Aimed Shot spell-family modifiers.
+class spell_hun_legacy_of_the_windrunners : public AuraScript
+{
+    PrepareAuraScript(spell_hun_legacy_of_the_windrunners);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ HUNTER_AIMED_SHOT, HUNTER_LEGACY_WIND_ARROW });
+    }
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        return spell && spell->GetSpellInfo()->Id == HUNTER_AIMED_SHOT
+            && eventInfo.GetActionTarget();
+    }
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+
+        Unit* caster = GetCaster();
+        Unit* target = eventInfo.GetActionTarget();
+        if (!caster || !target || !caster->IsValidAttackTarget(target))
+            return;
+
+        for (int32 arrow = 0; arrow < aurEff->GetAmount(); ++arrow)
+            caster->CastSpell(target, HUNTER_LEGACY_WIND_ARROW, true, nullptr, aurEff);
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_legacy_of_the_windrunners::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_hun_legacy_of_the_windrunners::HandleProc, EFFECT_0, SPELL_AURA_PROC_TRIGGER_SPELL);
+    }
+};
+
+// Kill-triggered Hunter cooldown traits: Black Arrow (194599), Hunter's Bounty
+// (203749), and Terms of Engagement (203754).
+class player_hun_black_arrow : public PlayerScript
+{
+public:
+    player_hun_black_arrow() : PlayerScript("player_hun_black_arrow") { }
+
+    void OnCreatureKill(Player* killer, Creature* /*killed*/) override
+    {
+        HandleKill(killer);
+    }
+
+    void OnPVPKill(Player* killer, Player* /*killed*/) override
+    {
+        HandleKill(killer);
+    }
+
+private:
+    static void HandleKill(Player* player)
+    {
+        if (!player)
+            return;
+
+        if (player->HasSpell(HUNTER_BLACK_ARROW))
+            player->RemoveSpellCooldown(HUNTER_BLACK_ARROW, true);
+
+        if (AuraEffect const* bounty = player->GetAuraEffect(HUNTER_HUNTERS_BOUNTY, EFFECT_0))
+            player->ModifySpellCooldown(HUNTER_EXHILARATION, -int32(bounty->GetAmount() * float(IN_MILLISECONDS)));
+
+        if (player->HasAura(HUNTER_TERMS_OF_ENGAGEMENT))
+            player->RemoveSpellCooldown(HUNTER_HARPOON, true);
+    }
 };
 
 // Windburst (Artifact) - 204147
@@ -1748,10 +2489,8 @@ class spell_hun_aimed_shot : public SpellScriptLoader
                 if (Unit* caster = GetCaster())
                 {
                     int32 damage = GetHitDamage();
-                    if (!target->HasAura(236641, caster->GetGUID()))
-                    {
+                    if (!target->HasAura(HUNTER_AIMED_SHOT_TARGET_MARKER, caster->GetGUID()))
                         damage += CalculatePct(damage, GetSpellInfo()->Effects[EFFECT_2]->BasePoints);
-                    }
                     if (AuraEffect* auraEff = caster->GetAuraEffect(199522, EFFECT_0))
                     {
                         float bp = CalculatePct(damage, auraEff->GetAmount());
@@ -1900,6 +2639,91 @@ class spell_hun_trailblazer : public AuraScript
     }
 };
 
+// Posthaste - 109215 (triggered by Disengage - 781 and Harpoon - 190925)
+class spell_hun_posthaste : public SpellScript
+{
+    PrepareSpellScript(spell_hun_posthaste);
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ HUNTER_POSTHASTE, HUNTER_POSTHASTE_SPEED });
+    }
+
+    void HandleAfterCast()
+    {
+        Unit* caster = GetCaster();
+        if (!caster->HasAura(HUNTER_POSTHASTE))
+            return;
+
+        caster->RemoveMovementImpairingEffects();
+        caster->CastSpell(caster, HUNTER_POSTHASTE_SPEED, true);
+    }
+
+    void Register() override
+    {
+        AfterCast += SpellCastFn(spell_hun_posthaste::HandleAfterCast);
+    }
+};
+
+// Farstrider - 199523
+class spell_hun_farstrider : public AuraScript
+{
+    PrepareAuraScript(spell_hun_farstrider);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        return (eventInfo.GetHitMask() & PROC_HIT_CRITICAL) != 0;
+    }
+
+    void HandleProc(AuraEffect const* /*aurEff*/, ProcEventInfo& /*eventInfo*/)
+    {
+        PreventDefaultAction();
+
+        Player* player = GetCaster() ? GetCaster()->ToPlayer() : nullptr;
+        if (!player)
+            return;
+
+        if (player->HasSpell(HUNTER_DISENGAGE))
+            player->RemoveSpellCooldown(HUNTER_DISENGAGE, true);
+
+        if (player->HasSpell(HUNTER_HARPOON))
+            player->RemoveSpellCooldown(HUNTER_HARPOON, true);
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_farstrider::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_hun_farstrider::HandleProc, EFFECT_0, SPELL_AURA_PROC_TRIGGER_SPELL);
+    }
+};
+
+// Killer Cobra - 199532
+class spell_hun_killer_cobra : public AuraScript
+{
+    PrepareAuraScript(spell_hun_killer_cobra);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        return spell && spell->GetSpellInfo()->Id == HUNTER_COBRA_SHOT;
+    }
+
+    void HandleProc(AuraEffect const* /*aurEff*/, ProcEventInfo& /*eventInfo*/)
+    {
+        PreventDefaultAction();
+
+        Player* player = GetCaster() ? GetCaster()->ToPlayer() : nullptr;
+        if (player && player->HasAura(HUNTER_BESTIAL_WRATH))
+            player->RemoveSpellCooldown(HUNTER_KILL_COMMAND, true);
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_hun_killer_cobra::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_hun_killer_cobra::HandleProc, EFFECT_0, SPELL_AURA_PROC_TRIGGER_SPELL);
+    }
+};
+
 // Eagle's Bite - 204081
 class spell_hun_eagles_bite : public AuraScript
 {
@@ -2039,7 +2863,7 @@ class spell_hun_mark_of_helbrine : public SpellScriptLoader
         }
 };
 
-// Marked Shot - 212621
+// Marked Shot - 185901 (212621 is its per-target damage child spell)
 class spell_hun_marked_shot : public SpellScriptLoader
 {
     public:
@@ -2050,6 +2874,7 @@ class spell_hun_marked_shot : public SpellScriptLoader
             PrepareSpellScript(spell_hun_marked_shot_SpellScript);
 
             bool canRemove = true;
+            std::vector<ObjectGuid> markedTargets;
 
             void HandleOnCast()
             {
@@ -2067,21 +2892,42 @@ class spell_hun_marked_shot : public SpellScriptLoader
 
             void HandleOnHit()
             {
-                if (!canRemove)
-                    return;
-
                 Unit* caster = GetCaster();
                 if (!caster)
                     return;
 
                 if (Unit* target = GetHitUnit())
-                    target->RemoveAurasDueToSpell(185365, caster->GetGUID()); // Hunter's Mark
+                {
+                    markedTargets.push_back(target->GetGUID());
+                    if (canRemove)
+                        target->RemoveAurasDueToSpell(185365, caster->GetGUID()); // Hunter's Mark
+                }
+            }
+
+            void HandleAfterCast()
+            {
+                Unit* caster = GetCaster();
+                Aura* bonus = caster ? caster->GetAura(251753) : nullptr;
+                if (!caster || !bonus || markedTargets.empty())
+                    return;
+
+                AuraEffect const* chance = bonus->GetEffect(EFFECT_0);
+                AuraEffect const* maxTargets = bonus->GetEffect(EFFECT_1);
+                if (!chance || !maxTargets || !roll_chance_i(chance->GetAmount()))
+                    return;
+
+                Trinity::Containers::RandomResizeList(markedTargets,
+                    std::min<size_t>(markedTargets.size(), std::max<int32>(maxTargets->GetAmount(), 0)));
+                for (ObjectGuid const& guid : markedTargets)
+                    if (Unit* target = ObjectAccessor::GetUnit(*caster, guid))
+                        caster->CastSpell(target, HUNTER_MARKED_SHOT_DAMAGE, true);
             }
 
             void Register() override
             {
                 OnCast += SpellCastFn(spell_hun_marked_shot_SpellScript::HandleOnCast);
                 OnHit += SpellHitFn(spell_hun_marked_shot_SpellScript::HandleOnHit);
+                AfterCast += SpellCastFn(spell_hun_marked_shot_SpellScript::HandleAfterCast);
             }
         };
 
@@ -2264,6 +3110,73 @@ struct areatrigger_hun_windburst : public AreaTriggerAI
     }
 };
 
+// Item - Hunter T21 Beast Mastery 4P Bonus - 251756
+class spell_hun_t21_beast_mastery_4p : public AuraScript
+{
+    PrepareAuraScript(spell_hun_t21_beast_mastery_4p);
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& /*eventInfo*/)
+    {
+        PreventDefaultAction();
+        if (Player* player = GetTarget()->ToPlayer())
+            player->ModifySpellCooldown(HUNTER_ASPECT_OF_THE_WILD,
+                -int32(urand(0, std::max<int32>(aurEff->GetAmount(), 0))));
+    }
+
+    void Register() override
+    {
+        OnEffectProc += AuraEffectProcFn(spell_hun_t21_beast_mastery_4p::HandleProc,
+            EFFECT_0, SPELL_AURA_DUMMY);
+    }
+};
+
+// Sentinel - 206817 (AreaTrigger spell 206817, custom entry 14691)
+struct areatrigger_hun_sentinel : public AreaTriggerAI
+{
+    areatrigger_hun_sentinel(AreaTrigger* areatrigger) : AreaTriggerAI(areatrigger) { }
+
+    uint32 tickTimer = 0;
+    uint32 tickInterval = 6000;
+
+    void OnCreate() override
+    {
+        if (SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(206817))
+            if (spellInfo->Effects[EFFECT_1]->BasePoints > 0)
+                tickInterval = uint32(spellInfo->Effects[EFFECT_1]->BasePoints) * uint32(IN_MILLISECONDS);
+    }
+
+    void OnUpdate(uint32 diff) override
+    {
+        if (tickTimer > diff)
+        {
+            tickTimer -= diff;
+            return;
+        }
+
+        tickTimer = tickInterval;
+
+        Unit* caster = at->GetCaster();
+        if (!caster)
+            return;
+
+        std::list<Unit*> targets;
+        at->GetAttackableUnitListInRange(targets, at->GetRadius(), true);
+
+        bool markedTarget = false;
+        for (Unit* target : targets)
+        {
+            if (!at->IsInArea(target) || !caster->IsValidAttackTarget(target))
+                continue;
+
+            caster->CastSpell(target, HUNTER_HUNTERS_MARK, true);
+            markedTarget = true;
+        }
+
+        if (markedTarget)
+            caster->CastSpell(caster, HUNTER_HUNTERS_MARK_READY, true);
+    }
+};
+
 // 19574 - Bestial Wrath
 class spell_hun_bestial_wrath : public SpellScriptLoader
 {
@@ -2296,6 +3209,7 @@ public:
 
 void AddSC_hunter_spell_scripts()
 {
+    RegisterCreatureAI(npc_hun_spitting_cobra);
     new spell_hun_dire_beast();
     new spell_hun_a_murder_of_crows();
     new spell_hun_beast_cleave();
@@ -2307,8 +3221,24 @@ void AddSC_hunter_spell_scripts()
     new spell_hun_fetch();
     new spell_hun_fireworks();
     new spell_hun_flanking_strike();
+    RegisterAuraScript(spell_hun_animal_instincts);
+    RegisterSpellScript(spell_hun_snake_hunter);
+    RegisterSpellScript(spell_hun_throwing_axes);
+    RegisterAuraScript(spell_hun_mortal_wounds);
+    RegisterAuraScript(spell_hun_way_of_the_moknathal);
+    RegisterAuraScript(spell_hun_bird_of_prey);
+    RegisterAuraScript(spell_hun_aspect_of_the_skylord);
+    RegisterAuraScript(spell_hun_eagles_bite_trait);
+    RegisterAuraScript(spell_hun_echoes_of_ohnara);
+    RegisterAuraScript(spell_hun_talon_strike);
+    RegisterAuraScript(spell_hun_fury_of_the_eagle);
+    RegisterAuraScript(spell_hun_fluffy_go);
+    RegisterSpellScript(spell_hun_fury_of_the_eagle_damage);
+    RegisterAuraScript(spell_hun_freezing_trap_expert);
+    RegisterAuraScript(spell_hun_tar_trap_aura);
     new spell_hun_explosive_shot_detonate();
     new spell_hun_explosive_shot();
+    RegisterSpellScript(spell_hun_chimaera_shot);
     new spell_hun_cobra_shot();
     new spell_hun_blink_strikes();
     new spell_hun_piercing_shot();
@@ -2316,6 +3246,18 @@ void AddSC_hunter_spell_scripts()
     new spell_hun_dragonscale_armor();
     new spell_hun_hatis_bond();
     new spell_hun_broken_bond();
+    RegisterAuraScript(spell_hun_lock_and_load);
+    RegisterAuraScript(spell_hun_bombardment);
+    RegisterAuraScript(spell_hun_marking_targets);
+    RegisterAuraScript(spell_hun_true_aim);
+    RegisterAuraScript(spell_hun_call_of_the_hunter);
+    RegisterAuraScript(spell_hun_critical_focus);
+    RegisterAuraScript(spell_hun_rapid_killing);
+    RegisterAuraScript(spell_hun_healing_shell);
+    RegisterAuraScript(spell_hun_feet_of_wind);
+    RegisterAuraScript(spell_hun_bullseye);
+    RegisterAuraScript(spell_hun_legacy_of_the_windrunners);
+    new player_hun_black_arrow();
     new spell_hun_windburst();
     new spell_hun_aimed_shot();
     new spell_hun_trick_shot();
@@ -2324,6 +3266,7 @@ void AddSC_hunter_spell_scripts()
     new spell_hun_kill_command_damage();
     new spell_hun_mark_of_helbrine();
     new spell_hun_marked_shot();
+    RegisterAuraScript(spell_hun_t21_beast_mastery_4p);
     new spell_hun_titans_thunder();
     new spell_hun_t19_bm();
     new spell_hun_bw();
@@ -2333,9 +3276,13 @@ void AddSC_hunter_spell_scripts()
     new areatrigger_at_explosive_trap();
     RegisterAuraScript(spell_hun_misdirection);
     RegisterAuraScript(spell_hun_trailblazer);
+    RegisterSpellScript(spell_hun_posthaste);
+    RegisterAuraScript(spell_hun_farstrider);
+    RegisterAuraScript(spell_hun_killer_cobra);
     RegisterSpellScript(spell_hun_beast_cleave_tgr);
     RegisterAuraScript(spell_hun_eagles_bite);
     RegisterSpellScript(spell_hun_explosive_trap);
     RegisterAreaTriggerAI(areatrigger_hun_windburst);
+    RegisterAreaTriggerAI(areatrigger_hun_sentinel);
 	new spell_hun_bestial_wrath();
 }
