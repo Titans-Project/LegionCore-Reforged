@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
     Priest: Tuure
 */
@@ -659,6 +667,8 @@ public:
     struct go_tuure_crateAI : public GameObjectAI
     {
         go_tuure_crateAI(GameObject* go) : GameObjectAI(go) {}
+
+        bool GossipUse(Player* player) override { return GossipUseAsHello(player); }
 
         bool GossipHello(Player* player, bool isUse) override
         {

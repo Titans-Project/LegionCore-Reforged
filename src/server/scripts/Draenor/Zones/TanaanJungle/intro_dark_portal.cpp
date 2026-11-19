@@ -1,20 +1,14 @@
-/*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 // ================================================================
 // dark_portal.cpp — WoD intro scenario (Map 1265, Zone 7025)
@@ -576,6 +570,8 @@ public:
             SOUTH_SCENE = 159127,
             EASTERN_SCENE = 159126
         };
+        bool GossipUse(Player* player) override { return GossipUseAsHello(player); }
+
         bool GossipHello(Player* player, bool isUse) override
         {
             if (!isUse)
@@ -1909,6 +1905,8 @@ public:
             SPELL_CINEMA = 176159,
 
         };
+        bool GossipUse(Player* player) override { return GossipUseAsHello(player); }
+
         bool GossipHello(Player* player, bool isUse) override
         {
             if (!isUse)
@@ -2026,6 +2024,8 @@ public:
             SPELL_EXPLOSION = 68975,
         };
 
+        bool GossipUse(Player* player) override { return GossipUseAsHello(player); }
+
         bool GossipHello(Player* player, bool isUse) override
         {
             if (!isUse)
@@ -2100,6 +2100,8 @@ public:
                 _deleteTimer -= diff;
         }
 
+        bool GossipUse(Player* player) override { return GossipUseAsHello(player); }
+
         bool GossipHello(Player* player, bool isUse) override
         {
             if (!isUse) return false;
@@ -2140,6 +2142,8 @@ public:
     struct gob_q34393_markAI : public GameObjectAI
     {
         gob_q34393_markAI(GameObject* go) : GameObjectAI(go) {}
+
+        bool GossipUse(Player* player) override { return GossipUseAsHello(player); }
 
         bool GossipHello(Player* player, bool isUse) override
         {
@@ -2190,6 +2194,8 @@ public:
     struct gob_stasis_runeAI : public GameObjectAI
     {
         gob_stasis_runeAI(GameObject* go) : GameObjectAI(go) {}
+
+        bool GossipUse(Player* player) override { return GossipUseAsHello(player); }
 
         bool GossipHello(Player* player, bool isUse) override
         {

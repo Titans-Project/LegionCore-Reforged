@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
     Rogue: Devourer
 */
@@ -236,6 +244,8 @@ public:
     struct go_devourer_miscAI : public GameObjectAI
     {
         go_devourer_miscAI(GameObject* go) : GameObjectAI(go) {}
+
+        bool GossipUse(Player* player) override { return GossipUseAsHello(player); }
 
         bool GossipHello(Player* player, bool isUse) override
         {

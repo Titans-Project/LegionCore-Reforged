@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
     BrokenShore
 */
@@ -426,6 +434,8 @@ public:
     {
         go_bs_demoic_gatesAI(GameObject* go) : GameObjectAI(go){}
 
+
+        bool GossipUse(Player* player) override { return GossipUseAsHello(player); }
 
         bool GossipHello(Player* player, bool isUse) override
         {

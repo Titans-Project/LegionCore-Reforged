@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
     Demon Hunter Specialization: Vengeance
     To-Do: Last Boss (i havent sniffs)
@@ -130,6 +138,8 @@ public:
     struct go_portal_fel_soulAI : public GameObjectAI
     {
         go_portal_fel_soulAI(GameObject* go) : GameObjectAI(go) {}
+
+        bool GossipUse(Player* player) override { return GossipUseAsHello(player); }
 
         bool GossipHello(Player* player, bool isUse) override
         {

@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
     Rogue: Kingslayers
 */
@@ -320,6 +328,8 @@ public:
     struct go_kingslayers_doorAI : public GameObjectAI
     {
         go_kingslayers_doorAI(GameObject* go) : GameObjectAI(go) {}
+
+        bool GossipUse(Player* player) override { return GossipUseAsHello(player); }
 
         bool GossipHello(Player* player, bool isUse) override
         {
