@@ -552,12 +552,15 @@ GarrisonMap* MapInstanced::CreateGarrison(uint32 instanceId, Player* owner)
     return map;
 }
 
-Map* MapInstanced::CreateZoneForPlayer(const uint32 mapId, Player* player)
+Map* MapInstanced::CreateZoneForPlayer(const uint32 mapId, Player* player, Position const* dest /*= nullptr*/)
 {
     if (GetId() != mapId || !player)
         return nullptr;
 
-    uint32 newZoneId = GetZoneId(player->GetPositionX(), player->GetPositionY(), player->GetPositionZ());
+    // a far teleport is not relocated yet: the zone is the one he goes to, else he lands in the zone of the place he left
+    // and is moved again at his first zone update, away from all that was set for his arrival
+    Position const pos = dest ? *dest : player->GetPosition();
+    uint32 newZoneId = GetZoneId(pos.GetPositionX(), pos.GetPositionY(), pos.GetPositionZ());
     Map* map = FindInstanceMap(newZoneId);
     if (!map)
         map = CreateZoneMap(newZoneId, player);

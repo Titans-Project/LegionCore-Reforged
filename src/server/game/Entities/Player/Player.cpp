@@ -2305,9 +2305,10 @@ bool Player::SafeTeleport(uint32 mapid, float x, float y, float z, float orienta
                 }
             }
 
+            Position const farDest(x, y, z, orientation);
             if (!sess->PlayerLogout() && !(options & TELE_TO_SEAMLESS))
             {
-                if (Map* _map = sMapMgr->CreateMap(mapid, this))
+                if (Map* _map = sMapMgr->CreateMap(mapid, this, &farDest))
                 {
                     sess->SetMap(_map);
                     _map->AddSession(sess);
@@ -2390,7 +2391,7 @@ bool Player::SafeTeleport(uint32 mapid, float x, float y, float z, float orienta
 
             if (!sess->PlayerLogout())
             {
-                if (Map* _map = sMapMgr->CreateMap(mapid, this))
+                if (Map* _map = sMapMgr->CreateMap(mapid, this, &farDest))
                 {
                     sess->SetMap(_map);
                     _map->AddSession(sess);
@@ -2486,7 +2487,7 @@ void Player::TeleportToChallenge(uint32 mapid, float x, float y, float z, float 
 
     if (!sess->PlayerLogout())
     {
-        if (Map* _map = sMapMgr->CreateMap(mapid, this))
+        if (Map* _map = sMapMgr->CreateMap(mapid, this, &m_teleport_dest))
         {
             sess->SetMap(_map);
             _map->AddSession(sess);

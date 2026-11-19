@@ -106,7 +106,7 @@ Map* MapManager::FindBaseNonInstanceMap(uint32 mapId) const
     return map;
 }
 
-Map* MapManager::CreateMap(uint32 id, Player* player)
+Map* MapManager::CreateMap(uint32 id, Player* player, Position const* dest /*= nullptr*/)
 {
     Map* m = CreateBaseMap(id);
 
@@ -114,7 +114,7 @@ Map* MapManager::CreateMap(uint32 id, Player* player)
         m = static_cast<MapInstanced*>(m)->CreateInstanceForPlayer(id, player);
 
     if (m && m->CanCreatedZone())
-        m = static_cast<MapInstanced*>(m)->CreateZoneForPlayer(id, player);
+        m = static_cast<MapInstanced*>(m)->CreateZoneForPlayer(id, player, dest);
 
     return m;
 }

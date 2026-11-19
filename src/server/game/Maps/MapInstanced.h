@@ -50,7 +50,7 @@ class MapInstanced : public Map
         bool CanEnter(Player* player) override;
 
         Map* CreateInstanceForPlayer(const uint32 mapId, Player* player);
-        Map* CreateZoneForPlayer(const uint32 mapId, Player* player);
+        Map* CreateZoneForPlayer(const uint32 mapId, Player* player, Position const* dest = nullptr);
         // the pointer is only safe in this map's own thread (instances are destroyed there): other threads use the
         // locked helpers below, which never let a Map* out
         Map* FindInstanceMap(uint32 instanceId) const;
