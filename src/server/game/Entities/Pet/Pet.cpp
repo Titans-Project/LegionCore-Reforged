@@ -1,20 +1,14 @@
-/*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 #include "CharmInfo.h"
 #include "Common.h"
@@ -423,7 +417,8 @@ bool Pet::LoadPetFromDB(Player* owner, uint32 petEntry, uint32 petnumber, bool c
             if (GetMap()->IsBattleArena())
                 RemoveArenaAuras();
 
-            CastPetAuras(current);
+            // a hunter pet gets its auras whenever it comes back alive, whatever spell summoned it
+            CastPetAuras(getPetType() == HUNTER_PET ? IsAlive() : current);
         }
 
         TC_LOG_DEBUG("entities.pet", "New Pet has %s", GetGUID().ToString().c_str());
@@ -1718,7 +1713,8 @@ void Pet::InitPetCreateSpells()
     LearnPetPassives();
     InitLevelupSpellsForLevel();
 
-    CastPetAuras(false);
+    // a beast just tamed is alive: it needs its auras (Pet Active 166615, which Kill Command requires)
+    CastPetAuras(getPetType() == HUNTER_PET && IsAlive());
 }
 
 bool Pet::IsPermanentPetFor(Player* owner)
@@ -2040,7 +2036,8 @@ void Pet::CastPetAuras(bool apply, uint32 spellId)
     }
 
     //for all hunters pets
-    if(createdSpellId == 13481 || createdSpellId == 83245 || createdSpellId == 83244 || createdSpellId == 83243 || createdSpellId == 83242 || createdSpellId == 883)
+    // the summoning spell is not kept on every load (0 after a login), the pet type always is
+    if (getPetType() == HUNTER_PET)
     if (std::vector<PetAura> const* petSpell = sSpellMgr->GetPetAura(-1))
     {
         for (const auto& itr : *petSpell)
