@@ -14,6 +14,7 @@
 
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
+#include "../MageArtifactKillCredit.h"
 
 //mage & priest nexus 1583
 struct instance_priest_mage_nexus_art : public InstanceScript
@@ -39,4 +40,7 @@ struct instance_priest_mage_nexus_art : public InstanceScript
 void AddSC_Aluneth()
 {
     RegisterInstanceScript(instance_priest_mage_nexus_art, 1583);
+    // Registered here for the whole mage artifact folder: Lyandra, Iceborn Conjurer, Arcane Aberrant,
+    // Nexus-Prince Bilaal and Balaadur
+    RegisterCreatureAI(npc_mage_artifact_kill_credit);
 }

@@ -290,7 +290,8 @@ class spell_mage_arcane_barrage : public SpellScript
         {
             if (Unit* target = GetHitUnit())
             {
-                if (_player->GetSelectedUnit() != target)
+                Unit* primaryTarget = GetExplTargetUnit();
+                if (primaryTarget && primaryTarget != target)
                 {
                     int32 perc = GetSpellInfo()->Effects[EFFECT_1]->BasePoints;
                     SetHitDamage(CalculatePct(GetHitDamage(), perc));
@@ -332,6 +333,8 @@ public:
                 {
                     if (SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(228354))
                     {
+                        uint32 mapId = caster->GetMapId();
+                        uint32 instanceId = caster->GetInstanceId();
                         float damage = 1.f;
                         std::vector<uint32> ExcludeAuraList;
                         damage = caster->SpellDamageBonusDone(target, spellInfo, uint32(damage), SPELL_DIRECT_DAMAGE, ExcludeAuraList, EFFECT_1);
@@ -366,8 +369,11 @@ public:
                             finalDamage += CalculatePct(damage, dmgMod);
 
                         ObjectGuid targetGUID = target->GetGUID();
-                        caster->AddDelayedEvent(300, [caster, targetGUID, finalDamage]() -> void
+                        caster->AddDelayedEvent(300, [caster, targetGUID, finalDamage, mapId, instanceId]() -> void
                         {
+                            if (!caster->IsInWorld() || caster->IsPreDelete() || caster->GetMapId() != mapId || caster->GetInstanceId() != instanceId)
+                                return;
+
                             Unit* target = ObjectAccessor::GetUnit(*caster, targetGUID);
                             if (!target)
                                 return;
@@ -378,8 +384,11 @@ public:
                         if (dmgMod)
                             finalDamage += CalculatePct(damage, dmgMod);
 
-                        caster->AddDelayedEvent(600, [caster, targetGUID, finalDamage]() -> void
+                        caster->AddDelayedEvent(600, [caster, targetGUID, finalDamage, mapId, instanceId]() -> void
                         {
+                            if (!caster->IsInWorld() || caster->IsPreDelete() || caster->GetMapId() != mapId || caster->GetInstanceId() != instanceId)
+                                return;
+
                             Unit* target = ObjectAccessor::GetUnit(*caster, targetGUID);
                             if (!target)
                                 return;
@@ -400,6 +409,29 @@ public:
     SpellScript* GetSpellScript() const override
     {
         return new spell_mage_flurry_SpellScript();
+    }
+};
+
+// Cinderstorm cinder - 198928
+class spell_mage_cinderstorm_damage : public SpellScript
+{
+    PrepareSpellScript(spell_mage_cinderstorm_damage);
+
+    void HandleDamage(SpellEffIndex /*effIndex*/)
+    {
+        Unit* caster = GetCaster();
+        Unit* target = GetHitUnit();
+        if (!caster || !target || !target->HasAura(SPELL_MAGE_IGNITE_DOT, caster->GetGUID()))
+            return;
+
+        // The bonus lives on the talent spell (198929), not on the cinder
+        if (SpellInfo const* talent = sSpellMgr->GetSpellInfo(SPELL_MAGE_CINDERSTORM))
+            SetHitDamage(GetHitDamage() + CalculatePct(GetHitDamage(), talent->Effects[EFFECT_0]->CalcValue(caster)));
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_mage_cinderstorm_damage::HandleDamage, EFFECT_0, SPELL_EFFECT_SCHOOL_DAMAGE);
     }
 };
 
@@ -2196,6 +2228,7 @@ void AddSC_mage_spell_scripts()
     new spell_mage_flurry();
     new spell_mage_arcane_missiles();
     RegisterSpellScript(spell_mage_arcane_barrage);
+    RegisterSpellScript(spell_mage_cinderstorm_damage);
     RegisterSpellScript(spell_mage_ice_lance);
     RegisterSpellScript(spell_mage_ice_lance_main);
     RegisterAuraScript(spell_mage_arcane_familiar);
