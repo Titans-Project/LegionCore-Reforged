@@ -1,19 +1,14 @@
-/*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 #ifndef TRINITY_SMARTSCRIPTMGR_H
 #define TRINITY_SMARTSCRIPTMGR_H
@@ -1277,7 +1272,8 @@ enum SMARTAI_TARGETS
     SMART_TARGET_HOSTILE_RANDOM_AURA            = 127,   // Any random target except top threat player
     SMART_TARGET_RANDOM_POSITION                = 128,   // Any random position
     SMART_TARGET_TARGETUNIT                     = 129,   // Target unit by GetTargetUnit()
-    SMART_TARGET_END                            = 130
+    SMART_TARGET_INVOKER_OWNER_PLAYER           = 130,  // Invoker itself if a player, else the player owning or charming the invoker
+    SMART_TARGET_END                            = 131
 };
 
 struct SmartTarget
