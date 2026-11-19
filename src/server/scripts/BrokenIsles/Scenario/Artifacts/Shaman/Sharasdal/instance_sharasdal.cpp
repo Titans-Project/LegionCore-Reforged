@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
     Shaman: Sharasdal
 */
@@ -36,7 +44,12 @@ public:
             switch (creature->GetEntry())
             {
                 case 102792:
-                    if (Player* targ = creature->FindNearestPlayer(100.0f))
+                {
+                    // Credit the player who really took the kill; proximity is only the fallback.
+                    Player* targ = creature->ToCreature() ? creature->ToCreature()->GetLootRecipient() : nullptr;
+                    if (!targ)
+                        targ = creature->FindNearestPlayer(100.0f);
+                    if (targ)
                     {
                         targ->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 49861);
                         targ->CreateConversation(1693);
@@ -47,6 +60,7 @@ public:
                         });
                     }
                     break;
+                }
             }
         }
         

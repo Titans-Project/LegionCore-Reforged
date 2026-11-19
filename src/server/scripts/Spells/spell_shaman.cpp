@@ -1,19 +1,14 @@
-/*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 /*
  * Scripts for spells with SPELLFAMILY_SHAMAN and SPELLFAMILY_GENERIC spells used by shaman players.
@@ -26,6 +21,46 @@
 #include "Unit.h"
 #include "SpellScript.h"
 #include "SpellAuraEffects.h"
+#include "Containers.h"
+
+namespace
+{
+enum ShamanTier21Spells
+{
+    SPELL_SHAMAN_EARTH_SHOCK              = 8042,
+    SPELL_SHAMAN_FROST_SHOCK              = 196840,
+    SPELL_SHAMAN_HEALING_WAVE             = 77472,
+    SPELL_SHAMAN_HEALING_SURGE            = 8004,
+    SPELL_SHAMAN_T21_RESTORATION_2P       = 251764,
+    SPELL_SHAMAN_T21_EARTH_SHOCK_OVERLOAD = 252143,
+    SPELL_SHAMAN_T21_RAINFALL             = 252154,
+    SPELL_SHAMAN_T21_FROST_SHOCK_OVERLOAD = 256561
+};
+
+constexpr float HealingRainRadius = 10.0f;
+
+// Injured players standing in the caster's Healing Rain, most wounded first.
+void GetHealingRainTargets(Unit* caster, std::list<Player*>& targets)
+{
+    if (!caster || !caster->m_SummonSlot[17])
+        return;
+
+    Creature* rain = caster->GetMap()->GetCreature(caster->m_SummonSlot[17]);
+    if (!rain)
+        return;
+
+    rain->GetPlayerListInGrid(targets, HealingRainRadius);
+    targets.remove_if([caster](Player* player)
+    {
+        return !player || !player->IsAlive() || !caster->IsFriendlyTo(player) || player->IsFullHealth();
+    });
+
+    targets.sort([](Player const* left, Player const* right)
+    {
+        return left->GetHealthPct() < right->GetHealthPct();
+    });
+}
+}
 
 // Spirit Link - 98020 : triggered by 98017
 // Spirit Link Totem
@@ -107,6 +142,17 @@ class spell_sha_healing_rain : public SpellScriptLoader
                                 tempsummon->DespawnOrUnsummon(500);
                         }
                         caster->m_SummonSlot[17] = summon->GetGUID();
+
+                        // Item - Shaman T21 Restoration 2P Bonus
+                        if (AuraEffect const* bonus = caster->GetAuraEffect(SPELL_SHAMAN_T21_RESTORATION_2P, EFFECT_0))
+                        {
+                            std::list<Player*> targets;
+                            GetHealingRainTargets(caster, targets);
+                            targets.resize(std::min<size_t>(targets.size(), std::max<int32>(bonus->GetAmount(), 0)));
+
+                            for (Player* target : targets)
+                                caster->CastSpell(target, SPELL_SHAMAN_T21_RAINFALL, true, nullptr, bonus);
+                        }
                     }
                 }
             }
@@ -402,6 +448,19 @@ class spell_sha_cloudburst_totem : public SpellScriptLoader
         {
             PrepareAuraScript(spell_sha_cloudburst_totem_AuraScript);
 
+            // The amount stores the healing collected while the totem is active.
+            void OnProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+            {
+                PreventDefaultAction();
+
+                HealInfo* healInfo = eventInfo.GetHealInfo();
+                if (!healInfo || !healInfo->GetHeal())
+                    return;
+
+                if (AuraEffect* storage = GetEffect(aurEff->GetEffIndex()))
+                    storage->ChangeAmount(storage->GetAmount() + healInfo->GetHeal());
+            }
+
             void OnRemove(AuraEffect const* aurEff, AuraEffectHandleModes /*mode*/)
             {
                 if (Unit* caster = GetUnitOwner())
@@ -416,6 +475,7 @@ class spell_sha_cloudburst_totem : public SpellScriptLoader
 
             void Register() override
             {
+                OnEffectProc += AuraEffectProcFn(spell_sha_cloudburst_totem_AuraScript::OnProc, EFFECT_0, SPELL_AURA_DUMMY);
                 OnEffectRemove += AuraEffectRemoveFn(spell_sha_cloudburst_totem_AuraScript::OnRemove, EFFECT_0, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
             }
         };
@@ -424,6 +484,37 @@ class spell_sha_cloudburst_totem : public SpellScriptLoader
         {
             return new spell_sha_cloudburst_totem_AuraScript();
         }
+};
+
+// Cloudburst - 157503. The stored healing is shared between the injured allies instead of repeated for each one.
+class spell_sha_cloudburst_heal : public SpellScript
+{
+    PrepareSpellScript(spell_sha_cloudburst_heal);
+
+    uint32 targetCount = 0;
+
+    void CountTargets(std::list<WorldObject*>& targets)
+    {
+        targets.remove_if([](WorldObject* object)
+        {
+            Unit* unit = object ? object->ToUnit() : nullptr;
+            return !unit || unit->IsFullHealth();
+        });
+
+        targetCount = uint32(targets.size());
+    }
+
+    void HandleHeal(SpellEffIndex /*effIndex*/)
+    {
+        if (targetCount)
+            SetHitHeal(GetHitHeal() / targetCount);
+    }
+
+    void Register() override
+    {
+        OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_sha_cloudburst_heal::CountTargets, EFFECT_0, TARGET_UNIT_DEST_AREA_ALLY);
+        OnEffectHitTarget += SpellEffectFn(spell_sha_cloudburst_heal::HandleHeal, EFFECT_0, SPELL_EFFECT_HEAL);
+    }
 };
 
 // Earth Shock - 8042
@@ -1666,6 +1757,74 @@ class spell_sha_elem_blast : public SpellScript
     }
 };
 
+// Item - Shaman T21 Elemental 4P Bonus - 251758
+class spell_sha_t21_elemental_4p : public AuraScript
+{
+    PrepareAuraScript(spell_sha_t21_elemental_4p);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* procSpell = eventInfo.GetSpell();
+        if (!procSpell || !eventInfo.GetActionTarget())
+            return false;
+
+        uint32 spellId = procSpell->GetSpellInfo()->Id;
+        return spellId == SPELL_SHAMAN_EARTH_SHOCK || spellId == SPELL_SHAMAN_FROST_SHOCK;
+    }
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+        if (!roll_chance_i(aurEff->GetAmount()))
+            return;
+
+        uint32 overload = eventInfo.GetSpell()->GetSpellInfo()->Id == SPELL_SHAMAN_EARTH_SHOCK ?
+            SPELL_SHAMAN_T21_EARTH_SHOCK_OVERLOAD : SPELL_SHAMAN_T21_FROST_SHOCK_OVERLOAD;
+        GetTarget()->CastSpell(eventInfo.GetActionTarget(), overload, true, nullptr, aurEff);
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_sha_t21_elemental_4p::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_sha_t21_elemental_4p::HandleProc, EFFECT_0, SPELL_AURA_DUMMY);
+    }
+};
+
+// Item - Shaman T21 Restoration 4P Bonus - 251765
+class spell_sha_t21_restoration_4p : public AuraScript
+{
+    PrepareAuraScript(spell_sha_t21_restoration_4p);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* procSpell = eventInfo.GetSpell();
+        if (!procSpell || !eventInfo.GetHealInfo() || !eventInfo.GetHealInfo()->GetHeal())
+            return false;
+
+        uint32 spellId = procSpell->GetSpellInfo()->Id;
+        return spellId == SPELL_SHAMAN_HEALING_WAVE || spellId == SPELL_SHAMAN_HEALING_SURGE;
+    }
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+
+        std::list<Player*> targets;
+        GetHealingRainTargets(GetTarget(), targets);
+        if (targets.empty())
+            return;
+
+        float heal = CalculatePct(eventInfo.GetHealInfo()->GetHeal(), aurEff->GetAmount());
+        GetTarget()->CastCustomSpell(targets.front(), SPELL_SHAMAN_T21_RAINFALL, &heal, nullptr, nullptr, true, nullptr, aurEff);
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_sha_t21_restoration_4p::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_sha_t21_restoration_4p::HandleProc, EFFECT_0, SPELL_AURA_DUMMY);
+    }
+};
+
 void AddSC_shaman_spell_scripts()
 {
     new spell_sha_spirit_link();
@@ -1676,6 +1835,7 @@ void AddSC_shaman_spell_scripts()
     new spell_sha_astral_recall();
     new spell_sha_elemental_familiars();
     new spell_sha_cloudburst_totem();
+    RegisterSpellScript(spell_sha_cloudburst_heal);
     new spell_sha_earth_shock();
     new spell_sha_flame_shock();
     new spell_sha_frost_shock();
@@ -1704,4 +1864,6 @@ void AddSC_shaman_spell_scripts()
     RegisterAuraScript(spell_sha_hex);
     //RegisterAuraScript(spell_sha_lightning_rod);
     RegisterSpellScript(spell_sha_elem_blast);
+    RegisterAuraScript(spell_sha_t21_elemental_4p);
+    RegisterAuraScript(spell_sha_t21_restoration_4p);
 }

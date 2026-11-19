@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
     Shaman: Sharasdal
 */
@@ -6,6 +14,28 @@
 #include "ScriptedCreature.h"
 #include "CreatureTextMgr.h"
 #include "GameObjectAI.h"
+#include "SpellScript.h"
+#include "SpellAuraEffects.h"
+
+namespace
+{
+    // The incoming heal is not applied yet when HealReceived runs, so the threshold is tested on the result.
+    bool HealthReachedAfterHeal(Creature* me, uint32 addhealth, uint32 pct)
+    {
+        return (uint64(me->GetHealth()) + addhealth) * 100 >= uint64(me->GetMaxHealth()) * pct;
+    }
+
+    // Scenario credit belongs to the player who really took the kill, not to whoever stands nearby.
+    Player* KillCreditPlayer(Creature* dead, Unit* killer)
+    {
+        if (Player* looter = dead->GetLootRecipient())
+            return looter;
+        if (killer)
+            if (Player* owner = killer->GetCharmerOrOwnerPlayerOrPlayerItself())
+                return owner;
+        return dead->FindNearestPlayer(100.0f);
+    }
+}
 
 Position const sumpos[3] =
 {
@@ -70,11 +100,11 @@ public:
             }, _functions.CalculateTime(1000));
         }
 
-        void HealReceived(Unit* who, uint32& /*addhealth*/) override
+        void HealReceived(Unit* who, uint32& addhealth) override
         {
             if (wait_heal)
             {
-                if (me->GetHealthPct() >= 40)
+                if (HealthReachedAfterHeal(me, addhealth, 40))
                 {
                     me->ClearUnitState(UNIT_STATE_STUNNED);
                     me->RemoveAura(208093);
@@ -369,11 +399,11 @@ public:
             }
         }
 
-        void HealReceived(Unit* who, uint32& /*addhealth*/) override
+        void HealReceived(Unit* who, uint32& addhealth) override
         {
             if (!_introDone && me->GetPositionZ() <= 795.0f)
             {
-                if (me->GetHealthPct() >= 90)
+                if (HealthReachedAfterHeal(me, addhealth, 90))
                 {
                     _introDone = true;
                     if (Player* targ = me->FindNearestPlayer(100.0f))
@@ -387,7 +417,7 @@ public:
 
             if (!_introDone1)
             {
-                if (me->GetHealthPct() >= 50)
+                if (HealthReachedAfterHeal(me, addhealth, 50))
                 {
                     _introDone1 = true;
                     Talk(0);
@@ -401,7 +431,7 @@ public:
 
             if (wait_heal)
             {
-                if (me->GetHealthPct() >= 40)
+                if (HealthReachedAfterHeal(me, addhealth, 40))
                 {
                     me->ClearUnitState(UNIT_STATE_STUNNED);
                     me->RemoveAura(208093);
@@ -434,12 +464,15 @@ public:
                 if (id == 3 || id == 0)
                 {
                     DoCast(209904);
-                    if (GameObject* go = me->FindNearestGameObject(248514, 5.0f))
-                        if (InstanceScript* inst = me->GetInstanceScript())
-                            inst->HandleGameObject(go->GetGUID(), true);
-
-                    if (Player* targ = me->FindNearestPlayer(100.0f))
-                        targ->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 49817);
+                    // The wall is credited only once Grash has really opened it.
+                    GameObject* wall = me->FindNearestGameObject(248514, 5.0f);
+                    InstanceScript* inst = me->GetInstanceScript();
+                    if (wall && inst)
+                    {
+                        inst->HandleGameObject(wall->GetGUID(), true);
+                        if (Player* targ = me->FindNearestPlayer(100.0f))
+                            targ->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 49817);
+                    }
                 }
             }
             else if (type == POINT_MOTION_TYPE)
@@ -535,11 +568,11 @@ public:
         }
 
 
-        void HealReceived(Unit* who, uint32& /*addhealth*/) override
+        void HealReceived(Unit* who, uint32& addhealth) override
         {
             if (wait_heal)
             {
-                if (me->GetHealthPct() >= 40)
+                if (HealthReachedAfterHeal(me, addhealth, 40))
                 {
                     me->ClearUnitState(UNIT_STATE_STUNNED);
                     me->RemoveAura(208093);
@@ -665,8 +698,8 @@ public:
 
         void JustDied(Unit* who) override
         {
-            if (Player* targ = me->FindNearestPlayer(100.0f))
-                targ->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50240);
+            if (Player* credit = KillCreditPlayer(me, who))
+                credit->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50240);
         }
 
         void SpellHitTarget(Unit* who, SpellInfo const* spell) override
@@ -757,9 +790,11 @@ public:
 
         void JustDied(Unit* who) override
         {
-            if (Player* targ = me->FindNearestPlayer(100.0f))
-                targ->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50397);
-            who->CreateConversation(1923);
+            if (Player* credit = KillCreditPlayer(me, who))
+            {
+                credit->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50397);
+                credit->CreateConversation(1923);
+            }
         }
 
 
@@ -879,26 +914,62 @@ class go_art_sharasdal : public GameObjectScript
 public:
     go_art_sharasdal() : GameObjectScript("go_art_sharasdal") {}
 
+    static bool CanClaim(Player* player)
+    {
+        return player->getClass() == CLASS_SHAMAN && !player->GetQuestRewardStatus(40341)
+            && player->GetQuestStatus(40341) != QUEST_STATUS_NONE;
+    }
+
+    bool OnGossipHello(Player* player, GameObject* go) override
+    {
+        // The artifact is unique: a player who already owns it could never finish looting the chest,
+        // so he goes straight to the scene. Everybody else uses the normal loot window.
+        if (!CanClaim(player) || !player->HasItemCount(128911, 1, true))
+            return false;
+        go->SetLootState(GO_JUST_DEACTIVATED, player);
+        return true;
+    }
+
     void OnLootStateChanged(GameObject* go, uint32 state, Unit* target) override
     {
-        if (target && state == GO_ACTIVATED)
-        {
-            if (target->GetTypeId() == TYPEID_PLAYER)
-            {
-                target->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 49820);
-                target->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_COMPLETE_SCENARIO, 1066, 1);
-                if (Creature* trigger = go->FindNearestCreature(105787, 10.0f))
-                    trigger->DespawnOrUnsummon(1000);
+        Player* player = target ? target->ToPlayer() : nullptr;
+        if (!player || state != GO_JUST_DEACTIVATED || !CanClaim(player) || player->HasAura(209684))
+            return;
 
-                if (!target->ToPlayer()->HasItemCount(128911, 1))
-                    target->ToPlayer()->AddItem(128911, 1);
-                go->Delete();
+        // No credit and no scene unless the weapon is really in the bags (full bags leave it in the chest).
+        if (!player->HasItemCount(128911, 1, true))
+            return;
 
-                target->CastSpell(target, 209684, true);
+        if (Creature* trigger = go->FindNearestCreature(105787, 10.0f))
+            trigger->DespawnOrUnsummon(1000);
 
-                target->ToPlayer()->KilledMonsterCredit(105787);
-            }
-        }
+        // The scene sends the pickup event; the equip and the scenario completion follow its end.
+        player->CastSpell(player, 209684, true);
+    }
+};
+
+// 209684
+class aura_sharasdal_acquisition_scene : public AuraScript
+{
+    PrepareAuraScript(aura_sharasdal_acquisition_scene);
+
+    void OnSceneEnd(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+    {
+        Player* player = GetTarget()->ToPlayer();
+        if (!player || !player->IsAlive() || !player->HasItemCount(128911, 1, true))
+            return;
+
+        // Equips the artifact and grants the kill credit of its pickup.
+        player->CastSpell(player, 209685, true);
+
+        Item* weapon = player->GetItemByEntry(128911);
+        if (weapon && weapon->IsEquipped())
+            player->UpdateAchievementCriteria(CRITERIA_TYPE_COMPLETE_SCENARIO, 1066, 1);
+    }
+
+    void Register() override
+    {
+        AfterEffectRemove += AuraEffectRemoveFn(aura_sharasdal_acquisition_scene::OnSceneEnd, EFFECT_0, SPELL_AURA_ACTIVATE_SCENE, AURA_EFFECT_HANDLE_REAL);
     }
 };
 
@@ -911,4 +982,5 @@ void AddSC_Sharasdal()
     new npc_lady_zitrin();
     new npc_sharasdal_waterwall();
     new go_art_sharasdal();
+    RegisterAuraScript(aura_sharasdal_acquisition_scene);
 };
