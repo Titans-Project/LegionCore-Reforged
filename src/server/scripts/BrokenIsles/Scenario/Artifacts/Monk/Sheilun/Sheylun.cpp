@@ -15,6 +15,16 @@
 #include "CreatureTextMgr.h"
 #include "GameObjectAI.h"
 
+// HealReceived fires before the heal is applied, so the health the target will have is computed here
+static float PredictedHealthPct(Creature const* creature, uint32 addhealth)
+{
+    uint64 const maxHealth = creature->GetMaxHealth();
+    if (!maxHealth)
+        return 0.0f;
+
+    return float(std::min<uint64>(uint64(creature->GetHealth()) + addhealth, maxHealth)) * 100.0f / float(maxHealth);
+}
+
 
 // 101881
 class npc_tazhan_chu : public CreatureScript
@@ -121,10 +131,10 @@ public:
             }
         }
 
-        void HealReceived(Unit* who, uint32& /*addhealth*/) override
+        void HealReceived(Unit* who, uint32& addhealth) override
         {
             if (!_introHealDone)
-                if (me->GetHealthPct() >= 95)
+                if (PredictedHealthPct(me, addhealth) >= 95.0f)
                 {
                     _introHealDone = true;
                     Talk(2);
@@ -137,7 +147,7 @@ public:
 
             if (wait_heal)
             {
-                if (me->GetHealthPct() >= 40)
+                if (PredictedHealthPct(me, addhealth) >= 40.0f)
                 {
                     me->ClearUnitState(UNIT_STATE_STUNNED);
                     me->RemoveAura(204237);
@@ -175,7 +185,7 @@ public:
                         Talk(3);
                         DoCast(202053);
 
-                        me->AddDelayedEvent(4000, [this]() -> void
+                        _functions.AddDelayedEvent(4000, [this]() -> void
                         {
                             std::list<GameObject*> gob;
                             GetGameObjectListWithEntryInGrid(gob, me, 246321, 35.0f);
@@ -227,7 +237,7 @@ public:
             {
                 _introDone = true;
                 Talk(0);
-                me->AddDelayedEvent(5000, [this]() -> void
+                _functions.AddDelayedEvent(5000, [this]() -> void
                 {
                     Talk(1);
                 });
@@ -397,11 +407,11 @@ public:
             me->SetHomePosition(me->GetPositionX(), me->GetPositionY(), me->GetPositionZ(), me->GetOrientation());
         }
 
-        void HealReceived(Unit* who, uint32& /*addhealth*/) override
+        void HealReceived(Unit* who, uint32& addhealth) override
         {
             if (wait_heal)
             {
-                if (me->GetHealthPct() >= 40)
+                if (PredictedHealthPct(me, addhealth) >= 40.0f)
                 {
                     me->ClearUnitState(UNIT_STATE_STUNNED);
                     me->RemoveAura(204237);
@@ -551,14 +561,10 @@ public:
             events.RescheduleEvent(EVENT_1, 21000); // 204779
             events.RescheduleEvent(EVENT_2, 35000); // 204773  21
             events.RescheduleEvent(EVENT_3, 36000); // 43 summons
-            if (Creature* tazhan = me->FindNearestCreature(101881, 100.0f, true))
-                tazhan->AI()->AttackStart(me);
-            if (Creature* mob = me->FindNearestCreature(101882, 100.0f, true))
-                mob->AI()->AttackStart(me);
-            if (Creature* mob = me->FindNearestCreature(101885, 100.0f, true))
-                mob->AI()->AttackStart(me);
-            if (Creature* mob = me->FindNearestCreature(101883, 100.0f, true))
-                mob->AI()->AttackStart(me);
+            for (uint32 entry : { 101881, 101882, 101885, 101883 })
+                if (Creature* ally = me->FindNearestCreature(entry, 100.0f, true))
+                    if (CreatureAI* ai = ally->AI())
+                        ai->AttackStart(me);
         }
 
         void JustSummoned(Creature* summon) override

@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
     Monk: Intro Scenario
 */
@@ -6,6 +14,8 @@
 #include "ScriptedCreature.h"
 #include "CreatureTextMgr.h"
 #include "GameObjectAI.h"
+#include "ObjectAccessor.h"
+#include "Player.h"
 
 
 // 97778
@@ -26,6 +36,8 @@ public:
             me->SetFlag(UNIT_FIELD_NPC_FLAGS, UNIT_NPC_FLAG_SPELLCLICK);
         }
 
+        FunctionProcessor _functions;
+
         void SetData(uint32 type, uint32 data) override
         {
             if (type == 1 && data == 1)
@@ -35,23 +47,24 @@ public:
                 Talk(5);
                 if (Creature* chuan = me->FindNearestCreature(98001, 40.0f, true))
                 {
+                    // Chuan's own queue outlives this AI, so it speaks through the text manager
                     chuan->AddDelayedEvent(2000, [chuan]() -> void
                     {
-                        chuan->AI()->Talk(3);
+                        sCreatureTextMgr->SendChat(chuan, 3);
                     });
 
                     chuan->AddDelayedEvent(4000, [chuan]() -> void
                     {
-                        chuan->AI()->Talk(4);
+                        sCreatureTextMgr->SendChat(chuan, 4);
                     });
 
                     chuan->AddDelayedEvent(7000, [chuan]() -> void
                     {
-                        chuan->AI()->Talk(5);
+                        sCreatureTextMgr->SendChat(chuan, 5);
                     });
                 }
 
-                me->AddDelayedEvent(10000, [this]() -> void
+                _functions.AddDelayedEvent(10000, [this]() -> void
                 {
                     Talk(6);
                     me->GetMotionMaster()->MovePoint(1, 3805.70f, 1833.99f, 949.62f);
@@ -71,12 +84,12 @@ public:
                 if (id == 1)
                 {
                     Talk(7);
-                    me->AddDelayedEvent(3000, [this]() -> void
+                    _functions.AddDelayedEvent(3000, [this]() -> void
                     {
                         Talk(8);
                     });
 
-                    me->AddDelayedEvent(6000, [this]() -> void
+                    _functions.AddDelayedEvent(6000, [this]() -> void
                     {
                         if (Player* pl = me->FindNearestPlayer(40.0f))
                             Talk(9, pl->GetGUID());
@@ -101,23 +114,23 @@ public:
         {
             if (action == 1)
             {
-                me->AddDelayedEvent(1000, [this]() -> void
+                _functions.AddDelayedEvent(1000, [this]() -> void
                 {
                     if (Player* pl = me->FindNearestPlayer(40.0f))
                         Talk(0, pl->GetGUID());
                 });
 
-                me->AddDelayedEvent(4000, [this]() -> void
+                _functions.AddDelayedEvent(4000, [this]() -> void
                 {
                     Talk(1);
                 });
 
-                me->AddDelayedEvent(7000, [this]() -> void
+                _functions.AddDelayedEvent(7000, [this]() -> void
                 {
                     Talk(2);
                 });
 
-                me->AddDelayedEvent(10000, [this]() -> void
+                _functions.AddDelayedEvent(10000, [this]() -> void
                 {
                     Talk(3);
                     me->CastSpell(me, 193053);
@@ -132,32 +145,45 @@ public:
                         {
                             demon->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1);
                             demon->GetMotionMaster()->MovePoint(0, 3812.91f, 1812.55f, 950.99f);
-                            demon->AddDelayedEvent(20000, [demon, chuan]() -> void
+
+                            // The demon's queue outlives Chuan and Hait: resolve them by guid when it fires
+                            ObjectGuid const chuanGuid = chuan->GetGUID();
+                            ObjectGuid const haitGuid = me->GetGUID();
+                            demon->AddDelayedEvent(20000, [demon, chuanGuid]() -> void
                             {
-                                chuan->CastSpell(demon, 227140); // veh
+                                if (Creature* chuan = ObjectAccessor::GetCreature(*demon, chuanGuid))
+                                    chuan->CastSpell(demon, 227140); // veh
                                 demon->CastSpell(3825.61f, 1770.73f, 950.98f, 193268);
                             });
 
-                            chuan->AddDelayedEvent(23000, [this, demon, chuan]() -> void
+                            demon->AddDelayedEvent(23000, [demon, chuanGuid, haitGuid]() -> void
                             {
                                 if (demon->GetVehicleKit())
                                     demon->GetVehicleKit()->RemoveAllPassengers();
-                                chuan->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC);
-                                chuan->CastSpell(chuan, 185627);
-                                Talk(4);
+
+                                Creature* hait = ObjectAccessor::GetCreature(*demon, haitGuid);
+                                if (Creature* chuan = ObjectAccessor::GetCreature(*demon, chuanGuid))
+                                {
+                                    chuan->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC);
+                                    chuan->CastSpell(chuan, 185627);
+                                }
+
+                                if (hait)
+                                    sCreatureTextMgr->SendChat(hait, 4);
                                 demon->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1);
-                                demon->AI()->AttackStart(me);
+                                if (hait && hait->IsAlive() && demon->AI())
+                                    demon->AI()->AttackStart(hait);
                             });
                         }
 
                         chuan->AddDelayedEvent(8000, [chuan]() -> void
                         {
-                            chuan->AI()->Talk(0);
+                            sCreatureTextMgr->SendChat(chuan, 0);
                         });
 
                         chuan->AddDelayedEvent(15000, [chuan]() -> void
                         {
-                            chuan->AI()->Talk(1);
+                            sCreatureTextMgr->SendChat(chuan, 1);
                         });
                     }
                 });
@@ -166,18 +192,22 @@ public:
 
         void OnSpellClick(Unit* clicker) override
         {
-            if (!clicker)
+            // This hook also runs after a rejected click: only a player on the intro quest may start the scene
+            Player* player = clicker ? clicker->ToPlayer() : nullptr;
+            if (!player || !me->HasFlag(UNIT_FIELD_NPC_FLAGS, UNIT_NPC_FLAG_SPELLCLICK) || player->GetQuestStatus(12103) != QUEST_STATUS_INCOMPLETE)
                 return;
 
             me->RemoveFlag(UNIT_FIELD_NPC_FLAGS, UNIT_NPC_FLAG_SPELLCLICK);
-            clicker->ToPlayer()->KilledMonsterCredit(98514);
-            clicker->ToPlayer()->KilledMonsterCredit(97778);
+            player->KilledMonsterCredit(98514);
+            player->KilledMonsterCredit(97778);
             DoAction(1);
         }
 
 
         void UpdateAI(uint32 diff) override
         {
+            _functions.Update(diff);
+
             if (me->HasUnitState(UNIT_STATE_STUNNED))
                 return;
 
@@ -212,6 +242,7 @@ public:
         }
 
         bool _introDone;
+        FunctionProcessor _functions;
 
         void DamageTaken(Unit* attacker, uint32& damage, DamageEffectType dmgType) override
         {
@@ -224,7 +255,7 @@ public:
             if (type == POINT_MOTION_TYPE)
             {
                 Talk(5);
-                me->AddDelayedEvent(4000, [this]() -> void
+                _functions.AddDelayedEvent(4000, [this]() -> void
                 {
                     if (Player* pl = me->FindNearestPlayer(100.0f))
                         Talk(6, pl->GetGUID());
@@ -248,14 +279,16 @@ public:
             if (!_introDone && me->IsWithinDistInMap(who, 7.0f) && me->GetPositionY() <= 1736.0f)
             {
                 _introDone = true;
-                if (Player* pl = me->FindNearestPlayer(100.0f))
+                // The player who reached her, not whoever happens to be nearest
+                if (Player* pl = who->ToPlayer())
                 {
+                    ObjectGuid const playerGuid = pl->GetGUID();
                     pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 46902);
-                    Talk(7, pl->GetGUID());
+                    Talk(7, playerGuid);
 
-                    me->AddDelayedEvent(4000, [this, pl]() -> void
+                    _functions.AddDelayedEvent(4000, [this, playerGuid]() -> void
                     {
-                        Talk(8, pl->GetGUID());
+                        Talk(8, playerGuid);
                         me->DespawnOrUnsummon(3000);
                     });
                 }
@@ -268,15 +301,15 @@ public:
             {
                 DoCast(193248);
                 Talk(3);
-                me->GetMotionMaster()->MoveJump(3814.16f, 2009.03f, 935.15f, 0.0f, 5.0f, 5.0f);
-                me->AddDelayedEvent(3000, [this]() -> void
+                me->GetMotionMaster()->MoveJump(3814.16f, 2009.03f, 935.15f, me->GetOrientation(), 5.0f, 5.0f);
+                _functions.AddDelayedEvent(3000, [this]() -> void
                 {
                     Talk(4);
                     if (Player* pl = me->FindNearestPlayer(100.0f))
                         pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 46734);
                 });
 
-                me->AddDelayedEvent(7000, [this]() -> void
+                _functions.AddDelayedEvent(7000, [this]() -> void
                 {
                     me->GetMotionMaster()->MovePoint(1, 3848.98f, 1945.78f, 931.85f);
                 });
@@ -285,6 +318,8 @@ public:
 
         void UpdateAI(uint32 diff) override
         {
+            _functions.Update(diff);
+
             if (me->HasUnitState(UNIT_STATE_STUNNED))
                 return;
 
@@ -318,6 +353,7 @@ public:
         }
 
         bool _introDone;
+        FunctionProcessor _functions;
 
         void DamageTaken(Unit* attacker, uint32& damage, DamageEffectType dmgType) override
         {
@@ -340,7 +376,7 @@ public:
                     if (Player* pl = me->FindNearestPlayer(100.0f))
                         pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 46947);
 
-                    me->AddDelayedEvent(3000, [this]() -> void
+                    _functions.AddDelayedEvent(3000, [this]() -> void
                     {
                         if (Creature* hait = me->FindNearestCreature(97778, 50.0f, true))
                             hait->AI()->Talk(10);
@@ -348,36 +384,30 @@ public:
 
                     if (Player* pl = me->FindNearestPlayer(100.0f))
                     {
-                        me->AddDelayedEvent(7000, [this, pl]() -> void
+                        ObjectGuid const playerGuid = pl->GetGUID();
+                        _functions.AddDelayedEvent(7000, [this, playerGuid]() -> void
                         {
-                            Talk(8, pl->GetGUID());
+                            Talk(8, playerGuid);
                         });
 
-                        me->AddDelayedEvent(11000, [this, pl]() -> void
-                        {
-                            if (Creature* hait = me->FindNearestCreature(97778, 50.0f, true))
-                                hait->AI()->Talk(11, pl->GetGUID());
-                        });
-
-                        me->AddDelayedEvent(15000, [this, pl]() -> void
+                        _functions.AddDelayedEvent(11000, [this, playerGuid]() -> void
                         {
                             if (Creature* hait = me->FindNearestCreature(97778, 50.0f, true))
-                            {
-                                hait->AI()->Talk(12, pl->GetGUID());
-                            }
+                                hait->AI()->Talk(11, playerGuid);
                         });
 
-                        me->AddDelayedEvent(15000, [this, pl]() -> void
+                        _functions.AddDelayedEvent(15000, [this, playerGuid]() -> void
                         {
                             if (Creature* hait = me->FindNearestCreature(97778, 50.0f, true))
                             {
-                                hait->AI()->Talk(13, pl->GetGUID());
+                                hait->AI()->Talk(12, playerGuid);
+                                hait->AI()->Talk(13, playerGuid);
                                 hait->GetMotionMaster()->MovePath(9859006, false); // 5 8
                             }
                         });
                     }
 
-                    me->AddDelayedEvent(16000, [this]() -> void
+                    _functions.AddDelayedEvent(16000, [this]() -> void
                     {
                         me->GetMotionMaster()->MovePoint(0, 3837.48f, 1729.83f, 946.42f);
                     });
@@ -407,12 +437,12 @@ public:
                 Talk(3);
                 if (Player* pl = me->FindNearestPlayer(100))
                     pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 46956);
-                me->AddDelayedEvent(4000, [this]() -> void
+                _functions.AddDelayedEvent(4000, [this]() -> void
                 {
                     Talk(4);
                 });
 
-                me->AddDelayedEvent(5000, [this]() -> void
+                _functions.AddDelayedEvent(5000, [this]() -> void
                 {
                     std::list<Creature*> adds;
                     GetCreatureListWithEntryInGrid(adds, me, 98074, 70.0f);
@@ -424,7 +454,7 @@ public:
                         }
                 });
 
-                me->AddDelayedEvent(8000, [this]() -> void
+                _functions.AddDelayedEvent(8000, [this]() -> void
                 {
                     if (Player* pl = me->FindNearestPlayer(100))
                         Talk(5, pl->GetGUID());
@@ -437,6 +467,8 @@ public:
 
         void UpdateAI(uint32 diff) override
         {
+            _functions.Update(diff);
+
             if (me->HasUnitState(UNIT_STATE_STUNNED))
                 return;
 
