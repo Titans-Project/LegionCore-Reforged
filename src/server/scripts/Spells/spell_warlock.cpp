@@ -309,11 +309,18 @@ class spell_warl_unstable_affliction : public SpellScriptLoader
                     }
                 }
 
-                AuraEffect* aurEff = caster->GetAuraEffect(199257, EFFECT_0); // Fatal Echoes
-                if (!aurEff || !roll_chance_i(aurEff->GetAmount()))
+                // Fatal Echoes only restores the affliction when it runs out, never on dispel or death;
+                // Deadwind Harvester doubles the artifact trait.
+                AuraEffect* aurEff = caster->GetAuraEffect(199257, EFFECT_0);
+                if (!aurEff || GetTargetApplication()->GetRemoveMode() != AURA_REMOVE_BY_EXPIRE)
                     return;
 
-                caster->CastSpell(target, GetSpellInfo()->Id, true);
+                float chance = aurEff->GetAmount();
+                if (caster->HasAura(216708))
+                    chance *= 2.0f;
+
+                if (roll_chance_f(chance))
+                    caster->CastSpell(target, GetSpellInfo()->Id, true);
             }
 
             void Register() override
@@ -377,16 +384,21 @@ class spell_warl_searing_bolts : public AuraScript
 {
     PrepareAuraScript(spell_warl_searing_bolts);
 
-    void OnTick(AuraEffect const* /*aurEff*/)
+    void OnTick(AuraEffect const* aurEff)
     {
         if (Unit* sum = GetUnitOwner())
         {
             if (Unit* warlock = sum->GetOwner())
             {
                 if (Unit* target = sum->GetTargetUnit())
-                    sum->CastSpell(target, 243050, true, nullptr, nullptr, warlock->GetGUID());
+                    if (target->IsAlive() && warlock->IsValidAttackTarget(target))
+                        sum->CastSpell(target, 243050, true, nullptr, nullptr, warlock->GetGUID());
             }
         }
+
+        // The rift fires exactly twenty bolts but its summon lives longer for the visual.
+        if (aurEff->GetTickNumber() >= 20)
+            GetAura()->Remove();
     }
 
     void Register() override
@@ -502,6 +514,49 @@ class spell_warl_seed_of_corruption_dota : public SpellScriptLoader
         {
             return new spell_warl_seed_of_corruption_dota_AuraScript();
         }
+};
+
+// Seed of Corruption - 27243
+// The client spell targets every enemy around the primary target; Sow the Seeds (196226) caps it at 1 + N targets.
+class spell_warl_sow_the_seeds : public SpellScript
+{
+    PrepareSpellScript(spell_warl_sow_the_seeds);
+
+    void FilterTargets(std::list<WorldObject*>& targets)
+    {
+        // Both area effects must end up on the same units, so the choice is made once per cast.
+        if (!_selected)
+        {
+            _selected = true;
+            uint32 maxExtra = 0;
+            if (Aura const* sowTheSeeds = GetCaster()->GetAura(196226))
+                if (AuraEffect const* eff = sowTheSeeds->GetEffect(EFFECT_0))
+                    maxExtra = uint32(std::max(0.0f, eff->GetAmount()));
+
+            for (WorldObject* target : targets)
+            {
+                if (target == GetExplTargetUnit())
+                    _chosen.insert(target->GetGUID());
+                else if (maxExtra)
+                {
+                    _chosen.insert(target->GetGUID());
+                    --maxExtra;
+                }
+            }
+        }
+
+        targets.remove_if([this](WorldObject* target) { return _chosen.find(target->GetGUID()) == _chosen.end(); });
+    }
+
+    void Register() override
+    {
+        OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_warl_sow_the_seeds::FilterTargets, EFFECT_1, TARGET_UNIT_DEST_AREA_ENEMY);
+        OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_warl_sow_the_seeds::FilterTargets, EFFECT_2, TARGET_UNIT_DEST_AREA_ENEMY);
+    }
+
+private:
+    bool _selected = false;
+    std::set<ObjectGuid> _chosen;
 };
 
 // 113942 - Demonic Gateway Debuf
@@ -2436,6 +2491,7 @@ void AddSC_warlock_spell_scripts()
     new spell_warl_demonic_circle_teleport();
     new spell_warl_unstable_affliction();
     new spell_warl_seed_of_corruption_dota();
+    RegisterSpellScript(spell_warl_sow_the_seeds);
     new spell_warl_demonic_gateway();
     new spell_warl_demonic_gateway_cast();
     new spell_warl_demonic_gateway_duration();
