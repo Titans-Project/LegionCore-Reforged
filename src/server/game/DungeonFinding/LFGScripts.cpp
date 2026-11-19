@@ -1,19 +1,14 @@
-/*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 /*
  * Interaction between core and LFGScripts
@@ -205,8 +200,21 @@ void LFGGroupScript::OnRemoveMember(Group* group, ObjectGuid const& guid, Remove
         }, 0, ObjectAccessor::PlayerScope::InWorld);
     }
 
+    // The hook runs before the group picks a new leader: when the leader is the one leaving, the offer goes to the
+    // member who will lead next (the first other online member, as Group::RemoveMemberQueue picks); before, the
+    // leader's leaving skipped the offer, and the group was never asked to look for a replacement.
     ObjectGuid lguid = sLFGMgr->GetLeader(gguid);
-    if (state != LFG_STATE_FINISHED_DUNGEON && lguid != guid) // Need more players to finish the dungeon
+    if (lguid == guid)
+    {
+        lguid.Clear();
+        for (Group::MemberSlot const& slot : group->GetMemberSlots())
+            if (slot.Guid != guid && ObjectAccessor::IsPlayerOnline(slot.Guid))
+            {
+                lguid = slot.Guid;
+                break;
+            }
+    }
+    if (state != LFG_STATE_FINISHED_DUNGEON && !lguid.IsEmpty() && lguid != guid) // Need more players to finish the dungeon
     {
         uint32 const dungeonId = sLFGMgr->GetDungeon(gguid, false);
         ObjectAccessor::PostToPlayer(lguid, [dungeonId](Player* leader) -> void { leader->SendLfgOfferContinue(dungeonId); }, 0, ObjectAccessor::PlayerScope::InWorld);
