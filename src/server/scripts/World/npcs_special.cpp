@@ -1,20 +1,14 @@
-/*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 /* ScriptData
 SDName: Npcs_Special
@@ -3053,22 +3047,21 @@ class npc_ebon_gargoyle : public CreatureScript
         {
             npc_ebon_gargoyleAI(Creature* creature) : CasterAI(creature) {}
 
-            uint32 despawnTimer;
-            bool checkTarget;
+            uint32 despawnTimer = 0;
+            bool checkTarget = false;
             ObjectGuid ownerGuid;
             ObjectGuid mainTargetGUID;
-            uint32 targetCheckTime;
+            uint32 targetCheckTime = 0;
 
             void InitializeAI() override
             {
+                // both clocks set before anything else: an ownerless gargoyle used to keep random values
+                despawnTimer = 0;
+                targetCheckTime = 0;
                 checkTarget = false;
                 mainTargetGUID.Clear();
                 CasterAI::InitializeAI();
                 ownerGuid = me->GetOwnerGUID();
-                if (!ownerGuid)
-                    return;
-                // Not needed to be despawned now
-                despawnTimer = 0;
             }
 
             void JustDied(Unit* /*killer*/) override
@@ -4588,6 +4581,10 @@ class npc_dire_beast : public CreatureScript
             {
                 if (Unit* owner = me->GetOwner())
                 {
+                    // Stomp talent: the beast stomps as it is summoned (SimulationCraft 7.3.5)
+                    if (owner->HasAura(199530))
+                        me->CastSpell(me, 201754, true);
+
                     for (auto itr : owner->m_whoHasMyAuras)
                     {
                         if (owner->TargetHasMyAura(itr.first, 120679))
