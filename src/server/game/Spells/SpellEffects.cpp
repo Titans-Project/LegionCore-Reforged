@@ -3316,34 +3316,20 @@ void Spell::EffectEnergize(SpellEffIndex effIndex)
 
     m_addptype = power;
     m_addpower = damage;
-    m_caster->EnergizeBySpell(unitTarget, m_spellInfo->Id, damage, power);
 
-    if (m_addptype == POWER_RUNES)
+    // each rune made ready adds its own point (Player::AddRunePower): energizing the power as well counted it twice,
+    // and the extra point let a rune spell be cast with no rune ready
+    if (power == POWER_RUNES)
     {
-        if(Player* _player = m_caster->ToPlayer())
+        if (Player* runeOwner = unitTarget->ToPlayer())
         {
-            int32 runesRestor = damage;
-            // First regene rune with full CD
-            for (int i = 0; i < _player->GetMaxPower(POWER_RUNES) ; i++)
-            {
-                if (_player->GetRuneCooldown(i) == _player->GetRuneBaseCooldown() && runesRestor)
-                {
-                    runesRestor--;
-                    _player->SetRuneCooldown(i, 0);
-                    _player->AddRunePower(i);
-                }
-            }
-            for (int i = 0; i < _player->GetMaxPower(POWER_RUNES) ; i++)
-            {
-                if (_player->GetRuneCooldown(i) && runesRestor)
-                {
-                    runesRestor--;
-                    _player->SetRuneCooldown(i, 0);
-                    _player->AddRunePower(i);
-                }
-            }
+            int32 const restored = runeOwner->RestoreRunes(damage);
+            m_caster->SendEnergizeSpellLog(unitTarget, m_spellInfo->Id, damage, damage - restored, power);
         }
     }
+    else
+        m_caster->EnergizeBySpell(unitTarget, m_spellInfo->Id, damage, power);
+
 
     // Mad Alchemist's Potion
     if (m_spellInfo->Id == 45051)

@@ -3139,6 +3139,7 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
         float GetRuneBaseCooldown() const;
         void ResyncRunes(uint8 count);
         void AddRunePower(uint8 index);
+        int32 RestoreRunes(int32 count);
         void InitRunes();
 
         AchievementPtr GetAchievementMgr() { return m_achievementMgr; }

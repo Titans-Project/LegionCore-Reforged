@@ -33150,6 +33150,25 @@ void Player::AddRunePower(uint8 index)
     SendDirectMessage(&data);
 }
 
+// readies up to count runes, the longest cooling first; returns how many were readied
+int32 Player::RestoreRunes(int32 count)
+{
+    int32 restored = 0;
+    for (bool fullCooldownFirst : { true, false })
+        for (uint8 i = 0; i < GetMaxPower(POWER_RUNES) && restored < count; ++i)
+        {
+            uint32 const cooldown = GetRuneCooldown(i);
+            if (!cooldown || (fullCooldownFirst && float(cooldown) != GetRuneBaseCooldown()))
+                continue;
+
+            SetRuneCooldown(i, 0);
+            AddRunePower(i);
+            ++restored;
+        }
+
+    return restored;
+}
+
 void Player::InitRunes()
 {
     if (getClass() != CLASS_DEATH_KNIGHT)

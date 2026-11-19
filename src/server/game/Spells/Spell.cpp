@@ -5969,12 +5969,13 @@ void Spell::TakePower()
                     {
                         if (plr->HasSpell(207349)) // Dark Arbiter
                         {
-                            GuidList* summonList = plr->GetSummonList(100876);
-                            if (!summonList->empty())
-                            {
-                                float countMod = float(m_spellInfo->Power.PowerCost) / 10.f;
-                                plr->CastCustomSpell(plr, 211947, &countMod, nullptr, nullptr, true);
-                            }
+                            // Shadow Empowerment belongs to the Val'kyr, not to the death knight (SimulationCraft 7.3.5)
+                            float countMod = float(m_spellInfo->Power.PowerCost) / 10.f;
+                            if (GuidList* summonList = plr->GetSummonList(100876))
+                                for (ObjectGuid const& valkyrGuid : *summonList)
+                                    if (Creature* valkyr = ObjectAccessor::GetCreature(*plr, valkyrGuid))
+                                        if (valkyr->IsAlive())
+                                            valkyr->CastCustomSpell(valkyr, 211947, &countMod, nullptr, nullptr, true);
                         }
                         if (Aura* auraInfo = plr->GetAura(51462)) // Runic Corruption
                         {
