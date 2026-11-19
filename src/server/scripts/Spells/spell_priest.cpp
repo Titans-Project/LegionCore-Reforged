@@ -1,19 +1,14 @@
-/*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 /*
  * Scripts for spells with SPELLFAMILY_PRIEST and SPELLFAMILY_GENERIC spells used by priest players.
@@ -25,6 +20,7 @@
 #include "SpellScript.h"
 #include "SpellAuraEffects.h"
 #include "Group.h"
+#include "ScriptedCreature.h"
 
 // Called by Heal - 2050, Flash Heal - 2061, Greater Heal - 2060 and Prayer of Healing - 596
 // Spirit Shell - 109964
@@ -1865,8 +1861,105 @@ class spell_pri_mass_dispel : public SpellScript
     }
 };
 
+// Void Bolt duration extension - 234746, triggered by Void Bolt (205448).
+class spell_pri_void_bolt_extension : public SpellScript
+{
+    PrepareSpellScript(spell_pri_void_bolt_extension);
+
+    void ExtendDots(SpellEffIndex /*effIndex*/)
+    {
+        Unit* caster = GetCaster();
+        Unit* target = GetHitUnit();
+        AuraEffect const* extension = caster ? caster->GetAuraEffect(231688, EFFECT_0) : nullptr;
+        if (!target || !extension)
+            return;
+
+        int32 duration = int32(extension->GetAmount());
+        for (uint32 spellId : { 589u, 34914u }) // Shadow Word: Pain, Vampiric Touch
+            if (Aura* dot = target->GetAura(spellId, caster->GetGUID()))
+            {
+                int32 extended = dot->GetDuration() + duration;
+                if (extended > dot->GetMaxDuration())
+                    dot->SetMaxDuration(extended);
+                dot->SetDuration(extended);
+            }
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_pri_void_bolt_extension::ExtendDots, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
+    }
+};
+
+// Shadowy Insight - 162452. The default proc makes the next Mind Blast instant; the talent also resets its cooldown.
+class spell_pri_shadowy_insight : public AuraScript
+{
+    PrepareAuraScript(spell_pri_shadowy_insight);
+
+    void HandleProc(AuraEffect const* /*aurEff*/, ProcEventInfo& /*eventInfo*/)
+    {
+        if (Player* priest = GetTarget()->ToPlayer())
+            priest->RemoveSpellCooldown(8092, true);
+    }
+
+    void Register() override
+    {
+        OnEffectProc += AuraEffectProcFn(spell_pri_shadowy_insight::HandleProc, EFFECT_0, SPELL_AURA_PROC_TRIGGER_SPELL);
+    }
+};
+
+// 98167 - Void Tendril (Call to the Void) channels Mind Flay at the priest's current Mind Flay target.
+struct npc_pri_void_tendril : public Scripted_NoMovementAI
+{
+    npc_pri_void_tendril(Creature* creature) : Scripted_NoMovementAI(creature) { }
+
+    ObjectGuid targetGuid;
+    uint32 castTimer = 250;
+
+    void IsSummonedBy(Unit* summoner) override
+    {
+        auto channelTargets = summoner->GetChannelObjects();
+        if (channelTargets.size() != 1)
+        {
+            me->DisappearAndDie();
+            return;
+        }
+
+        targetGuid = *channelTargets.begin();
+        if (Unit* target = ObjectAccessor::GetUnit(*me, targetGuid))
+            AttackStart(target);
+        else
+            me->DisappearAndDie();
+    }
+
+    void UpdateAI(uint32 diff) override
+    {
+        if (castTimer > diff)
+        {
+            castTimer -= diff;
+            return;
+        }
+
+        castTimer = 250;
+        if (me->HasUnitState(UNIT_STATE_CASTING))
+            return;
+
+        Unit* owner = me->GetOwner();
+        Unit* target = ObjectAccessor::GetUnit(*me, targetGuid);
+        if (!owner || !target || !target->IsAlive())
+            return;
+
+        // The tendril has no spell power of its own: the tick is the priest's.
+        float spellPower = float(owner->GetSpellPowerDamage(SPELL_SCHOOL_MASK_SHADOW));
+        me->CastCustomSpell(target, 193473, &spellPower, nullptr, nullptr, false);
+    }
+};
+
 void AddSC_priest_spell_scripts()
 {
+    RegisterCreatureAI(npc_pri_void_tendril);
+    RegisterSpellScript(spell_pri_void_bolt_extension);
+    RegisterAuraScript(spell_pri_shadowy_insight);
     new spell_pri_spirit_shell();
     new spell_pri_halo_heal();
     new spell_pri_void_shift();

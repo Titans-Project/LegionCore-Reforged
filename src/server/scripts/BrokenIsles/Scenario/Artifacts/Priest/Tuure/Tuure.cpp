@@ -14,12 +14,87 @@
 #include "ScriptedCreature.h"
 #include "CreatureTextMgr.h"
 #include "GameObjectAI.h"
+#include "Scenario.h"
+#include "ScenarioMgr.h"
+#include "ObjectAccessor.h"
+#include "SpellMgr.h"
 
 Position const tppos[2] =
 {
     {12.00f, 1189.50f, -45.98f, 0.0f},
     {58.69f, 1212.91f, -39.64f, 0.0f}
 };
+
+namespace
+{
+    enum TuureData
+    {
+        QUEST_TUURE                 = 41993,
+        ITEM_TUURE                  = 128825,
+        SCENARIO_TUURE              = 1085,
+        SCENE_TUURE_PICKUP          = 1265,
+        SPELL_TUURE_SCENE           = 210733,
+        SPELL_TUURE_EQUIP           = 210734,
+        SPELL_TUURE_DEPARTURE       = 210818,
+        EVENT_TUURE_DEPARTURE       = 50702,
+        PICKUP_FALLBACK_DELAY       = 40000
+    };
+
+    // Only the priest carrying the acquisition quest may advance this scenario.
+    bool IsParticipant(Player* player)
+    {
+        if (!player || player->isGameMaster() || player->getClass() != CLASS_PRIEST || player->GetQuestRewardStatus(QUEST_TUURE))
+            return false;
+
+        QuestStatus status = player->GetQuestStatus(QUEST_TUURE);
+        return status == QUEST_STATUS_INCOMPLETE || status == QUEST_STATUS_COMPLETE;
+    }
+
+    // A dead owner still earns the victory its allies won, so liveness is not checked.
+    Player* FindParticipant(WorldObject* anchor, float range = 100.0f)
+    {
+        Map* map = anchor ? anchor->GetMap() : nullptr;
+        if (!map)
+            return nullptr;
+
+        Player* found = nullptr;
+        float foundDist = 0.0f;
+        for (Map::PlayerList::const_iterator itr = map->GetPlayers().begin(); itr != map->GetPlayers().end(); ++itr)
+        {
+            Player* player = itr->getSource();
+            if (!player || !IsParticipant(player) || !player->InSamePhase(anchor) || !anchor->IsWithinDistInMap(player, range))
+                continue;
+
+            float dist = anchor->GetDistance(player);
+            if (!found || dist < foundDist)
+            {
+                found = player;
+                foundDist = dist;
+            }
+        }
+        return found;
+    }
+
+    bool InTuureScenario(Player* player)
+    {
+        if (!player || player->GetMapId() != 1489)
+            return false;
+
+        Scenario* scenario = sScenarioMgr->GetScenario(player->GetInstanceId());
+        return scenario && scenario->GetScenarioId() == SCENARIO_TUURE;
+    }
+
+    // Equips the staff the scene showed, then leaves the scenario. Both the scene end and the fallback timer land here.
+    void FinishPickup(Player* player)
+    {
+        if (!player->IsInWorld() || player->IsBeingTeleported() || !InTuureScenario(player) || !player->GetItemByEntry(ITEM_TUURE))
+            return;
+
+        player->CastSpell(player, SPELL_TUURE_EQUIP, true);
+        player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, EVENT_TUURE_DEPARTURE);
+        player->CastSpell(player, SPELL_TUURE_DEPARTURE, true);
+    }
+}
 
 // 106134
 class npc_vindicator_boros : public CreatureScript
@@ -38,14 +113,14 @@ public:
         {
             _introDone = false;
             _introHealDone = false;
-            firstfighting = false;
+            _firstVictoryDone = false;
             wait_heal = false;
             firstwp = false;
             secondwp = false;
         }
 
         EventMap events;
-        bool _introDone, _introHealDone, firstfighting, wait_heal, firstwp, secondwp;
+        bool _introDone, _introHealDone, _firstVictoryDone, wait_heal, firstwp, secondwp;
         FunctionProcessor _functions;
 
         void Reset() override
@@ -61,23 +136,7 @@ public:
 
         void EnterEvadeMode() override
         {
-            // need to activate it ONLY if creature isn't stunned
-            _functions.AddFunction([this]() -> void
-            {
-                if (firstfighting)
-                {
-                    firstfighting = false;
-                    if (Player* pl = me->FindNearestPlayer(100.0f))
-                        pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50562);
-                    me->CreateConversation(2009);
-
-                    me->AddDelayedEvent(16000, [this]() -> void
-                    {
-                        if (Creature* targ = me->FindNearestCreature(106221, 40.0f, true))
-                            targ->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE | UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1);
-                    });
-                }
-            }, _functions.CalculateTime(1000));
+            // Evading is not a victory: the instance reports the actual death of 106201 through DoAction(3).
         }
 
         void DoAction(int32 const action) override
@@ -109,22 +168,45 @@ public:
                     }, _functions.CalculateTime(1000));
                     break;
                 }
+                case 3:
+                {
+                    if (_firstVictoryDone)
+                        break;
+
+                    _firstVictoryDone = true;
+                    // need to activate it ONLY if creature isn't stunned
+                    _functions.AddFunction([this]() -> void
+                    {
+                        if (Player* pl = FindParticipant(me))
+                            pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50562);
+                        me->CreateConversation(2009);
+
+                        me->AddDelayedEvent(16000, [this]() -> void
+                        {
+                            if (Creature* targ = me->FindNearestCreature(106221, 40.0f, true))
+                                targ->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE | UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_NOT_ATTACKABLE_1);
+                        });
+                    }, _functions.CalculateTime(1000));
+                    break;
+                }
             }
         }
 
         void HealReceived(Unit* who, uint32& /*addhealth*/) override
         {
-            if (!_introHealDone)
-                if (me->GetHealthPct() >= 95)
+            if (!_introHealDone && me->GetHealthPct() >= 95)
+            {
+                Player* healer = who ? who->GetCharmerOrOwnerPlayerOrPlayerItself() : nullptr;
+                if (IsParticipant(healer))
                 {
                     _introHealDone = true;
                     Talk(2);
                     me->SetByteValue(UNIT_FIELD_BYTES_1, 0, 0);
                     me->SetAnimKitId(0);
                     me->GetMotionMaster()->MovePoint(1, -13.92f, 1175.70f, -66.31f);
-                    if (Player* pl = who->ToPlayer())
-                        pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50563);
+                    healer->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50563);
                 }
+            }
 
             if (wait_heal)
             {
@@ -162,7 +244,7 @@ public:
                     if (id == 6)
                         me->CreateConversation(2007);
                     if (id == 10)
-                        if (Player* pl = me->FindNearestPlayer(100.0f))
+                        if (Player* pl = FindParticipant(me))
                         {
                             pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50831);
                             firstwp = false;
@@ -211,7 +293,6 @@ public:
                         me->GetMotionMaster()->MoveJump(58.20f, 1214.60f, -74.35f, 0.0f, 10.0f, 10.0f);
                         if (Creature* targ = me->FindNearestCreature(106201, 60.0f, true))
                             AttackStart(targ);
-                        firstfighting = true;
                         break;
                     case 3:
                         me->CreateConversation(2015);
@@ -230,7 +311,7 @@ public:
 
         void MoveInLineOfSight(Unit* who) override
         {
-            if (who->GetTypeId() != TYPEID_PLAYER)
+            if (!IsParticipant(who->ToPlayer()))
                 return;
 
             if (!_introDone && me->IsWithinDistInMap(who, 20.0f))
@@ -440,7 +521,7 @@ public:
         {
             if (Creature* boros = me->FindNearestCreature(106134, 120.0f, true))
                 boros->AI()->DoAction(2);
-            if (Player* pl = me->FindNearestPlayer(100.0f))
+            if (Player* pl = FindParticipant(me))
                 pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50634);
         }
         void UpdateAI(uint32 diff) override
@@ -571,7 +652,7 @@ public:
 
                     events.Reset();
                     // event
-                    if (Player* pl = me->FindNearestPlayer(100.0f))
+                    if (Player* pl = FindParticipant(me))
                         pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50695);
 
                     std::list<Creature*> adds;
@@ -672,7 +753,7 @@ public:
 
         bool GossipHello(Player* player, bool isUse) override
         {
-            if (!isUse)
+            if (!isUse || !IsParticipant(player))
                 return true;
 
             player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50633);
@@ -703,35 +784,40 @@ public:
     }
 };
 
+class scene_tuure_pickup : public SceneTriggerScript
+{
+public:
+    scene_tuure_pickup() : SceneTriggerScript("scene_tuure_pickup") { }
+
+    bool OnTrigger(Player* player, SpellScene const* scene, std::string trigger) override
+    {
+        if (scene && scene->MiscValue == SCENE_TUURE_PICKUP && trigger == "complete" && IsParticipant(player))
+            player->AddDelayedEvent(1500, [player]() -> void { FinishPickup(player); });
+
+        return false;
+    }
+};
+
 // 249705
 class go_art_tuure : public GameObjectScript
 {
 public:
     go_art_tuure() : GameObjectScript("go_art_tuure") {}
 
+    // The staff comes from the chest's own loot; the scene starts once it is really in the bags.
     void OnLootStateChanged(GameObject* go, uint32 state, Unit* target) override
     {
-        if (target && state == GO_ACTIVATED)
-        {
-            if (target->GetTypeId() == TYPEID_PLAYER)
-            {
-                target->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50679);
-                if (Creature* trigger = go->FindNearestCreature(106326, 10.0f))
-                    trigger->DespawnOrUnsummon(1000);
+        Player* player = target ? target->ToPlayer() : nullptr;
+        if (state != GO_JUST_DEACTIVATED || !IsParticipant(player) || !player->GetItemByEntry(ITEM_TUURE))
+            return;
 
-                if (!target->ToPlayer()->HasItemCount(128825, 1))
-                    target->ToPlayer()->AddItem(128825, 1);
+        if (Creature* trigger = go->FindNearestCreature(106326, 10.0f))
+            trigger->DespawnOrUnsummon(1000);
 
-                target->CastSpell(target, 210733, true);
+        player->CastSpell(player, SPELL_TUURE_SCENE, true);
 
-                target->AddDelayedEvent(14000, [target]() -> void
-                {
-                    target->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50702);
-                    target->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_COMPLETE_SCENARIO, 1085, 1);
-                    target->CastSpell(target, 210818);
-                });
-            }
-        }
+        // The scene normally ends the pickup; this only rescues a client that never reports it.
+        player->AddDelayedEvent(PICKUP_FALLBACK_DELAY, [player]() -> void { FinishPickup(player); });
     }
 };
 
@@ -743,4 +829,5 @@ void AddSC_Tuure()
     new npc_lady_kalindria();
     new go_tuure_crate();
     new go_art_tuure();
+    new scene_tuure_pickup();
 };
