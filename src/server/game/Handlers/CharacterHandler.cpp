@@ -1121,6 +1121,9 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder const& holder)
         // announced in chat. Sent last so it lands after the login flood.
         SendRafInviteNotification();
 
+        // a delivery quest saved with a counter the bags no longer match is set right
+        player->UpdateQuestItemObjectives();
+
         sScriptMgr->OnPlayerLogin(player, firstLogin);
         player->SetChangeMap(false);
     });

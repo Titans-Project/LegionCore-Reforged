@@ -2030,8 +2030,11 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
         uint16 GetReqKillOrCastCurrentCount(uint32 quest_id, int32 entry);
         void AreaExploredOrEventHappens(uint32 questId);
         void GroupEventHappens(uint32 questId, WorldObject const* pEventObject);
+        // both recount the item from the bags: call them once the item is in its new place
         void ItemAddedQuestCheck(uint32 entry, uint32 count);
         void ItemRemovedQuestCheck(uint32 entry, uint32 count);
+        void UpdateQuestItemObjectives(uint32 entry);
+        void UpdateQuestItemObjectives();
         void KilledMonster(CreatureTemplate const* cInfo, ObjectGuid guid);
         void KilledMonsterCredit(uint32 entry, ObjectGuid guid = ObjectGuid::Empty);
         void KilledPlayerCredit();

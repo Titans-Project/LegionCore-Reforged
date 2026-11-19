@@ -15759,9 +15759,10 @@ Item* Player::EquipNewItem(uint16 pos, uint32 item, bool update, int32 randomPro
         if (isRefunde)
             pItem->SetFlag(ITEM_FIELD_DYNAMIC_FLAGS, ITEM_FLAG_REFUNDABLE);
 
-        ItemAddedQuestCheck(item, 1);
         UpdateAchievementCriteria(CRITERIA_TYPE_RECEIVE_EPIC_ITEM, item, 1);
-        return EquipItem(pos, pItem, update);
+        Item* equipped = EquipItem(pos, pItem, update);
+        ItemAddedQuestCheck(item, 1);
+        return equipped;
     }
 
     return NULL;
@@ -16174,8 +16175,8 @@ void Player::MoveItemFromInventory(uint8 bag, uint8 slot, bool update)
 {
     if (Item* it = GetItemByPos(bag, slot))
     {
-        ItemRemovedQuestCheck(it->GetEntry(), it->GetCount());
         RemoveItem(bag, slot, update);
+        ItemRemovedQuestCheck(it->GetEntry(), it->GetCount());
         it->SetNotRefundable(this, false);
         it->RemoveFromUpdateQueueOf(this);
         if (it->IsInWorld())
@@ -16190,8 +16191,8 @@ void Player::MoveItemFromInventory(Item* pItem, bool update)
 {
     if (pItem)
     {
-        ItemRemovedQuestCheck(pItem->GetEntry(), pItem->GetCount());
         RemoveItem(pItem, update);
+        ItemRemovedQuestCheck(pItem->GetEntry(), pItem->GetCount());
         pItem->SetNotRefundable(this, false);
         pItem->RemoveFromUpdateQueueOf(this);
         if (pItem->IsInWorld())
@@ -16205,12 +16206,13 @@ void Player::MoveItemFromInventory(Item* pItem, bool update)
 // Common operation need to add item from inventory without delete in trade, guild bank, mail....
 void Player::MoveItemToInventory(ItemPosCountVec const& dest, Item* pItem, bool update, bool in_characterInventoryDB)
 {
-    // update quest counters
-    ItemAddedQuestCheck(pItem->GetEntry(), pItem->GetCount());
-    UpdateAchievementCriteria(CRITERIA_TYPE_RECEIVE_EPIC_ITEM, pItem->GetEntry(), pItem->GetCount());
-    
+    uint32 const entry = pItem->GetEntry();
+    uint32 const itemCount = pItem->GetCount();
+    UpdateAchievementCriteria(CRITERIA_TYPE_RECEIVE_EPIC_ITEM, entry, itemCount);
+
     // store item
     Item* pLastItem = StoreItem(dest, pItem, update);
+    ItemAddedQuestCheck(entry, itemCount);
     if (!pLastItem)
         return;
 
@@ -16269,8 +16271,6 @@ void Player::DestroyItem(uint8 bag, uint8 slot, bool update)
             if (effectData->TriggerType == ITEM_SPELLTRIGGER_ON_NO_DELAY_USE && effectData->SpellID)
                 RemoveAurasDueToSpell(effectData->SpellID);
 
-        ItemRemovedQuestCheck(pItem->GetEntry(), pItem->GetCount());
-
         if (bag == INVENTORY_SLOT_BAG_0)
         {
             SetGuidValue(PLAYER_FIELD_INV_SLOTS + (slot * 4), ObjectGuid::Empty);
@@ -16302,6 +16302,8 @@ void Player::DestroyItem(uint8 bag, uint8 slot, bool update)
         }
         else if (Bag* pBag = GetBagByPos(bag))
             pBag->RemoveItem(slot, update);
+
+        ItemRemovedQuestCheck(pItem->GetEntry(), pItem->GetCount());
 
         if (IsInWorld() && update)
         {
@@ -16339,8 +16341,8 @@ void Player::DestroyItemCount(uint32 item, uint32 count, bool update, bool unequ
                 }
                 else
                 {
-                    ItemRemovedQuestCheck(pItem->GetEntry(), count - remcount);
                     pItem->SetCount(pItem->GetCount() - count + remcount);
+                    ItemRemovedQuestCheck(pItem->GetEntry(), count - remcount);
                     if (IsInWorld() && update)
                         pItem->SendUpdateToPlayer(this);
                     pItem->SetState(ITEM_CHANGED, this);
@@ -16372,8 +16374,8 @@ void Player::DestroyItemCount(uint32 item, uint32 count, bool update, bool unequ
                         }
                         else
                         {
-                            ItemRemovedQuestCheck(pItem->GetEntry(), count - remcount);
                             pItem->SetCount(pItem->GetCount() - count + remcount);
+                            ItemRemovedQuestCheck(pItem->GetEntry(), count - remcount);
                             if (IsInWorld() && update)
                                 pItem->SendUpdateToPlayer(this);
                             pItem->SetState(ITEM_CHANGED, this);
@@ -16405,8 +16407,8 @@ void Player::DestroyItemCount(uint32 item, uint32 count, bool update, bool unequ
                 }
                 else
                 {
-                    ItemRemovedQuestCheck(pItem->GetEntry(), count - remcount);
                     pItem->SetCount(pItem->GetCount() - count + remcount);
+                    ItemRemovedQuestCheck(pItem->GetEntry(), count - remcount);
                     if (IsInWorld() && update)
                         pItem->SendUpdateToPlayer(this);
                     pItem->SetState(ITEM_CHANGED, this);
@@ -16432,8 +16434,8 @@ void Player::DestroyItemCount(uint32 item, uint32 count, bool update, bool unequ
                 }
                 else
                 {
-                    ItemRemovedQuestCheck(pItem->GetEntry(), count - remcount);
                     pItem->SetCount(pItem->GetCount() - count + remcount);
+                    ItemRemovedQuestCheck(pItem->GetEntry(), count - remcount);
                     if (IsInWorld() && update)
                         pItem->SendUpdateToPlayer(this);
                     pItem->SetState(ITEM_CHANGED, this);
@@ -16467,8 +16469,8 @@ void Player::DestroyItemCount(uint32 item, uint32 count, bool update, bool unequ
                         }
                         else
                         {
-                            ItemRemovedQuestCheck(pItem->GetEntry(), count - remcount);
                             pItem->SetCount(pItem->GetCount() - count + remcount);
+                            ItemRemovedQuestCheck(pItem->GetEntry(), count - remcount);
                             if (IsInWorld() && update)
                                 pItem->SendUpdateToPlayer(this);
                             pItem->SetState(ITEM_CHANGED, this);
@@ -16497,8 +16499,8 @@ void Player::DestroyItemCount(uint32 item, uint32 count, bool update, bool unequ
                 }
                 else
                 {
-                    ItemRemovedQuestCheck(pitem->GetEntry(), count - remcount);
                     pitem->SetCount(pitem->GetCount() - count + remcount);
+                    ItemRemovedQuestCheck(pitem->GetEntry(), count - remcount);
                     if (IsInWorld() && update)
                         pitem->SendUpdateToPlayer(this);
                     pitem->SetState(ITEM_CHANGED, this);
@@ -16525,8 +16527,8 @@ void Player::DestroyItemCount(uint32 item, uint32 count, bool update, bool unequ
                 }
                 else
                 {
-                    ItemRemovedQuestCheck(pitem->GetEntry(), count - remcount);
                     pitem->SetCount(pitem->GetCount() - count + remcount);
+                    ItemRemovedQuestCheck(pitem->GetEntry(), count - remcount);
                     if (IsInWorld() && update)
                         pitem->SendUpdateToPlayer(this);
                     pitem->SetState(ITEM_CHANGED, this);
@@ -16660,8 +16662,8 @@ void Player::DestroyItemCount(Item* pItem, uint32 &count, bool update)
     }
     else
     {
-        ItemRemovedQuestCheck(pItem->GetEntry(), count);
         pItem->SetCount(pItem->GetCount() - count);
+        ItemRemovedQuestCheck(pItem->GetEntry(), count);
         count = 0;
         if (IsInWorld() && update)
             pItem->SendUpdateToPlayer(this);
@@ -20659,7 +20661,7 @@ void Player::AdjustQuestReqItemCount(Quest const* quest)
             if (obj.Flags & QUEST_OBJECTIVE_FLAG_OPTIONAL)
                 continue;
 
-            SetQuestObjectiveData(quest, &obj, std::min(GetItemCount(obj.ObjectID, true), uint32(obj.Amount)));
+            SetQuestObjectiveData(quest, &obj, std::min(GetItemCount(obj.ObjectID, false), uint32(obj.Amount)));
         }
     }
 }
@@ -20830,45 +20832,51 @@ void Player::GroupEventHappens(uint32 questId, WorldObject const* pEventObject)
         AreaExploredOrEventHappens(questId);
 }
 
-void Player::ItemAddedQuestCheck(uint32 entry, uint32 count)
+// The item objectives of a delivery quest follow what the bags hold. Moved only by the amount added or removed, a
+// counter drifted for good (an item put in the bank was taken off twice, a second quest asking for the same item was
+// skipped) and the turn-in, which counts the bags, refused a quest the log showed as done.
+// Called once the item is in its new place.
+void Player::UpdateQuestItemObjectives(uint32 entry)
 {
     for (uint8 i = 0; i < MAX_QUEST_LOG_SIZE; ++i)
     {
-        uint32 questid = GetQuestSlotQuestId(i);
-        if (questid == 0)
+        uint32 questId = GetQuestSlotQuestId(i);
+        if (!questId)
             continue;
 
-        Quest const* qInfo = sQuestDataStore->GetQuestTemplate(questid);
-        if (!qInfo || !qInfo->HasSpecialFlag(QUEST_SPECIAL_FLAGS_DELIVER))
+        Quest const* quest = sQuestDataStore->GetQuestTemplate(questId);
+        if (!quest || !quest->HasSpecialFlag(QUEST_SPECIAL_FLAGS_DELIVER))
             continue;
 
-        QuestStatusData* q_status = getQuestStatus(questid);
-        if (!q_status)
+        QuestStatusData* status = getQuestStatus(questId);
+        if (!status || (status->Status != QUEST_STATUS_INCOMPLETE && status->Status != QUEST_STATUS_COMPLETE))
             continue;
 
-        if (q_status->Status != QUEST_STATUS_INCOMPLETE)
-            continue;
-
-        for (QuestObjective const& obj : qInfo->GetObjectives())
+        bool asked = false;
+        bool missing = false;
+        for (QuestObjective const& obj : quest->GetObjectives())
         {
-            if (obj.Type != QUEST_OBJECTIVE_ITEM)
+            if (obj.Type != QUEST_OBJECTIVE_ITEM || obj.ObjectID != int32(entry))
                 continue;
 
-            if (obj.ObjectID == entry)
-            {
-                uint32 reqitemcount = obj.Amount;
-                uint16 curitemcount = GetQuestObjectiveData(qInfo, obj.StorageIndex);
-                if (curitemcount < reqitemcount)
-                {
-                    SetQuestObjectiveData(qInfo, &obj, std::min<uint32>(curitemcount + count, reqitemcount));
-                    if (CanCompleteQuest(questid))
-                        CompleteQuest(questid);
-                    break;
-                }
-            }
+            asked = true;
+            int32 const held = int32(std::min(GetItemCount(entry, false), uint32(obj.Amount)));
+            if (held != GetQuestObjectiveData(quest, obj.StorageIndex))
+                SetQuestObjectiveData(quest, &obj, held);
+
+            if (held < obj.Amount && !(obj.Flags & QUEST_OBJECTIVE_FLAG_OPTIONAL))
+                missing = true;
         }
+
+        if (!asked)
+            continue;
+
+        if (status->Status == QUEST_STATUS_COMPLETE && missing)
+            IncompleteQuest(questId);
+        else if (status->Status == QUEST_STATUS_INCOMPLETE && !missing && CanCompleteQuest(questId))
+            CompleteQuest(questId);
     }
-    
+
     // one refresh per burst of items: it rebuilds the update block of every object the client knows
     if (!m_questWorldObjectsUpdatePending)
     {
@@ -20881,50 +20889,30 @@ void Player::ItemAddedQuestCheck(uint32 entry, uint32 count)
     }
 }
 
-void Player::ItemRemovedQuestCheck(uint32 entry, uint32 count)
+// every item objective of the quest log, for counters saved by a server that still let them drift
+void Player::UpdateQuestItemObjectives()
 {
+    std::set<uint32> entries;
     for (uint8 i = 0; i < MAX_QUEST_LOG_SIZE; ++i)
-    {
-        uint32 questid = GetQuestSlotQuestId(i);
-        if (!questid)
-            continue;
-        Quest const* qInfo = sQuestDataStore->GetQuestTemplate(questid);
-        if (!qInfo || !qInfo->HasSpecialFlag(QUEST_SPECIAL_FLAGS_DELIVER))
-            continue;
+        if (uint32 questId = GetQuestSlotQuestId(i))
+            if (Quest const* quest = sQuestDataStore->GetQuestTemplate(questId))
+                if (quest->HasSpecialFlag(QUEST_SPECIAL_FLAGS_DELIVER))
+                    for (QuestObjective const& obj : quest->GetObjectives())
+                        if (obj.Type == QUEST_OBJECTIVE_ITEM && obj.ObjectID > 0)
+                            entries.insert(uint32(obj.ObjectID));
 
-        for (QuestObjective const& obj : qInfo->GetObjectives())
-        {
-            if (obj.Type != QUEST_OBJECTIVE_ITEM)
-                continue;
+    for (uint32 entry : entries)
+        UpdateQuestItemObjectives(entry);
+}
 
-            if (obj.Flags & QUEST_OBJECTIVE_FLAG_OPTIONAL)
-                continue;
+void Player::ItemAddedQuestCheck(uint32 entry, uint32 /*count*/)
+{
+    UpdateQuestItemObjectives(entry);
+}
 
-            uint32 reqItem = obj.ObjectID;
-            if (reqItem == entry)
-            {
-                uint32 reqItemCount = obj.Amount;
-                uint16 curItemCount = GetQuestObjectiveData(qInfo, obj.StorageIndex);
-
-                if (curItemCount >= reqItemCount) // we may have more than what the status shows
-                    curItemCount = GetItemCount(entry, false);
-
-                uint16 newItemCount = (count > curItemCount) ? 0 : curItemCount - count;
-
-                if (newItemCount < reqItemCount)
-                {
-                    SetQuestObjectiveData(qInfo, &obj, newItemCount);
-                    IncompleteQuest(questid);
-                    return;
-                }
-            }
-        }
-    }
-   
-    AddDelayedEvent(100, [=, this]() -> void
-    {
-        UpdateForQuestWorldObjects();
-    });
+void Player::ItemRemovedQuestCheck(uint32 entry, uint32 /*count*/)
+{
+    UpdateQuestItemObjectives(entry);
 }
 
 void Player::KilledMonster(CreatureTemplate const* cInfo, ObjectGuid guid)

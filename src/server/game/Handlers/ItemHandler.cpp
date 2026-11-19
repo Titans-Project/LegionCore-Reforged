@@ -1,20 +1,14 @@
-/*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 #include "ObjectMgr.h"
 #include "ItemPackets.h"
@@ -438,9 +432,9 @@ void WorldSession::HandleSellItemOpcode(WorldPackets::Item::SellItem& packet)
                 }
                 else
                 {
-                    player->ItemRemovedQuestCheck(item->GetEntry(), item->GetCount());
                     item->RemoveFromWorld();
                     player->RemoveItem(item->GetBagSlot(), item->GetSlot(), true);
+                    player->ItemRemovedQuestCheck(item->GetEntry(), item->GetCount());
                     item->RemoveFromUpdateQueueOf(player);
                     player->AddItemToBuyBackSlot(item);
                 }
@@ -493,9 +487,10 @@ void WorldSession::HandleBuybackItem(WorldPackets::Item::BuyBackItem& packet)
         {
             player->ModifyMoney(-int64(price));
             player->RemoveItemFromBuyBackSlot(packet.Slot, false);
-            player->ItemAddedQuestCheck(item->GetEntry(), item->GetCount());
-            player->UpdateAchievementCriteria(CRITERIA_TYPE_RECEIVE_EPIC_ITEM, item->GetEntry(), item->GetCount());
+            uint32 const entry = item->GetEntry();
+            player->UpdateAchievementCriteria(CRITERIA_TYPE_RECEIVE_EPIC_ITEM, entry, item->GetCount());
             player->StoreItem(dest, item, true);
+            player->ItemAddedQuestCheck(entry, 0);
         }
         else
             player->SendEquipError(msg, item);
@@ -1801,9 +1796,10 @@ void WorldSession::HandleAutoBankReagent(WorldPackets::Item::AutoBankReagent& pa
         return;
     }
 
+    uint32 const entry = item->GetEntry();
     player->RemoveItem(packet.PackSlot, packet.Slot, true);
-    player->ItemRemovedQuestCheck(item->GetEntry(), item->GetCount());
     player->StoreItem(dest, item, true);
+    player->ItemRemovedQuestCheck(entry, 0);
 }
 
 void WorldSession::HandleAutostoreBankReagent(WorldPackets::Bank::AutostoreBankReagent& packet)
