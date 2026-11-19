@@ -15,6 +15,17 @@
 #include "CreatureTextMgr.h"
 #include "GameObjectAI.h"
 
+namespace
+{
+    // Pet and guardian kills credit the owning player.
+    Player* GetCreditPlayer(Creature* creature, Unit* killer)
+    {
+        if (Player* player = killer ? killer->GetCharmerOrOwnerPlayerOrPlayerItself() : nullptr)
+            return player;
+        return creature->FindNearestPlayer(100.0f);
+    }
+}
+
 // 105464
 class npc_valzuun : public CreatureScript
 {
@@ -139,7 +150,7 @@ public:
 
     struct npc_akaari_shadowgoreAI : ScriptedAI
     {
-        npc_akaari_shadowgoreAI(Creature* creature) : ScriptedAI(creature)
+        npc_akaari_shadowgoreAI(Creature* creature) : ScriptedAI(creature), summons(me)
         {
             introDone = false;
             SetCanSeeEvenInPassiveMode(true);
@@ -147,10 +158,17 @@ public:
 
         bool introDone;
         EventMap events;
+        SummonList summons;
 
         void Reset() override
         {
             events.Reset();
+            summons.DespawnAll();
+        }
+
+        void JustSummoned(Creature* summon) override
+        {
+            summons.Summon(summon);
         }
 
         void EnterCombat(Unit* who) override
@@ -341,11 +359,13 @@ public:
 
         void JustDied(Unit* who) override
         {
-            Conversation* conversation = new Conversation;
-            if (!conversation->CreateConversation(sObjectMgr->GetGenerator<HighGuid::Conversation>()->Generate(), 1890, who, NULL, *who))
-                delete conversation;
-            if (who->GetTypeId() == TYPEID_PLAYER)
-                who->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50298);
+            if (Player* player = GetCreditPlayer(me, who))
+            {
+                Conversation* conversation = new Conversation;
+                if (!conversation->CreateConversation(sObjectMgr->GetGenerator<HighGuid::Conversation>()->Generate(), 1890, player, nullptr, *player))
+                    delete conversation;
+                player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50298);
+            }
 
             std::list<GameObject*> doors;
             GetGameObjectListWithEntryInGrid(doors, me, 248983, 100.0f);
@@ -469,14 +489,15 @@ public:
 
         void JustDied(Unit* who) override
         {
-            if (who->GetTypeId() != TYPEID_PLAYER)
+            Player* player = GetCreditPlayer(me, who);
+            if (!player)
                 return;
 
             Conversation* conversation = new Conversation;
-            if (!conversation->CreateConversation(sObjectMgr->GetGenerator<HighGuid::Conversation>()->Generate(), 1947, who, NULL, *who))
+            if (!conversation->CreateConversation(sObjectMgr->GetGenerator<HighGuid::Conversation>()->Generate(), 1947, player, nullptr, *player))
                 delete conversation;
 
-            who->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50300);
+            player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50300);
         }
 
         /* void MoveInLineOfSight(Unit* who)
@@ -565,28 +586,34 @@ class go_art_devourer : public GameObjectScript
 public:
     go_art_devourer() : GameObjectScript("go_art_devourer") {}
 
+    // A player who already owns the weapon cannot loot the chest again: finish the pickup directly.
+    bool OnGossipHello(Player* player, GameObject* go) override
+    {
+        if (!player->HasItemCount(128476, 1, true))
+            return false;
+
+        if (player->HasItemCount(128476, 1))
+            go->SetLootState(GO_JUST_DEACTIVATED, player);
+        return true;
+    }
+
+    // The chest only reaches GO_JUST_DEACTIVATED once its content went into the bags.
     void OnLootStateChanged(GameObject* go, uint32 state, Unit* target) override
     {
-        if (target && state == GO_ACTIVATED)
-        {
-            if (target->GetTypeId() == TYPEID_PLAYER)
-            {
-                target->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50301); //Step 4
-                target->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_COMPLETE_SCENARIO, 1078, 1);
-                if (Creature* trigger = go->FindNearestCreature(105843, 10.0f))
-                    trigger->DespawnOrUnsummon(1000);
+        Player* player = target ? target->ToPlayer() : nullptr;
+        if (!player || state != GO_JUST_DEACTIVATED || !player->HasItemCount(128476, 1))
+            return;
 
-                if (!target->ToPlayer()->HasItemCount(128476, 1))
-                {
-                    target->ToPlayer()->AddItem(128476, 1);
-                    target->CastSpell(target, 209816, true);
-                }
+        player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 50301); // Step 4
+        player->UpdateAchievementCriteria(CRITERIA_TYPE_COMPLETE_SCENARIO, 1078, 1);
+        if (Creature* trigger = go->FindNearestCreature(105843, 10.0f))
+            trigger->DespawnOrUnsummon(1000);
 
-                Conversation* conversation = new Conversation;
-                if (!conversation->CreateConversation(sObjectMgr->GetGenerator<HighGuid::Conversation>()->Generate(), 1948, target, NULL, *target))
-                    delete conversation;
-            }
-        }
+        player->CastSpell(player, 209816, true); // equips the weapon
+
+        Conversation* conversation = new Conversation;
+        if (!conversation->CreateConversation(sObjectMgr->GetGenerator<HighGuid::Conversation>()->Generate(), 1948, player, nullptr, *player))
+            delete conversation;
     }
 };
 

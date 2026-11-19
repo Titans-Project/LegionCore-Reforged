@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
     Rogue: Dreadblades
 */
@@ -6,6 +14,7 @@
 #include "ScriptedCreature.h"
 #include "CreatureTextMgr.h"
 #include "Dreadblades.h"
+#include "GameObjectAI.h"
 
 // 102120
 class npc_admiral_tethys : public CreatureScript
@@ -611,8 +620,12 @@ public:
         
         void JustDied(Unit* who) override
         {
-            if (who->GetTypeId() == TYPEID_PLAYER)
-                who->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 48582);
+            // Pet and guardian kills credit the owning player.
+            Player* player = who ? who->GetCharmerOrOwnerPlayerOrPlayerItself() : nullptr;
+            if (!player)
+                player = me->FindNearestPlayer(100.0f);
+            if (player)
+                player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 48582);
             Talk(4);
             if (auto blades = me->SummonCreature(112817, -1353.04f, 6307.06f, 8.60f, 1.99f))
                 blades->SetDisplayId(72343);
@@ -703,48 +716,52 @@ class go_scenario_dreadblades : public GameObjectScript
 public:
     go_scenario_dreadblades() : GameObjectScript("go_scenario_dreadblades") {}
 
+    // A player who already owns the weapon cannot loot the chest again: finish the pickup directly.
+    bool OnGossipHello(Player* player, GameObject* go) override
+    {
+        if (!player->HasItemCount(128872, 1, true))
+            return false;
+
+        if (player->HasItemCount(128872, 1))
+            go->SetLootState(GO_JUST_DEACTIVATED, player);
+        return true;
+    }
+
+    // The chest only reaches GO_JUST_DEACTIVATED once its content went into the bags.
     void OnLootStateChanged(GameObject* go, uint32 state, Unit* target) override
     {
-        if (target && state == GO_ACTIVATED)
-        {
-            if (target->GetTypeId() == TYPEID_PLAYER)
-            {
-                if (target->ToPlayer()->HasItemCount(128872, 1))
-                {
-                    target->ToPlayer()->AddItem(128872, 1);
-                    target->CastSpell(target, 202040, true);  // on loot
-                }
-                target->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 48553);
-                target->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_COMPLETE_SCENARIO, 1012, 1);
-                if (Creature* trigger = go->FindNearestCreature(112817, 20.0f))
-                    trigger->DespawnOrUnsummon();
+        Player* player = target ? target->ToPlayer() : nullptr;
+        if (!player || state != GO_JUST_DEACTIVATED || player->GetMapId() != 1545 || !player->HasItemCount(128872, 1))
+            return;
 
-                target->ToPlayer()->GetPhaseMgr().SetCustomPhase(1);
-                if (Creature* trigget = go->SummonCreature(102357, -1162.16f, 6124.12f, 53.38f, 2.87f))
-                {
-                    trigget->AddPlayerInPersonnalVisibilityList(target->GetGUID());
-                    trigget->SetPhaseMask(1, true);
-                }
-                if (Creature* trigget = go->SummonCreature(102356, -1167.68f, 6112.83f, 50.97f, 2.59f))
-                {
-                    trigget->AddPlayerInPersonnalVisibilityList(target->GetGUID());
-                    trigget->SetPhaseMask(1, true);
-                }
-                if (Creature* trigget = go->SummonCreature(102355, -1169.81f, 6130.16f, 49.72f, 3.01f))
-                {
-                    trigget->AddPlayerInPersonnalVisibilityList(target->GetGUID());
-                    trigget->SetPhaseMask(1, true);
-                }
-                if (Creature* trigget = go->SummonCreature(102352, -1177.02f, 6124.60f, 44.78f, 2.78f))
-                {
-                    trigget->AddPlayerInPersonnalVisibilityList(target->GetGUID());
-                    trigget->SetPhaseMask(1, true);
-                }
-                Conversation* conversation = new Conversation;
-                if (!conversation->CreateConversation(sObjectMgr->GetGenerator<HighGuid::Conversation>()->Generate(), 1721, target, NULL, *target))
-                    delete conversation;
+        player->CastSpell(player, 202040, true); // equips the weapon
+        player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 48553);
+        player->UpdateAchievementCriteria(CRITERIA_TYPE_COMPLETE_SCENARIO, 1012, 1);
+        if (Creature* trigger = go->FindNearestCreature(112817, 20.0f))
+            trigger->DespawnOrUnsummon();
+
+        player->GetPhaseMgr().SetCustomPhase(1);
+
+        static uint32 const entries[4] = { 102357, 102356, 102355, 102352 };
+        static Position const positions[4] =
+        {
+            { -1162.16f, 6124.12f, 53.38f, 2.87f },
+            { -1167.68f, 6112.83f, 50.97f, 2.59f },
+            { -1169.81f, 6130.16f, 49.72f, 3.01f },
+            { -1177.02f, 6124.60f, 44.78f, 2.78f }
+        };
+        for (uint8 i = 0; i < 4; ++i)
+        {
+            if (Creature* actor = go->SummonCreature(entries[i], positions[i]))
+            {
+                actor->AddPlayerInPersonnalVisibilityList(player->GetGUID());
+                actor->SetPhaseMask(1, true);
             }
         }
+
+        Conversation* conversation = new Conversation;
+        if (!conversation->CreateConversation(sObjectMgr->GetGenerator<HighGuid::Conversation>()->Generate(), 1721, player, nullptr, *player))
+            delete conversation;
     }
 };
 

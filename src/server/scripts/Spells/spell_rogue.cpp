@@ -1,19 +1,14 @@
-/*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 /*
  * Scripts for spells with SPELLFAMILY_ROGUE and SPELLFAMILY_GENERIC spells used by rogue players.
@@ -30,6 +25,16 @@
 
 enum RogueSpells
 {
+    ROGUE_ALACRITY_BUFF                 = 193538,
+    ROGUE_CURSE_OF_RESTLESSNESS         = 248107,
+    ROGUE_CURSE_OF_THE_DREADBLADES_CD   = 202665,
+    ROGUE_LOADED_DICE                   = 240837,
+    ROGUE_MARKED_FOR_DEATH              = 137619,
+    ROGUE_RESTLESS_BLADES               = 79096,
+    ROGUE_SURGE_OF_TOXINS_DEBUFF        = 192425,
+    ROGUE_SYMBOLS_OF_DEATH              = 212283,
+    ROGUE_T21_OUTLAW_2P                 = 251778,
+    ROGUE_T21_SHARPENED_SABERS          = 252285,
     SkullAndCrossbones = 199603,
     GrandMelee         = 193358,
     RuthlessPrecision  = 193357,
@@ -363,6 +368,8 @@ class spell_rog_saber_slash : public SpellScriptLoader
                         if (caster->HasAura(202754))
                         {
                             caster->CastSpellDelay(target, 197834, true, 400);
+                            if (caster->HasAura(ROGUE_T21_OUTLAW_2P))
+                                caster->CastSpell(caster, ROGUE_T21_SHARPENED_SABERS, true);
                             caster->RemoveAurasDueToSpell(202754);
                             return;
                         }
@@ -377,7 +384,11 @@ class spell_rog_saber_slash : public SpellScriptLoader
                                 chance += auraEff->GetBaseAmount();
 
                             if (roll_chance_f(chance))
+                            {
                                 caster->CastSpellDelay(target, 197834, true, 400);
+                                if (caster->HasAura(ROGUE_T21_OUTLAW_2P))
+                                    caster->CastSpell(caster, ROGUE_T21_SHARPENED_SABERS, true);
+                            }
                         }
                     }
                 }
@@ -567,14 +578,19 @@ class spell_rog_roll_the_bones : public SpellScriptLoader
                     for (auto const spellId : buffList)
                         caster->RemoveAurasDueToSpell(spellId);
 
-                    uint8 count = caster->HasAura(240837) ? 2 : 1;
-
-                    if (roll_chance_f(3.f))
-                        count = 6;
-                    else if (roll_chance_f(11.f))
-                        count = 3;
-                    else if (roll_chance_f(33.f))
-                        count = 2;
+                    // Fixed odds since 7.2.5: 79% one buff, 20% two, 1% five.
+                    // Loaded Dice rerolls any single-buff result and is consumed.
+                    uint8 count;
+                    if (caster->HasAura(ROGUE_LOADED_DICE))
+                    {
+                        count = urand(1, 21) == 1 ? 5 : 2;
+                        caster->RemoveAurasDueToSpell(ROGUE_LOADED_DICE);
+                    }
+                    else
+                    {
+                        uint32 roll = urand(1, 100);
+                        count = roll == 1 ? 5 : (roll <= 21 ? 2 : 1);
+                    }
 
                     SpellCastTargets _targets;
                     _targets.SetCaster(caster);
@@ -1220,9 +1236,195 @@ class spell_rog_cut_to_the_chase : public SpellScript
         }
     }
 
+    void ConsumeSharpenedSabers()
+    {
+        if (Unit* caster = GetCaster())
+            caster->RemoveAurasDueToSpell(ROGUE_T21_SHARPENED_SABERS);
+    }
+
     void Register() override
     {
         OnEffectHitTarget += SpellEffectFn(spell_rog_cut_to_the_chase::HandleDamage, EFFECT_0, SPELL_EFFECT_SCHOOL_DAMAGE);
+        AfterHit += SpellHitFn(spell_rog_cut_to_the_chase::ConsumeSharpenedSabers);
+    }
+};
+
+// Alacrity - 193539
+class spell_rog_alacrity : public AuraScript
+{
+    PrepareAuraScript(spell_rog_alacrity);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        return spell && spell->GetComboPoints() > 0;
+    }
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+
+        Spell* spell = eventInfo.GetSpell();
+        if (spell && roll_chance_f(aurEff->GetSpellInfo()->Effects[EFFECT_1]->CalcValue(GetTarget()) * spell->GetComboPoints()))
+            GetTarget()->CastSpell(GetTarget(), ROGUE_ALACRITY_BUFF, true);
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_rog_alacrity::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_rog_alacrity::HandleProc, EFFECT_0, SPELL_AURA_DUMMY);
+    }
+};
+
+// Marked for Death - 137619
+class spell_rog_marked_for_death : public AuraScript
+{
+    PrepareAuraScript(spell_rog_marked_for_death);
+
+    void HandleRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+    {
+        if (GetTargetApplication()->GetRemoveMode() == AURA_REMOVE_BY_DEATH)
+            if (Player* caster = GetCaster() ? GetCaster()->ToPlayer() : nullptr)
+                caster->RemoveSpellCooldown(ROGUE_MARKED_FOR_DEATH, true);
+    }
+
+    void Register() override
+    {
+        AfterEffectRemove += AuraEffectRemoveFn(spell_rog_marked_for_death::HandleRemove, EFFECT_0, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
+    }
+};
+
+// Restless Blades - 79096; True Bearing - 193359
+// The cooldown reduction scales with the combo points spent by the finisher.
+class spell_rog_restless_blades : public AuraScript
+{
+    PrepareAuraScript(spell_rog_restless_blades);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        return spell && spell->GetComboPoints() > 0;
+    }
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+
+        Player* player = GetTarget()->ToPlayer();
+        Spell* spell = eventInfo.GetSpell();
+        if (!player || !spell)
+            return;
+
+        int32 comboPoints = spell->GetComboPoints();
+        int32 reduction = int32(aurEff->GetAmount() * comboPoints * 100.0f);
+        static uint32 const cooldownSpells[] =
+        {
+            1856,   // Vanish
+            2983,   // Sprint
+            13750,  // Adrenaline Rush
+            51690,  // Killing Spree
+            137619, // Marked for Death
+            152150, // Death from Above
+            185767, // Cannonball Barrage
+            195457, // Grappling Hook
+            199804  // Between the Eyes
+        };
+
+        for (uint32 spellId : cooldownSpells)
+            player->ModifySpellCooldown(spellId, -reduction);
+
+        if (GetId() == ROGUE_RESTLESS_BLADES)
+            if (AuraEffect const* curse = player->GetAuraEffect(ROGUE_CURSE_OF_RESTLESSNESS, EFFECT_0))
+                player->ModifySpellCooldown(ROGUE_CURSE_OF_THE_DREADBLADES_CD, -int32(curse->GetAmount() * comboPoints * 10.0f));
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_rog_restless_blades::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_rog_restless_blades::HandleProc, EFFECT_0, SPELL_AURA_DUMMY);
+    }
+};
+
+// Surge of Toxins - 192424
+class spell_rog_surge_of_toxins : public AuraScript
+{
+    PrepareAuraScript(spell_rog_surge_of_toxins);
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+
+        Spell* spell = eventInfo.GetSpell();
+        Unit* target = eventInfo.GetActionTarget();
+        if (!spell || !target || spell->GetComboPoints() <= 0)
+            return;
+
+        // The spell data gives the five combo point maximum: 2% per point.
+        float amount = aurEff->GetAmount() / 5.0f * std::min<int32>(spell->GetComboPoints(), 5);
+        GetTarget()->CastCustomSpell(target, ROGUE_SURGE_OF_TOXINS_DEBUFF, &amount, nullptr, nullptr, true, nullptr, aurEff);
+    }
+
+    void Register() override
+    {
+        OnEffectProc += AuraEffectProcFn(spell_rog_surge_of_toxins::HandleProc, EFFECT_0, SPELL_AURA_DUMMY);
+    }
+};
+
+// Item - Rogue T21 Subtlety 2P Bonus - 251785
+class spell_rog_t21_subtlety_2p : public AuraScript
+{
+    PrepareAuraScript(spell_rog_t21_subtlety_2p);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        return spell && spell->GetComboPoints() > 0;
+    }
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+
+        Player* player = GetTarget()->ToPlayer();
+        Spell* spell = eventInfo.GetSpell();
+        if (player && spell)
+            player->ModifySpellCooldown(ROGUE_SYMBOLS_OF_DEATH, -int32(aurEff->GetAmount() * spell->GetComboPoints() * 100.0f));
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_rog_t21_subtlety_2p::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_rog_t21_subtlety_2p::HandleProc, EFFECT_0, SPELL_AURA_DUMMY);
+    }
+};
+
+// Shadow Gestures - 257945, granted by the Rogue T21 Subtlety 4P bonus
+class spell_rog_t21_shadow_gestures : public AuraScript
+{
+    PrepareAuraScript(spell_rog_t21_shadow_gestures);
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        Spell* spell = eventInfo.GetSpell();
+        return spell && spell->GetComboPoints() > 0;
+    }
+
+    void HandleProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+    {
+        PreventDefaultAction();
+
+        Spell* spell = eventInfo.GetSpell();
+        if (!spell)
+            return;
+
+        GetTarget()->ModifyPower(POWER_COMBO_POINTS, int32(CalculatePct(float(spell->GetComboPoints()), aurEff->GetAmount())));
+        GetAura()->Remove();
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_rog_t21_shadow_gestures::CheckProc);
+        OnEffectProc += AuraEffectProcFn(spell_rog_t21_shadow_gestures::HandleProc, EFFECT_0, SPELL_AURA_DUMMY);
     }
 };
 
@@ -1467,6 +1669,12 @@ void AddSC_rogue_spell_scripts()
     new areatrigger_at_cut_to_the_chase();
     new spell_rog_nightblade();
     RegisterSpellScript(spell_rog_cut_to_the_chase);
+    RegisterAuraScript(spell_rog_alacrity);
+    RegisterAuraScript(spell_rog_marked_for_death);
+    RegisterAuraScript(spell_rog_restless_blades);
+    RegisterAuraScript(spell_rog_surge_of_toxins);
+    RegisterAuraScript(spell_rog_t21_subtlety_2p);
+    RegisterAuraScript(spell_rog_t21_shadow_gestures);
     RegisterSpellScript(spell_rog_plunder_armor);
     new spell_rog_saber_slash();
     RegisterSpellScript(spell_rog_shadow_strike);

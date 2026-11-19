@@ -15,6 +15,25 @@
 #include "CreatureTextMgr.h"
 #include "Kingslayers.h"
 #include "GameObjectAI.h"
+#include "ObjectAccessor.h"
+
+namespace
+{
+    // Pet and guardian kills must credit and speak to the owning player.
+    Player* GetCreditPlayer(Creature* creature, Unit* killer)
+    {
+        if (Player* player = killer ? killer->GetCharmerOrOwnerPlayerOrPlayerItself() : nullptr)
+            return player;
+        return creature->FindNearestPlayer(100.0f);
+    }
+
+    void PlayConversation(Unit* actor, uint32 conversationId)
+    {
+        Conversation* conversation = new Conversation;
+        if (!conversation->CreateConversation(sObjectMgr->GetGenerator<HighGuid::Conversation>()->Generate(), conversationId, actor, nullptr, *actor))
+            delete conversation;
+    }
+}
 
 // 107979 108015
 class npc_garona_halforcen : public CreatureScript
@@ -71,7 +90,9 @@ public:
             me->GetMotionMaster()->MovePoint(0, -9091.40f, 414.15f, 92.11f);
             me->RemoveAura(132653);
 
-            me->AddDelayedEvent(15000, [this, who]() -> void
+            ObjectGuid playerGuid = who->GetGUID();
+
+            me->AddDelayedEvent(15000, [this, playerGuid]() -> void
             {
                 std::list<Creature*> adds;
                 GetCreatureListWithEntryInGrid(adds, me, 98094, 70.0f);
@@ -84,25 +105,21 @@ public:
                         (*itr)->DespawnOrUnsummon(6000);
                     }
 
-                Conversation* conversation = new Conversation;
-                if (!conversation->CreateConversation(sObjectMgr->GetGenerator<HighGuid::Conversation>()->Generate(), 2377, who, NULL, *who))
-                    delete conversation;
+                if (Player* player = ObjectAccessor::GetPlayer(*me, playerGuid))
+                    PlayConversation(player, 2377);
             });
 
-            me->AddDelayedEvent(30000, [this, who]() -> void
+            me->AddDelayedEvent(30000, [this, playerGuid]() -> void
             {
                 me->GetMotionMaster()->MovePoint(0, -9074.46f, 427.19f, 92.07f);
                 me->SetWalk(true);
                 me->DespawnOrUnsummon(4000);
-                if (who)
+                if (Player* player = ObjectAccessor::GetPlayer(*me, playerGuid))
                 {
-                    who->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 51418);
-                    who->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 52672);
+                    player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 51418);
+                    player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 52672);
+                    PlayConversation(player, 2384);
                 }
-                Conversation* conversation = new Conversation;
-                if (!conversation->CreateConversation(sObjectMgr->GetGenerator<HighGuid::Conversation>()->Generate(), 2384, who, NULL, *who))
-                    delete conversation;
-
             });
         }
 
@@ -403,11 +420,11 @@ public:
 
         void JustDied(Unit* who) override
         {
-            if (Player* pl = me->FindNearestPlayer(100.0f))
-                pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 51613);
-            Conversation* conversation = new Conversation;
-            if (!conversation->CreateConversation(sObjectMgr->GetGenerator<HighGuid::Conversation>()->Generate(), 2431, who, NULL, *who))
-                delete conversation;
+            if (Player* player = GetCreditPlayer(me, who))
+            {
+                player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 51613);
+                PlayConversation(player, 2431);
+            }
 
             if (Creature* garona = me->FindNearestCreature(108214, 60.0f, true))
             {
@@ -603,13 +620,11 @@ public:
                 garona->AI()->DoAction(true);
                 garona->SetVisible(true);
             }
-            if (Player* pl = who->ToPlayer())
+            if (Player* player = GetCreditPlayer(me, who))
             {
-                pl->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 51615);
+                player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 51615);
+                PlayConversation(player, 2448);
             }
-            Conversation* conversation = new Conversation;
-            if (!conversation->CreateConversation(sObjectMgr->GetGenerator<HighGuid::Conversation>()->Generate(), 2448, who, NULL, *who))
-                delete conversation;
 
             std::list<Creature*> adds;
             GetCreatureListWithEntryInGrid(adds, me, 108397, 70.0f);
@@ -662,6 +677,9 @@ public:
 
                         who->AddDelayedEvent(5000, [who]() -> void
                         {
+                            if (!who->IsInWorld() || !who->IsAlive())
+                                return;
+
                             who->CastSpell(who, 214942);
                             if (Creature* add = who->FindNearestCreature(108333, 50.0f))
                                 add->DespawnOrUnsummon();
@@ -815,58 +833,63 @@ class go_the_kingslayers : public GameObjectScript
 public:
     go_the_kingslayers() : GameObjectScript("go_the_kingslayers") {}
 
+    // A player who already owns the weapon cannot loot the chest again: finish the pickup directly.
+    bool OnGossipHello(Player* player, GameObject* go) override
+    {
+        if (!player->HasItemCount(128870, 1, true))
+            return false;
+
+        if (player->HasItemCount(128870, 1))
+            go->SetLootState(GO_JUST_DEACTIVATED, player);
+        return true;
+    }
+
+    // The chest only reaches GO_JUST_DEACTIVATED once its content went into the bags.
     void OnLootStateChanged(GameObject* go, uint32 state, Unit* target) override
     {
-        if (target/* && state == GO_ACTIVATED*/)
+        Player* player = target ? target->ToPlayer() : nullptr;
+        if (!player || state != GO_JUST_DEACTIVATED || player->GetMapId() != 1620 || !player->HasItemCount(128870, 1))
+            return;
+
+        player->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 51616);
+        player->UpdateAchievementCriteria(CRITERIA_TYPE_COMPLETE_SCENARIO, 1123, 1);
+
+        player->KilledMonsterCredit(114508);
+        player->KilledMonsterCredit(48548);
+        player->KilledMonsterCredit(48528);
+
+        if (Creature* outro = player->SummonCreature(108367, -8345.60f, 267.80f, 155.34f, 0.69f))
         {
-            if (target->GetTypeId() == TYPEID_PLAYER)
+            ObjectGuid playerGuid = player->GetGUID();
+
+            outro->AddDelayedEvent(7000, [outro, playerGuid]() -> void
             {
-                target->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_SCRIPT_EVENT_2, 51616);
-                target->ToPlayer()->UpdateAchievementCriteria(CRITERIA_TYPE_COMPLETE_SCENARIO, 1123, 1);
-                // if (Creature* trigger = go->FindNearestCreature(108325, 20.0f))
-                    // trigger->DespawnOrUnsummon();
+                outro->GetMotionMaster()->MovePoint(0, -8334.08f, 277.72f, 156.83f);
+                if (Player* player = ObjectAccessor::GetPlayer(*outro, playerGuid))
+                    PlayConversation(player, 2452);
+            });
 
-                target->ToPlayer()->KilledMonsterCredit(114508);
-                target->ToPlayer()->KilledMonsterCredit(48548);
-                target->ToPlayer()->KilledMonsterCredit(48528);
-                if (Creature* outro = target->SummonCreature(108367, -8345.60f, 267.80f, 155.34f, 0.69f))
+            outro->AddDelayedEvent(13000, [outro, playerGuid]() -> void
+            {
+                if (Player* player = ObjectAccessor::GetPlayer(*outro, playerGuid))
+                    PlayConversation(player, 2453);
+            });
+
+            outro->AddDelayedEvent(27000, [outro]() -> void
+            {
+                outro->GetMotionMaster()->MovePoint(0, -8332.05f, 274.51f, 156.83f);
+                if (GameObject* doors = outro->FindNearestGameObject(251106, 60.0f))
+                    doors->SetPhaseMask(2, true); // hide
+
+                if (Creature* garona = outro->FindNearestCreature(108222, 70.0f, true))
                 {
-                    outro->AddDelayedEvent(7000, [outro, target]() -> void
-                    {
-                        outro->GetMotionMaster()->MovePoint(0, -8334.08f, 277.72f, 156.83f);
-                        Conversation* conversation = new Conversation;
-                        if (!conversation->CreateConversation(sObjectMgr->GetGenerator<HighGuid::Conversation>()->Generate(), 2452, target, NULL, *target))
-                            delete conversation;
-                    });
-
-                    outro->AddDelayedEvent(13000, [outro, target]() -> void
-                    {
-                        Conversation* conversation = new Conversation;
-                        if (!conversation->CreateConversation(sObjectMgr->GetGenerator<HighGuid::Conversation>()->Generate(), 2453, target, NULL, *target))
-                            delete conversation;
-                    });
-
-                    outro->AddDelayedEvent(27000, [outro]() -> void
-                    {
-                        outro->GetMotionMaster()->MovePoint(0, -8332.05f, 274.51f, 156.83f);
-                        if (GameObject* doors = outro->FindNearestGameObject(251106, 60.0f))
-                            doors->SetPhaseMask(2, true); // hide
-
-                        if (Creature* garona = outro->FindNearestCreature(108222, 70.0f, true))
-                        {
-                            garona->GetMotionMaster()->MovePoint(0, -8426.63f, 213.47f, 155.34f);
-                            garona->DespawnOrUnsummon(15000);
-                        }
-                    });
+                    garona->GetMotionMaster()->MovePoint(0, -8426.63f, 213.47f, 155.34f);
+                    garona->DespawnOrUnsummon(15000);
                 }
-                
-                if (!target->ToPlayer()->HasItemCount(128870, 1))
-                {
-                    target->ToPlayer()->AddItem(128870, 1);
-                    target->CastSpell(target, 215112, true);  // on loot
-                }
-            }
+            });
         }
+
+        player->CastSpell(player, 215112, true); // equips the weapon
     }
 };
 
