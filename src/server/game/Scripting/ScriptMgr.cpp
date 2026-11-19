@@ -1494,6 +1494,12 @@ void ScriptMgr::OnUnloadGridMap(Map* map, GridMap* gmap, uint32 gx, uint32 gy)
     SCR_MAP_END;
 }
 
+void ScriptMgr::OnPlayerLoadingScreenEnd(Player* player)
+{
+    ASSERT(player);
+    FOREACH_SCRIPT(PlayerScript)->OnLoadingScreenEnd(player);
+}
+
 void ScriptMgr::OnPlayerEnterMap(Map* map, Player* player)
 {
     ASSERT(map);

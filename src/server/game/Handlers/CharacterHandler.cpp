@@ -652,6 +652,7 @@ void WorldSession::HandleLoadScreenOpcode(WorldPackets::Character::LoadingScreen
 
             player->SendInitialPacketsAfterAddToMap(true);
             player->CastPendingCreateSpells();
+            sScriptMgr->OnPlayerLoadingScreenEnd(player);
         }
         m_playerLoading.Clear();
     }

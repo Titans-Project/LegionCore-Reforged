@@ -687,6 +687,9 @@ class TC_GAME_API PlayerScript : public ScriptObject
         // Called when a player changes to a new map (after moving to new map)
         virtual void OnMapChanged(Player* /*player*/) { }
 
+        // Called when the client has finished loading and its loading screen is gone
+        virtual void OnLoadingScreenEnd(Player* /*player*/) { }
+
         virtual void OnMovementInform(Player* /*player*/, uint32 /*moveType*/, uint32 /*ID*/) { }
 
         virtual void OnUpdate(Player* /*player*/, uint32 /*diff*/) { }
@@ -1012,6 +1015,7 @@ class TC_GAME_API ScriptMgr
         void OnPlayerDelete(ObjectGuid const& guid);
         void OnPlayerBindToInstance(Player* player, Difficulty difficulty, uint32 mapid, bool permanent);
         void OnPlayerUpdateZone(Player* player, uint32 newZone, uint32 newArea);
+        void OnPlayerLoadingScreenEnd(Player* player);
         void OnPetBattleFinish(Player* player);
         void OnMovementInform(Player* player, uint32 moveType, uint32 ID);
         void OnUpdate(Player* player, uint32 diff);
