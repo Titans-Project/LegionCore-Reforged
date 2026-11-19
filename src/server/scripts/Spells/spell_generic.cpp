@@ -1,19 +1,14 @@
-/*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 /*
  * Scripts for spells with SPELLFAMILY_GENERIC which cannot be included in AI script file
@@ -42,6 +37,7 @@
 #include "SpellAuraEffects.h"
 #include "SpellScript.h"
 #include "Vehicle.h"
+#include "GameTime.h"
 
 // Position const sumprpos[4] =
 // {
@@ -8410,6 +8406,72 @@ class spell_iron_demolisher_cannon_blast : public SpellScript
     }
 };
 
+// Touch of Elune - 154748: the passive only selects which stat aura applies, by realm time
+// (Critical Strike by day 154796, Haste at night 154797)
+class spell_gen_touch_of_elune : public AuraScript
+{
+    PrepareAuraScript(spell_gen_touch_of_elune);
+
+    enum
+    {
+        SPELL_TOUCH_OF_ELUNE_DAY   = 154796,
+        SPELL_TOUCH_OF_ELUNE_NIGHT = 154797
+    };
+
+    uint32 _checkTimer = 0;
+
+    void Refresh()
+    {
+        Unit* target = GetUnitOwner();
+        if (!target)
+            return;
+
+        time_t const now = GameTime::GetGameTime();
+        tm localTime;
+        localtime_r(&now, &localTime);
+        bool const day = localTime.tm_hour >= 6 && localTime.tm_hour < 18;
+
+        target->RemoveAurasDueToSpell(day ? SPELL_TOUCH_OF_ELUNE_NIGHT : SPELL_TOUCH_OF_ELUNE_DAY);
+        if (!target->HasAura(day ? SPELL_TOUCH_OF_ELUNE_DAY : SPELL_TOUCH_OF_ELUNE_NIGHT))
+            target->CastSpell(target, day ? SPELL_TOUCH_OF_ELUNE_DAY : SPELL_TOUCH_OF_ELUNE_NIGHT, true);
+    }
+
+    void HandleApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+    {
+        _checkTimer = MINUTE * IN_MILLISECONDS;
+        Refresh();
+    }
+
+    void HandleRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+    {
+        if (Unit* target = GetUnitOwner())
+        {
+            target->RemoveAurasDueToSpell(SPELL_TOUCH_OF_ELUNE_DAY);
+            target->RemoveAurasDueToSpell(SPELL_TOUCH_OF_ELUNE_NIGHT);
+        }
+    }
+
+    // day and night change on the hour: one look a minute is enough
+    void OnUpdate(uint32 diff)
+    {
+        if (_checkTimer > diff)
+        {
+            _checkTimer -= diff;
+            return;
+        }
+
+        _checkTimer = MINUTE * IN_MILLISECONDS;
+        Refresh();
+    }
+
+    void Register() override
+    {
+        AfterEffectApply += AuraEffectApplyFn(spell_gen_touch_of_elune::HandleApply, EFFECT_0, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
+        AfterEffectRemove += AuraEffectRemoveFn(spell_gen_touch_of_elune::HandleRemove, EFFECT_0, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
+        OnAuraUpdate += AuraUpdateFn(spell_gen_touch_of_elune::OnUpdate);
+    }
+};
+
 void AddSC_generic_spell_scripts()
 {
 //    new spell_gen_protect();
@@ -8597,6 +8659,7 @@ void AddSC_generic_spell_scripts()
     RegisterAuraScript(spell_searing_gaze_of_the_dook_despawn);
     RegisterAuraScript(spell_request_the_master_call_on_you);
     RegisterAuraScript(spell_gen_winning_hand);
+    RegisterAuraScript(spell_gen_touch_of_elune);
     RegisterSpellScript(spell_gen_hearthstone_board);
     RegisterAuraScript(spell_legion_food_table);
     RegisterAuraScript(spell_legion_hearty_feast);
