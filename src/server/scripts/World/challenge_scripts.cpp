@@ -506,8 +506,29 @@ public:
     }
 };
 
+// Grand Challenger's Bounty (252064): the keystone it holds is of no use before level 110, so it stays shut until then
+struct go_grand_challengers_bounty : public GameObjectAI
+{
+    go_grand_challengers_bounty(GameObject* go) : GameObjectAI(go) { }
+
+    static uint8 constexpr KEYSTONE_LEVEL = 110;
+
+    bool GossipUse(Player* player) override
+    {
+        if (player->getLevel() >= KEYSTONE_LEVEL)
+            return false;
+
+        WorldPackets::Misc::DisplayGameError error;
+        error.Error = UIErrors::ERR_CANT_EQUIP_LEVEL_I;
+        error.Arg = KEYSTONE_LEVEL;
+        player->SendDirectMessage(error.Write());
+        return true;
+    }
+};
+
 void AddSC_challenge_scripts()
 {
+    RegisterGameObjectAI(go_grand_challengers_bounty);
     RegisterAuraScript(spell_challengers_might);
     RegisterAuraScript(spell_challengers_burden);
     RegisterAuraScript(spell_challengers_burst);
