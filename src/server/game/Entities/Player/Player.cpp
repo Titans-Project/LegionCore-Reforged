@@ -20921,8 +20921,9 @@ void Player::KilledMonster(CreatureTemplate const* cInfo, ObjectGuid guid)
     if (cInfo->Entry)
         KilledMonsterCredit(cInfo->Entry, guid);
 
+    // a kill credit equal to the creature itself or to an earlier credit would count the kill twice
     for (uint8 i = 0; i < MAX_KILL_CREDIT; ++i)
-        if (cInfo->KillCredit[i])
+        if (cInfo->KillCredit[i] && cInfo->KillCredit[i] != cInfo->Entry && (i == 0 || cInfo->KillCredit[i] != cInfo->KillCredit[0]))
             KilledMonsterCredit(cInfo->KillCredit[i]);
 }
 
