@@ -3297,6 +3297,7 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
 
         // Adventures.
         uint16 getAdventureQuestID();
+        bool CanChooseAdventureZone();
         void setAdventureQuestID(uint16 questID);
 
         int32 GetCommandCooldown() const;

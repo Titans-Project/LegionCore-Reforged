@@ -18160,8 +18160,10 @@ void Player::PrepareGossipMenu(WorldObject* source, uint32 menuId /*= 0*/, bool 
         {
             GossipOptionNpc optionNpc = itr->second.OptionNpc;
 
-            // the mission and work order flags live in the second flag word, which npcflags does not hold
-            if (optionNpc != GossipOptionNpc::GarrisonMission && optionNpc != GossipOptionNpc::ShipmentCrafter && !(GossipMenu::GetRequiredNpcFlagForOption(optionNpc) & npcflags))
+            // the mission, work order and adventure map flags live in the second flag word, which npcflags does not hold
+            // (the class hall tables, such as the Fel Hammer's Scouting Map, open the adventure map with no such flag)
+            if (optionNpc != GossipOptionNpc::GarrisonMission && optionNpc != GossipOptionNpc::ShipmentCrafter && optionNpc != GossipOptionNpc::AdventureMap
+                && !(GossipMenu::GetRequiredNpcFlagForOption(optionNpc) & npcflags))
                 continue;
 
             // HACK: disable dual spec
@@ -18202,7 +18204,7 @@ void Player::PrepareGossipMenu(WorldObject* source, uint32 menuId /*= 0*/, bool 
                         canTalk = false;
                     break;
                 case GossipOptionNpc::AdventureMap:
-                    canTalk = true;
+                    canTalk = CanChooseAdventureZone();
                     break;
                 case GossipOptionNpc::ShipmentCrafter:
                     canTalk = false;
@@ -31610,6 +31612,9 @@ void Player::UpdateForQuestWorldObjects()
                     if (garr->GetCountOFollowers())
                         buildUpdateBlock = true;
             }
+            // the scouting tables refresh whether they can be talked to
+            if (!buildUpdateBlock && obj->OpensAdventureMap())
+                buildUpdateBlock = true;
             if (buildUpdateBlock)
                 obj->BuildValuesUpdateBlockForPlayer(&udata, this);
         }
@@ -37548,6 +37553,15 @@ uint16 Player::getAdventureQuestID()
         return m_adventure_questID;
 
     return 0;
+}
+
+// a zone of the adventure map to choose: Direct Our Wrath, or the zone in progress done
+bool Player::CanChooseAdventureZone()
+{
+    for (AdventureMapPOIEntry const* entry : sAdventureMapPOIStore)
+        if (entry->Type == 1 && GetSession()->AdventureMapPOIAvailable(entry->ID))
+            return true;
+    return false;
 }
 
 void Player::setAdventureQuestID(uint16 questID)

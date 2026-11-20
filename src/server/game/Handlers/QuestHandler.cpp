@@ -28,6 +28,8 @@
 #include "GameObjectAI.h"
 #include "QuestPackets.h"
 #include "GarrisonPackets.h"
+#include "MovementPackets.h"
+#include "MoveSpline.h"
 #include "QuestData.h"
 #include "GameEventMgr.h"
 
@@ -869,6 +871,45 @@ void WorldSession::HandleAdventureJournalStartQuest(WorldPackets::Quest::Adventu
             player->AddQuest(quest, player);
             if (player->CanCompleteQuest(quest->Id))
                 player->CompleteQuest(quest->Id);
+
+            // one zone only: the other zones are told closed at once (the open map still shows them until reopened)
+            for (AdventureMapPOIEntry const* entry : sAdventureMapPOIStore)
+                if (entry->Type == 1)
+                    SendPacket(WorldPackets::Quest::QueryAdventureMapPOIResponse(entry->ID, AdventureMapPOIAvailable(entry->ID)).Write());
+
+            // and the map closes: only the client closes it, when the table it was opened at is out of reach. The table
+            // is shown to this hunter alone far above him for an instant, then back in its place
+            player->AddDelayedEvent(0, [player]() -> void
+            {
+                if (!player->IsInWorld())
+                    return;
+
+                auto showTableAt = [player](Creature* table, float z, uint32 splineStep)
+                {
+                    WorldPackets::Movement::MonsterMove packet;
+                    packet.MoverGUID = table->GetGUID();
+                    packet.Pos = Position(table->GetPositionX(), table->GetPositionY(), z, table->GetOrientation());
+                    packet.SplineData.ID = table->movespline->GetId() + splineStep; // a new id each time, or the client drops the move
+                    packet.SplineData.StopDistanceTolerance = 2;
+                    player->SendDirectMessage(packet.Write());
+                };
+
+                std::list<Creature*> tables;
+                player->GetCreatureListInGrid(tables, 10.0f);
+                for (Creature* table : tables)
+                {
+                    if (!table->HasFlag(UNIT_FIELD_NPC_FLAGS2, UNIT_NPC_FLAG2_SHIPMENT_CRAFTER) || !player->HaveAtClient(table))
+                        continue;
+
+                    showTableAt(table, table->GetPositionZ() + 300.0f, 1);
+                    ObjectGuid const tableGuid = table->GetGUID();
+                    player->AddDelayedEvent(500, [player, tableGuid, showTableAt]() -> void
+                    {
+                        if (Creature* back = ObjectAccessor::GetCreature(*player, tableGuid))
+                            showTableAt(back, back->GetPositionZ(), 2);
+                    });
+                }
+            });
         }
         return;
     }

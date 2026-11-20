@@ -28,6 +28,7 @@
 #include "Formulas.h"
 #include "GameEventMgr.h"
 #include "GossipDef.h"
+#include "GossipData.h"
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
 #include "Group.h"
@@ -3929,6 +3930,20 @@ bool Creature::IsDungeonBoss() const
 {
     CreatureTemplate const* cinfo = sObjectMgr->GetCreatureTemplate(GetEntry());
     return cinfo && (cinfo->flags_extra & (CREATURE_FLAG_EXTRA_DUNGEON_BOSS | CREATURE_FLAG_EXTRA_INSTANCE_BIND));
+}
+
+// the class hall tables (Scouting Map...): their gossip option opens the adventure map
+bool Creature::OpensAdventureMap() const
+{
+    CreatureTemplate const* cinfo = GetCreatureTemplate();
+    if (!cinfo || !cinfo->GossipMenuId)
+        return false;
+
+    GossipMenuItemsMapBounds const bounds = sGossipDataStore->GetGossipMenuItemsMapBounds(cinfo->GossipMenuId);
+    for (auto itr = bounds.first; itr != bounds.second; ++itr)
+        if (itr->second.OptionNpc == GossipOptionNpc::AdventureMap)
+            return true;
+    return false;
 }
 
 bool Creature::IsPersonal() const

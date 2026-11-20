@@ -25599,6 +25599,10 @@ void Unit::BuildValuesUpdate(uint8 updateType, ByteBuffer* data, Player* target)
                     if (!target->canSeeSpellClickOn(creature))
                         appendValue &= ~UNIT_NPC_FLAG_SPELLCLICK;
 
+                // a scouting table with no zone to choose: nothing to talk about
+                if (creature && (appendValue & UNIT_NPC_FLAG_GOSSIP) && creature->OpensAdventureMap() && !target->CanChooseAdventureZone())
+                    appendValue &= ~UNIT_NPC_FLAG_GOSSIP;
+
                 if (appendValue & UNIT_NPC_FLAG_TRAINER)
                     if (!creature->isCanTrainingOf(target, false))
                         appendValue &= ~(UNIT_NPC_FLAG_TRAINER | UNIT_NPC_FLAG_TRAINER_CLASS | UNIT_NPC_FLAG_TRAINER_PROFESSION);

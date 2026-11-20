@@ -588,6 +588,7 @@ class TC_GAME_API Creature : public Unit, public GridObject<Creature>, public Ma
 
         ///// TODO RENAME THIS!!!!!
         bool isCanTrainingOf(Player* player, bool msg) const;
+        bool OpensAdventureMap() const;
         bool isCanInteractWithBattleMaster(Player* player, bool msg) const;
         bool isCanTrainingAndResetTalentsOf(Player* player) const;
         bool canCreatureAttack(Unit const* victim, bool force = true) const;
