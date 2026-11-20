@@ -8,7 +8,7 @@
 
 /*
     Demon Hunter order hall campaign.
-    Securing the Way (42872), at the Illidari Redoubt of Dalaran.
+    Securing the Way (42872), at the Illidari Redoubt of Dalaran, and the Redoubt once it is done.
     The Fel Hammer (map 1519): the chained prisoners of the training ground, the Illidari of the decks, Spoils of Victory
     (41062) on the lower command center, and the doubles of Kayn and Matron Mother Malevolence.
     The Empowered Nether Crucible: The Hunter's Gaze (41066) and Immortal Soul (42510).
@@ -150,6 +150,50 @@ class spell_dh_gateway_ripped_open_knockback : public SpellScript
     void Register() override
     {
         OnEffectHitTarget += SpellEffectFn(spell_dh_gateway_ripped_open_knockback::HandleKnockBack, EFFECT_0, SPELL_EFFECT_KNOCK_BACK);
+    }
+};
+
+// The Illidari Redoubt after Securing the Way: the leaders have gone through the gateway to the Fel Hammer, the prisoners
+// were executed for their souls; only the Enforcers keep the Redoubt
+struct npc_illidari_redoubt_securing_the_way : public ScriptedAI
+{
+    npc_illidari_redoubt_securing_the_way(Creature* creature) : ScriptedAI(creature) { }
+
+    bool IsHiddenFor(Player const* player) const override
+    {
+        using namespace SecuringTheWay;
+
+        if (player->GetQuestRewardStatus(QUEST_SECURING_THE_WAY))
+            return true;
+
+        uint32 const entry = me->GetEntry();
+        if (entry != NPC_CAPTURED_WRATHGUARD && entry != NPC_IMPRISONED_IMP)
+            return false;
+
+        QuestStatus const status = player->GetQuestStatus(QUEST_SECURING_THE_WAY);
+        return status == QUEST_STATUS_COMPLETE
+            || (status == QUEST_STATUS_INCOMPLETE && const_cast<Player*>(player)->GetReqKillOrCastCurrentCount(QUEST_SECURING_THE_WAY, NPC_CREDIT_SOULS_UNLEASHED) > 0);
+    }
+};
+
+// Jace Darkweaver (109196), who sends the hunter to Securing the Way, then leaves the Redoubt like the others
+class npc_jace_darkweaver_securing_the_way : public CreatureScript
+{
+public:
+    npc_jace_darkweaver_securing_the_way() : CreatureScript("npc_jace_darkweaver_securing_the_way") { }
+
+    static constexpr uint32 SPELL_SECURING_THE_WAY_ACCEPTED = 217376;
+
+    bool OnQuestAccept(Player* player, Creature* /*creature*/, Quest const* quest) override
+    {
+        if (quest->GetQuestId() == SecuringTheWay::QUEST_SECURING_THE_WAY)
+            player->CastSpell(player, SPELL_SECURING_THE_WAY_ACCEPTED, false);
+        return false;
+    }
+
+    CreatureAI* GetAI(Creature* creature) const override
+    {
+        return new npc_illidari_redoubt_securing_the_way(creature);
     }
 };
 
@@ -762,6 +806,8 @@ void AddSC_demon_hunter_campaign()
     RegisterSpellScript(spell_dh_sentence_to_death);
     RegisterSpellScript(spell_dh_gateway_ripped_open_knockback);
     RegisterGameObjectAI(go_illidari_gateway_securing_the_way);
+    RegisterCreatureAI(npc_illidari_redoubt_securing_the_way);
+    new npc_jace_darkweaver_securing_the_way();
     RegisterCreatureAI(npc_fel_hammer_chained_prisoner);
     RegisterCreatureAI(npc_fel_hammer_illidari);
     new npc_gaardoun_spoils_of_victory();
