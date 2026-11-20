@@ -1924,8 +1924,32 @@ class spell_dh_demonic_trample : public AuraScript
     }
 };
 
+// Until patch 9.0.1 a demon hunter started with Artisan Riding: given at login to those created without it
+class player_dh_artisan_riding : public PlayerScript
+{
+public:
+    player_dh_artisan_riding() : PlayerScript("player_dh_artisan_riding") { }
+
+    void OnLogin(Player* player, bool /*firstLogin*/) override
+    {
+        if (player->getClass() != CLASS_DEMON_HUNTER || player->HasSpell(SPELL_ARTISAN_RIDING))
+            return;
+
+        for (uint32 spellId : { SPELL_APPRENTICE_RIDING, SPELL_JOURNEYMAN_RIDING, SPELL_EXPERT_RIDING, SPELL_ARTISAN_RIDING })
+            if (!player->HasSpell(spellId))
+                player->learnSpell(spellId, false);
+    }
+
+private:
+    static constexpr uint32 SPELL_APPRENTICE_RIDING  = 33388;
+    static constexpr uint32 SPELL_JOURNEYMAN_RIDING  = 33391;
+    static constexpr uint32 SPELL_EXPERT_RIDING      = 34090;
+    static constexpr uint32 SPELL_ARTISAN_RIDING     = 34091;
+};
+
 void AddSC_demonhunter_spell_scripts()
 {
+    new player_dh_artisan_riding();
     new spell_dh_glide();
     new spell_dh_disable_absorb();
     RegisterSpellScript(spell_dh_blade_dance);
