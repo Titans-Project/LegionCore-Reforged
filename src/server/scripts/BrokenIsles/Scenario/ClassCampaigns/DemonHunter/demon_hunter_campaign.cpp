@@ -11,6 +11,7 @@
     Securing the Way (42872), at the Illidari Redoubt of Dalaran.
     The Fel Hammer (map 1519): the chained prisoners of the training ground, the Illidari of the decks, Spoils of Victory
     (41062) on the lower command center, and the doubles of Kayn and Matron Mother Malevolence.
+    The Empowered Nether Crucible: The Hunter's Gaze (41066) and Immortal Soul (42510).
     Campaign scenarios in the client data: The Invasion of Niskara (scenario 1145, map 1489); Confrontation at the Black Temple (scenario 1131, map 1621).
 */
 
@@ -601,6 +602,97 @@ public:
     }
 };
 
+namespace NetherCrucible
+{
+    enum
+    {
+        SPELL_GAZING_TELEPORT           = 203802, // The Hunter's Gaze: to the vision, before the Tomb of Sargeras (Broken Shore)
+        SPELL_GAZING                    = 203790, // the vision itself: the camera flies to the Tomb, Allari speaks
+        SPELL_GAZING_RETURN             = 203803, // credit, back to the crucible, the first aura removed (scene completed)
+        MAP_BROKEN_ISLES                = 1220,
+        SPELL_IMMORTAL_SOUL_KAYN        = 214243, // Immortal Soul: Illidan's soul speaks from the crucible
+        SPELL_IMMORTAL_SOUL_ALTRUIS     = 214276,
+        QUEST_SPOILS_OF_VICTORY_ALTRUIS = 41070,  // the hunter sided with Altruis
+    };
+}
+
+// Empowered Nether Crucible (250677): its gossip option, shown during The Hunter's Gaze only, sends the hunter to the vision
+struct go_empowered_nether_crucible : public GameObjectAI
+{
+    go_empowered_nether_crucible(GameObject* go) : GameObjectAI(go) { }
+
+    bool GossipSelect(Player* player, uint32 /*sender*/, uint32 /*action*/) override
+    {
+        player->PlayerTalkClass->SendCloseGossip();
+        player->CastSpell(player, NetherCrucible::SPELL_GAZING_TELEPORT, false);
+        return true;
+    }
+};
+
+// the vision plays once the hunter has arrived before the Tomb (his loading screen is over, in the map's thread); its end
+// casts Gazing (203803) through spell_scene_event, which brings him back
+class player_dh_hunters_gaze_vision : public PlayerScript
+{
+public:
+    player_dh_hunters_gaze_vision() : PlayerScript("player_dh_hunters_gaze_vision") { }
+
+    void OnLoadingScreenEnd(Player* player) override
+    {
+        player->AddDelayedEvent(0, [player]() -> void
+        {
+            using namespace NetherCrucible;
+
+            if (!player->IsInWorld() || player->GetMapId() != MAP_BROKEN_ISLES)
+                return;
+            Aura* gazing = player->GetAura(SPELL_GAZING_TELEPORT);
+            if (!gazing || player->HasAura(SPELL_GAZING))
+                return;
+            // the loading screen ate into the 30 seconds: they count from the vision on
+            gazing->SetDuration(35 * IN_MILLISECONDS);
+            player->CastSpell(player, SPELL_GAZING, true);
+        });
+    }
+};
+
+// 203802 - Gazing: if the vision never ends (client gone silent), the hunter is not left before the Tomb
+class spell_dh_gazing_teleport : public AuraScript
+{
+    PrepareAuraScript(spell_dh_gazing_teleport);
+
+    void HandleRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+    {
+        using namespace NetherCrucible;
+
+        Unit* target = GetTarget();
+        if (GetTargetApplication()->GetRemoveMode() == AURA_REMOVE_BY_EXPIRE && target->GetMapId() == MAP_BROKEN_ISLES)
+            target->CastSpell(target, SPELL_GAZING_RETURN, true);
+    }
+
+    void Register() override
+    {
+        AfterEffectRemove += AuraEffectRemoveFn(spell_dh_gazing_teleport::HandleRemove, EFFECT_1, SPELL_AURA_HOVER, AURA_EFFECT_HANDLE_REAL);
+    }
+};
+
+// Blood Offering (213918), Immortal Soul: the offering made at the crucible calls Illidan's soul, beside the leader the
+// hunter chose
+class spell_dh_blood_offering : public SpellScript
+{
+    PrepareSpellScript(spell_dh_blood_offering);
+
+    void HandleAfterCast()
+    {
+        if (Player* player = GetCaster()->ToPlayer())
+            player->CastSpell(player, player->GetQuestRewardStatus(NetherCrucible::QUEST_SPOILS_OF_VICTORY_ALTRUIS)
+                ? NetherCrucible::SPELL_IMMORTAL_SOUL_ALTRUIS : NetherCrucible::SPELL_IMMORTAL_SOUL_KAYN, true);
+    }
+
+    void Register() override
+    {
+        AfterCast += SpellCastFn(spell_dh_blood_offering::HandleAfterCast);
+    }
+};
+
 void AddSC_demon_hunter_campaign()
 {
     RegisterSpellScript(spell_dh_sentence_to_death);
@@ -612,4 +704,8 @@ void AddSC_demon_hunter_campaign()
     RegisterCreatureAI(npc_fel_hammer_ashtongue_warrior);
     RegisterCreatureAI(npc_kayn_sunfury_lower_command_center);
     new npc_matron_mother_malevolence_fel_hammer();
+    RegisterGameObjectAI(go_empowered_nether_crucible);
+    new player_dh_hunters_gaze_vision();
+    RegisterAuraScript(spell_dh_gazing_teleport);
+    RegisterSpellScript(spell_dh_blood_offering);
 }
