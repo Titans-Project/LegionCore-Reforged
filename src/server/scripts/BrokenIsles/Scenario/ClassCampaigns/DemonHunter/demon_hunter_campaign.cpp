@@ -12,12 +12,14 @@
     The Fel Hammer (map 1519): the chained prisoners of the training ground, the Illidari of the decks, Spoils of Victory
     (41062) on the lower command center, and the doubles of Kayn and Matron Mother Malevolence.
     The Empowered Nether Crucible: The Hunter's Gaze (41066) and Immortal Soul (42510).
+    The Fel Tome of the arena under the Fel Hammer (order advancement Twisting Nether): one demon a day.
     Campaign scenarios in the client data: The Invasion of Niskara (scenario 1145, map 1489); Confrontation at the Black Temple (scenario 1131, map 1621).
 */
 
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
 #include "GameObjectAI.h"
+#include "Group.h"
 #include "SpellScript.h"
 #include <vector>
 
@@ -693,6 +695,68 @@ class spell_dh_blood_offering : public SpellScript
     }
 };
 
+namespace TwistingNether
+{
+    // server-side tracking quest (no client record): a demon of the Fel Tome slain today; cleared by the daily reset
+    uint32 constexpr QUEST_DEMON_SLAIN_TODAY = 900001;
+    float  constexpr SHARE_RANGE             = 100.0f;
+
+    // the twenty demons the Fel Tome may call
+    uint32 constexpr Demons[] = { 112374, 112375, 112376, 112377, 112378, 112379, 112380, 112381, 112384, 112385,
+                                  112387, 112388, 112389, 112391, 112394, 112395, 112396, 112397, 112398, 112399 };
+
+    bool IsDemon(uint32 entry)
+    {
+        for (uint32 demon : Demons)
+            if (demon == entry)
+                return true;
+        return false;
+    }
+
+    void MarkSlain(Player* player)
+    {
+        player->SetDailyQuestStatus(QUEST_DEMON_SLAIN_TODAY);
+        player->UpdateObjectVisibility();
+    }
+}
+
+// Fel Tome (114816), the arena under the Fel Hammer (order advancement Twisting Nether): one demon a day, so the tome
+// stays out of sight for a hunter who slew one today
+struct npc_fel_tome_twisting_nether : public ScriptedAI
+{
+    npc_fel_tome_twisting_nether(Creature* creature) : ScriptedAI(creature) { }
+
+    bool IsHiddenFor(Player const* player) const override
+    {
+        return player->IsQuestDailyRewarded(TwistingNether::QUEST_DEMON_SLAIN_TODAY);
+    }
+};
+
+class player_twisting_nether_demon_slain : public PlayerScript
+{
+public:
+    player_twisting_nether_demon_slain() : PlayerScript("player_twisting_nether_demon_slain") { }
+
+    void OnCreatureKill(Player* killer, Creature* killed) override
+    {
+        if (!TwistingNether::IsDemon(killed->GetEntry()))
+            return;
+
+        Group* group = killer->GetGroup();
+        if (!group)
+        {
+            TwistingNether::MarkSlain(killer);
+            return;
+        }
+
+        group->ForEachMemberInMap(killed->GetMap(), [killed](Player* member)
+        {
+            if (member->IsWithinDistInMap(killed, TwistingNether::SHARE_RANGE))
+                TwistingNether::MarkSlain(member);
+        });
+    }
+};
+
 void AddSC_demon_hunter_campaign()
 {
     RegisterSpellScript(spell_dh_sentence_to_death);
@@ -708,4 +772,6 @@ void AddSC_demon_hunter_campaign()
     new player_dh_hunters_gaze_vision();
     RegisterAuraScript(spell_dh_gazing_teleport);
     RegisterSpellScript(spell_dh_blood_offering);
+    RegisterCreatureAI(npc_fel_tome_twisting_nether);
+    new player_twisting_nether_demon_slain();
 }
