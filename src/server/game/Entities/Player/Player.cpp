@@ -15141,8 +15141,8 @@ bool Player::CanGetItemForLoot(ItemTemplate const* proto, bool specCheck) const
     if (proto->IsNotNeedCheck())
         return true;
 
-    if (proto->GetId() == 138019) // Mythic Keystone can looting one for week
-        if (const_cast<Player*>(this)->m_challengeKeyInfo.IsActive())
+    if (proto->GetId() == 138019) // one Mythic Keystone at a time
+        if (HasItemCount(138019, 1, true))
             return false;
 
     std::list<uint32> specList{GetLootSpecID()};

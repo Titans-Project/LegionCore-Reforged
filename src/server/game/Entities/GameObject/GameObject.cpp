@@ -3065,8 +3065,8 @@ void GameObject::BuildValuesUpdate(uint8 updateType, ByteBuffer* data, Player* t
                         break;
                     }
                     case GAMEOBJECT_TYPE_CHALLENGE_MODE_REWARD:
-                        // also open to a player without a key, to take it back
-                        if (sChallengeMgr->HasOploteLoot(target->GetGUID()) || !target->m_challengeKeyInfo.IsActive())
+                        // also open to a player without a key in his bags, to take it back
+                        if (sChallengeMgr->HasOploteLoot(target->GetGUID()) || !target->HasItemCount(138019, 1, true))
                             dynFlags |= GO_DYNFLAG_LO_CHALLENGE_UNLOCK; // Unlock Go for 7.2.0
                         else
                             dynFlags |= GO_DYNFLAG_LO_CHALLENGE_ERROR; // Error unlock go
@@ -3099,7 +3099,7 @@ void GameObject::BuildValuesUpdate(uint8 updateType, ByteBuffer* data, Player* t
                 uint32 modelID = m_uint32Values[index];
                 if (GetGoType() == GAMEOBJECT_TYPE_CHALLENGE_MODE_REWARD)
                 {
-                    if (sChallengeMgr->HasOploteLoot(target->GetGUID()) || !target->m_challengeKeyInfo.IsActive())
+                    if (sChallengeMgr->HasOploteLoot(target->GetGUID()) || !target->HasItemCount(138019, 1, true))
                         modelID = GetGOInfo()->challengeModeReward.WhenAvailable;
                 }
                 else if (GetGoType() == GAMEOBJECT_TYPE_GARRISON_SHIPMENT)
