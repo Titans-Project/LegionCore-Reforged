@@ -472,21 +472,24 @@ class spell_monk_power_strikes : public SpellScriptLoader
 
                 int32 cd = GetSpellInfo()->Effects[EFFECT_2]->CalcValue(caster) * -1000;
 
+                // Face Palm must be rolled first: its extra brew cooldown reduction goes into cd
+                if (AuraEffect const* aurEff = caster->GetAuraEffect(213116, EFFECT_0)) // Face Palm
+                {
+                    if (roll_chance_i(aurEff->GetAmount()))
+                    {
+                        if (SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(227679))
+                        {
+                            cd += spellInfo->Effects[EFFECT_1]->CalcValue(caster) * -1000;
+                            SetHitDamage(CalculatePct(GetHitDamage(), spellInfo->Effects[EFFECT_0]->CalcValue(caster)));
+                        }
+                    }
+                }
+
                 if (Player* plr = caster->ToPlayer())
                 {
                     plr->ModifySpellCooldown(115203, cd);
                     plr->ModifySpellCooldown(115399, cd);
                     plr->ModSpellChargeCooldown(119582, -cd);
-                }
-
-                AuraEffect const* aurEff = caster->GetAuraEffect(213116, EFFECT_0); // Face Palm
-                if (!aurEff || !roll_chance_i(aurEff->GetAmount()))
-                    return;
-
-                if (SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(227679))
-                {
-                    cd += spellInfo->Effects[EFFECT_1]->CalcValue(caster) * -1000;
-                    SetHitDamage(CalculatePct(GetHitDamage(), spellInfo->Effects[EFFECT_0]->CalcValue(caster)));
                 }
             }
 
