@@ -197,6 +197,11 @@ class spell_warl_demonic_circle_summon : public SpellScriptLoader
             }
         };
 
+        SpellScript* GetSpellScript() const override
+        {
+            return new spell_warl_demonic_circle_summon_SpellScript();
+        }
+
         AuraScript* GetAuraScript() const override
         {
             return new spell_warl_demonic_circle_summon_AuraScript();
