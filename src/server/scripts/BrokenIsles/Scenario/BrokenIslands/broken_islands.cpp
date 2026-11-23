@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
 The Broken Islands Scenario
 */
@@ -2869,7 +2877,8 @@ public:
 
             if (me->GetEntry() == 100442)
             {
-                if (who->ToPlayer()->GetQuestStatus(40522) != QUEST_STATUS_NONE && who->ToPlayer()->GetQuestStatus(40522) == QUEST_STATUS_INCOMPLETE)
+                // Audience with the Warchief is the demon hunters' Fate of the Horde
+                if (who->ToPlayer()->GetQuestStatus(40522) == QUEST_STATUS_INCOMPLETE || who->ToPlayer()->GetQuestStatus(40976) == QUEST_STATUS_INCOMPLETE)
                 {
                     GuidSet::iterator itr = m_player_for_event.find(who->GetGUID());
                     if (itr != m_player_for_event.end())

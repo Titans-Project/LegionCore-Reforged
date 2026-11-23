@@ -3430,7 +3430,7 @@ public:
 
     bool OnQuestAccept(Player* player, Creature* creature, Quest const* quest) override
     {
-        if (quest->GetQuestId() != 39691 && quest->GetQuestId() != 39692)
+        if (quest->GetQuestId() != 39691 && quest->GetQuestId() != 40976)
             return false;
 
         Position const from = creature->GetPosition();
