@@ -732,13 +732,13 @@ class spell_rog_grappling_hook : public SpellScriptLoader
                 }
 
                 float limit = 60.0f;
-                PathGenerator* m_path = new PathGenerator(caster);
-                bool result = m_path->CalculatePath(dest->GetPositionX(), dest->GetPositionY(), dest->GetPositionZ(), false);
-                if (m_path->GetPathType() & PATHFIND_SHORT)
+                PathGenerator path(caster);
+                bool result = path.CalculatePath(dest->GetPositionX(), dest->GetPositionY(), dest->GetPositionZ(), false);
+                if (path.GetPathType() & PATHFIND_SHORT)
                     return SPELL_FAILED_OUT_OF_RANGE;
-                else if (!result || m_path->GetPathType() & PATHFIND_NOPATH)
+                else if (!result || path.GetPathType() & PATHFIND_NOPATH)
                     return SPELL_FAILED_NOPATH;
-                else if (m_path->GetTotalLength() > limit)
+                else if (path.GetTotalLength() > limit)
                     return SPELL_FAILED_OUT_OF_RANGE;
                 return SPELL_CAST_OK;
             }
