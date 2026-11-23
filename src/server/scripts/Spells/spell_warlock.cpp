@@ -622,7 +622,7 @@ class spell_warl_demonic_gateway_cast : public SpellScriptLoader
                 if(Unit* caster = GetCaster())
                 {
                     Position const* pos = GetExplTargetDest();
-                    float delta_z = fabs(pos->GetPositionZ()) - fabs(caster->GetPositionZ());
+                    float delta_z = pos->GetPositionZ() - caster->GetPositionZ();
                     if(delta_z > 2.7f || delta_z < -2.7f)
                         return SPELL_FAILED_NOT_HERE;
 
