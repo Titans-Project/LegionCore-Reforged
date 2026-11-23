@@ -1,5 +1,10 @@
-/*
-*/
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
 
 //118271
 struct npc_clutchmother_zavas : public ScriptedAI
@@ -38,7 +43,7 @@ struct npc_clutchmother_zavas : public ScriptedAI
     {
         std::list<Creature*> list;
         list.clear();
-        me->GetCreatureListWithEntryInGrid(list, 114523, 200.0f);
+        me->GetCreatureListWithEntryInGrid(list, 118929, 200.0f);
         if (!list.empty())
             for (auto& cre : list)
                 cre->DespawnOrUnsummon();
@@ -190,7 +195,6 @@ struct npc_giantfin : public ScriptedAI
                 events.RescheduleEvent(EVENT_1, 8000);
                 break;
             case EVENT_2:
-                Talk(0);
                 DoCast(235769);
                 events.RescheduleEvent(EVENT_2, 17000);
                 break;
@@ -770,6 +774,7 @@ struct npc_sherazin : public ScriptedAI
             switch (eventId)
             {
             case EVENT_1:
+                Talk(0);
                 DoCast(236133);
                 events.RescheduleEvent(EVENT_1, 60000);
                 break;
@@ -1066,7 +1071,6 @@ struct npc_ravenous_larva : ScriptedAI
                             if (!next->HasAura(173079))
                                 DoCast(next, 173079, true);
 
-                            Talk(0, next->GetGUID());
                             useTalk = true;
                         }
                     }
@@ -1305,8 +1309,10 @@ class spell_dino_mojo : public SpellScript
 
     void HandleScript(SpellEffIndex /*effIndex*/)
     {
-        Player* caster = GetCaster()->ToPlayer();
-        Player* target = GetHitUnit()->ToPlayer();
+        Unit* casterUnit = GetCaster();
+        Unit* hitUnit = GetHitUnit();
+        Player* caster = casterUnit ? casterUnit->ToPlayer() : nullptr;
+        Player* target = hitUnit ? hitUnit->ToPlayer() : nullptr;
         if (!target || !caster)
             return;
 
@@ -1551,27 +1557,28 @@ class spell_bloom : public SpellScript
 
 void AddSC_UnGoroMadness()
 {
-    //RegisterCreatureAI(npc_clutchmother_zavas);
-    //RegisterCreatureAI(npc_ravenous_larva);
-    //RegisterCreatureAI(npc_giantfin);
-    //RegisterCreatureAI(npc_sunkeeper_croesus);
-    //RegisterCreatureAI(npc_skrox);
-    //RegisterCreatureAI(npc_akaridal);
-    //RegisterCreatureAI(npc_tyrantus);
-    //RegisterCreatureAI(npc_queen_zavra);
-    //RegisterCreatureAI(npc_tar_tyrant);
-    //RegisterCreatureAI(npc_dadanga);
-    //RegisterCreatureAI(npc_tar_pit);
-    //RegisterCreatureAI(npc_reanimated_sludge);
-    //RegisterCreatureAI(npc_water_bubble);
-    //RegisterCreatureAI(npc_water_bubble_murloc);
-    //RegisterCreatureAI(npc_crystal_vine);
-    //RegisterSpellScript(spell_dino_mojo);
-    //RegisterSpellScript(spell_adaptation);
-    //RegisterSpellScript(spell_bloom);
-    //RegisterAuraScript(spell_dino_mojo_bonus);
-    //RegisterAuraScript(spell_fertile_toxin);
-    //RegisterAuraScript(spell_adaptation_caustic_blood);
-    //RegisterAuraScript(spell_tar_strike);
-    //RegisterAuraScript(spell_adaptation_heavy_footed);
+    RegisterCreatureAI(npc_clutchmother_zavas);
+    RegisterCreatureAI(npc_ravenous_larva);
+    RegisterCreatureAI(npc_giantfin);
+    RegisterCreatureAI(npc_sunkeeper_croesus);
+    RegisterCreatureAI(npc_skrox);
+    RegisterCreatureAI(npc_akaridal);
+    RegisterCreatureAI(npc_tyrantus);
+    RegisterCreatureAI(npc_queen_zavra);
+    RegisterCreatureAI(npc_tar_tyrant);
+    RegisterCreatureAI(npc_dadanga);
+    RegisterCreatureAI(npc_sherazin);
+    RegisterCreatureAI(npc_tar_pit);
+    RegisterCreatureAI(npc_reanimated_sludge);
+    RegisterCreatureAI(npc_water_bubble);
+    RegisterCreatureAI(npc_water_bubble_murloc);
+    RegisterCreatureAI(npc_crystal_vine);
+    RegisterSpellScript(spell_dino_mojo);
+    RegisterSpellScript(spell_adaptation);
+    RegisterSpellScript(spell_bloom);
+    RegisterAuraScript(spell_dino_mojo_bonus);
+    RegisterAuraScript(spell_fertile_toxin);
+    RegisterAuraScript(spell_adaptation_caustic_blood);
+    RegisterAuraScript(spell_tar_strike);
+    RegisterAuraScript(spell_adaptation_heavy_footed);
 }
