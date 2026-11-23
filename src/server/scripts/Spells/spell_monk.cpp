@@ -343,7 +343,7 @@ class spell_monk_diffuse_magic : public SpellScriptLoader
                             if (crt->isWorldBoss() || crt->IsDungeonBoss() || crt->isTrigger())
                                 badTarget = true;
 
-                        if (caster->_IsValidAttackTarget(target, aura->GetSpellInfo()))
+                        if (!caster->_IsValidAttackTarget(target, aura->GetSpellInfo()))
                             badTarget = true;
 
                         if (!badTarget)
