@@ -708,16 +708,19 @@ class spell_mage_greater_invisibility : public SpellScriptLoader
                 if (Unit* caster = GetCaster())
                 {
                     int32 count = 0;
-                    Unit::AuraEffectList const& mPeriodic = caster->GetAuraEffectsByType(SPELL_AURA_PERIODIC_DAMAGE);
-                    for (Unit::AuraEffectList::const_iterator iter = mPeriodic.begin(); iter != mPeriodic.end(); ++iter)
+                    // Copy: removing an aura erases it from the live list
+                    Unit::AuraEffectList const periodic = caster->GetAuraEffectsByType(SPELL_AURA_PERIODIC_DAMAGE);
+                    for (AuraEffect* effect : periodic)
                     {
-                        if (!(*iter)) // prevent crash
+                        if (!effect)
                             continue;
-                        Aura* aura = (*iter)->GetBase();
+                        Aura* aura = effect->GetBase();
+                        if (!aura || aura->IsRemoved())
+                            continue;
                         aura->Remove();
                         count++;
-                        if(count > 1)
-                            return;
+                        if (count > 1)
+                            break;
                     }
                     caster->CastSpell(GetTarget(), 113862, true, NULL, aurEff);
                 }
