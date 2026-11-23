@@ -12195,6 +12195,12 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type, bool AoeLoot, uint8 p
             {
                 loot->clear();
                 loot->FillLoot(creature->GetCreatureTemplate()->SkinLootId, LootTemplates_Skinning, this, true, false, creature);
+                // gathering a corpse always yields something, but most tables only hold independent chances
+                for (uint8 retry = 0; retry < 10 && loot->empty(); ++retry)
+                {
+                    loot->clear();
+                    loot->FillLoot(creature->GetCreatureTemplate()->SkinLootId, LootTemplates_Skinning, this, true, true, creature);
+                }
                 permission = OWNER_PERMISSION;
             }
             // set group rights only for loot_type != LOOT_SKINNING
