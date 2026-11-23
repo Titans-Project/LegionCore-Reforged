@@ -1,3 +1,15 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
 Phases:
 start q14113/14153 spell phase(59073) phase 2.
@@ -1404,6 +1416,118 @@ public:
     }
 };
 
+// 447: the Gasbot Control Panel sends Gasbot into the KTC headquarters, where it sets the place ablaze
+enum Gasbot447
+{
+    QUEST_447                   = 14125,
+    NPC_GASBOT                  = 37598,
+    SPELL_GASBOT_GAS_STREAM     = 70256,
+    SPELL_GASBOT_EXPLOSION      = 70259,
+    POINT_GASBOT_HEADQUARTERS   = 1,
+    EVENT_GASBOT_GAS            = 1,
+    EVENT_GASBOT_EXPLODE        = 2,
+    EVENT_GASBOT_DESPAWN        = 3,
+};
+
+Position const GasbotHeadquartersPos = { -8413.0f, 1366.0f, 104.7f, 0.0f };
+
+// 70253 - 447: AICast Gasbot Master
+class spell_kezan_gasbot_master : public SpellScriptLoader
+{
+public:
+    spell_kezan_gasbot_master() : SpellScriptLoader("spell_kezan_gasbot_master") { }
+
+    class spell_kezan_gasbot_master_SpellScript : public SpellScript
+    {
+        PrepareSpellScript(spell_kezan_gasbot_master_SpellScript);
+
+        void HandleAfterCast()
+        {
+            Player* player = GetCaster() ? GetCaster()->ToPlayer() : nullptr;
+            if (!player || player->GetQuestStatus(QUEST_447) != QUEST_STATUS_INCOMPLETE)
+                return;
+
+            std::list<Creature*> gasbots;
+            player->GetCreatureListWithEntryInGrid(gasbots, NPC_GASBOT, 100.0f);
+            for (Creature* gasbot : gasbots)
+                if (TempSummon* summon = gasbot->ToTempSummon())
+                    if (summon->GetSummonerGUID() == player->GetGUID())
+                        return;
+
+            Position pos = player->GetNearPosition(2.0f, 0.0f);
+            player->SummonCreature(NPC_GASBOT, pos, TEMPSUMMON_TIMED_DESPAWN, 60000, 0, player->GetGUID());
+        }
+
+        void Register() override
+        {
+            AfterCast += SpellCastFn(spell_kezan_gasbot_master_SpellScript::HandleAfterCast);
+        }
+    };
+
+    SpellScript* GetSpellScript() const override
+    {
+        return new spell_kezan_gasbot_master_SpellScript();
+    }
+};
+
+class npc_kezan_gasbot : public CreatureScript
+{
+public:
+    npc_kezan_gasbot() : CreatureScript("npc_kezan_gasbot") { }
+
+    struct npc_kezan_gasbotAI : public ScriptedAI
+    {
+        npc_kezan_gasbotAI(Creature* creature) : ScriptedAI(creature) { }
+
+        ObjectGuid playerGUID;
+        EventMap events;
+
+        void IsSummonedBy(Unit* summoner) override
+        {
+            playerGUID = summoner->GetGUID();
+            me->SetReactState(REACT_PASSIVE);
+            me->SetWalk(true);
+            me->GetMotionMaster()->MovePoint(POINT_GASBOT_HEADQUARTERS, GasbotHeadquartersPos);
+        }
+
+        void MovementInform(uint32 type, uint32 id) override
+        {
+            if (type == POINT_MOTION_TYPE && id == POINT_GASBOT_HEADQUARTERS)
+                events.ScheduleEvent(EVENT_GASBOT_GAS, 500);
+        }
+
+        void UpdateAI(uint32 diff) override
+        {
+            events.Update(diff);
+
+            while (uint32 eventId = events.ExecuteEvent())
+            {
+                switch (eventId)
+                {
+                    case EVENT_GASBOT_GAS:
+                        DoCast(me, SPELL_GASBOT_GAS_STREAM, true);
+                        events.ScheduleEvent(EVENT_GASBOT_EXPLODE, 4000);
+                        break;
+                    case EVENT_GASBOT_EXPLODE:
+                        DoCast(me, SPELL_GASBOT_EXPLOSION, true);
+                        if (Player* player = ObjectAccessor::GetPlayer(*me, playerGUID))
+                            player->KilledMonsterCredit(NPC_GASBOT);
+                        events.ScheduleEvent(EVENT_GASBOT_DESPAWN, 1500);
+                        break;
+                    case EVENT_GASBOT_DESPAWN:
+                        me->DespawnOrUnsummon();
+                        break;
+                }
+            }
+        }
+    };
+
+    CreatureAI* GetAI(Creature* creature) const override
+    {
+        return new npc_kezan_gasbotAI(creature);
+    }
+};
+
 void AddSC_kezan()
 {
     new npc_defiant_troll;
@@ -1420,4 +1544,6 @@ void AddSC_kezan()
     new spell_gen_bank_hacking_spell();
     new npc_hack_bank_controller();
     new go_kajamite_deposit();
+    new spell_kezan_gasbot_master();
+    new npc_kezan_gasbot();
 }
