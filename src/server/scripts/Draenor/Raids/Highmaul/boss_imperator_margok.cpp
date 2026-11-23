@@ -1,10 +1,10 @@
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MILLENIUM-STUDIO
-//  Copyright 2016 Millenium-studio SARL
-//  All Rights Reserved.
-//
-////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
 
 # include "highmaul.hpp"
 
@@ -2970,8 +2970,10 @@ class spell_highmaul_volatile_anomalies : public AuraScript
 
     PrepareAuraScript(spell_highmaul_volatile_anomalies);
 
+    // the three anomalies are cast here at their fixed spots, not where the aura would trigger them
     void OnTick(AuraEffect const* /*auraEffect*/)
     {
+        PreventDefaultAction();
         if (Unit* target = GetTarget())
         {
             if (Creature* margok = target->FindNearestCreature(ImperatorMargok, 150.0f))
@@ -2998,9 +3000,16 @@ class spell_highmaul_volatile_anomalies : public AuraScript
         }
     }
 
+    void PreventTrigger(AuraEffect const* /*auraEffect*/)
+    {
+        PreventDefaultAction();
+    }
+
     void Register() override
     {
-        OnEffectPeriodic += AuraEffectPeriodicFn(spell_highmaul_volatile_anomalies::OnTick, EFFECT_0, SPELL_AURA_PERIODIC_DUMMY);
+        OnEffectPeriodic += AuraEffectPeriodicFn(spell_highmaul_volatile_anomalies::OnTick, EFFECT_0, SPELL_AURA_PERIODIC_TRIGGER_SPELL);
+        OnEffectPeriodic += AuraEffectPeriodicFn(spell_highmaul_volatile_anomalies::PreventTrigger, EFFECT_1, SPELL_AURA_PERIODIC_TRIGGER_SPELL);
+        OnEffectPeriodic += AuraEffectPeriodicFn(spell_highmaul_volatile_anomalies::PreventTrigger, EFFECT_2, SPELL_AURA_PERIODIC_TRIGGER_SPELL);
     }
 };
 
