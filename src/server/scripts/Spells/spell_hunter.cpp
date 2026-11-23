@@ -1676,8 +1676,9 @@ class spell_hun_blink_strikes : public SpellScriptLoader
             {
                 Creature* caster = GetCaster()->ToCreature();
                 Unit* target = GetExplTargetUnit();
-                Unit* owner = caster->GetAnyOwner();
-                if (!caster || !target || caster->HasCreatureSpellCooldown(130393) || !owner->HasAura(130392))
+                // Wild beasts cast these spells too and have no owner
+                Unit* owner = caster ? caster->GetAnyOwner() : nullptr;
+                if (!caster || !target || !owner || caster->HasCreatureSpellCooldown(130393) || !owner->HasAura(130392))
                     return;
 
                 if (!caster->IsWithinMeleeRange(target))
