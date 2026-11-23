@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
     Dungeon : Vault of the Wardens 100-110
     Encounter: Ashgolm
@@ -388,14 +396,15 @@ public:
 
         void OnRemove(AuraEffect const* aurEff, AuraEffectHandleModes /*mode*/)
         {
-            if (Creature* caster = GetCaster()->ToCreature())
+            Unit* owner = GetCaster();
+            if (Creature* caster = owner ? owner->ToCreature() : nullptr)
                if (caster->GetEntry() == 95886)
                 caster->AI()->Talk(SAY_BRITTLE);
         }
         
         void Register() override
         {
-            OnEffectRemove += AuraEffectRemoveFn(spell_brittle_AuraScript::OnRemove, EFFECT_0, SPELL_AURA_TRANSFORM, AURA_EFFECT_HANDLE_REAL);
+            OnEffectRemove += AuraEffectRemoveFn(spell_brittle_AuraScript::OnRemove, EFFECT_4, SPELL_AURA_TRANSFORM, AURA_EFFECT_HANDLE_REAL);
         }
     };
 
