@@ -2113,7 +2113,7 @@ class spell_warl_drain_soul : public SpellScriptLoader
                                             if (!minDur || minDur > aura->GetDuration())
                                             {
                                                 unstable = aura;
-                                                minDur = aura->GetDuration() + durBonus;
+                                                minDur = aura->GetDuration();
                                             }
                                         }
                                     }
