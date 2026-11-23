@@ -1,20 +1,14 @@
-/*
-* Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
-* Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
-*
-* This program is free software; you can redistribute it and/or modify it
-* under the terms of the GNU General Public License as published by the
-* Free Software Foundation; either version 2 of the License, or (at your
-* option) any later version.
-*
-* This program is distributed in the hope that it will be useful, but WITHOUT
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-* FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
-* more details.
-*
-* You should have received a copy of the GNU General Public License along
-* with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 /*######
 ## npc_hogger
@@ -469,8 +463,284 @@ struct npc_hogger_minion : public ScriptedAI
     }
 };
 
+// Northshire: the Stormwind infantry really fight the Blackrock worgs and win; Brother Paxton tends the wounded
+enum NorthshireBattle
+{
+    NPC_STORMWIND_INFANTRY      = 49869,
+    NPC_BLACKROCK_BATTLE_WORG   = 49871,
+    NPC_BLACKROCK_SPY           = 49874,
+    NPC_BROTHER_PAXTON          = 951,
+    SAY_SPY_AGGRO               = 0,
+    SPELL_PAXTON_RENEW          = 93094,
+    SPELL_PAXTON_FORTITUDE      = 13864,
+    SAY_PAXTON_HEAL             = 0,
+    SAY_INFANTRY_CALL_FOR_HEAL  = 0,
+    EVENT_PAXTON_TEND           = 1,
+    EVENT_INFANTRY_LOOK         = 1,
+    EVENT_INFANTRY_RECOVER      = 2,
+};
+
+// Each infantryman stands by his own worg (1 to 4 yards) and fights that one only, remembered by its spawn
+float constexpr INFANTRY_ENGAGE_RANGE = 6.0f;
+int32 constexpr INFANTRY_HEALTH_FLOOR_PCT = 30;
+
+struct npc_stormwind_infantry : public ScriptedAI
+{
+    npc_stormwind_infantry(Creature* creature) : ScriptedAI(creature) { }
+
+    EventMap events;
+    bool calledForHeal = false;
+    uint32 fightPace = 12;
+    uint64 ownWorgSpawn = 0;
+
+    Creature* FindOwnWorg()
+    {
+        std::list<Creature*> worgs;
+        me->GetCreatureListWithEntryInGrid(worgs, NPC_BLACKROCK_BATTLE_WORG, 20.0f);
+        if (!ownWorgSpawn)
+        {
+            // the worg whose spawn point is nearest to the soldier's post is his for good
+            Position const post = me->GetHomePosition();
+            Creature* nearest = nullptr;
+            float nearestDist = INFANTRY_ENGAGE_RANGE;
+            for (Creature* worg : worgs)
+            {
+                if (!worg->GetDBTableGUIDLow())
+                    continue;
+                float const dist = post.GetExactDist2d(worg->GetHomePosition());
+                if (dist <= nearestDist)
+                {
+                    nearest = worg;
+                    nearestDist = dist;
+                }
+            }
+            if (!nearest)
+                return nullptr;
+            ownWorgSpawn = nearest->GetDBTableGUIDLow();
+        }
+
+        for (Creature* worg : worgs)
+            if (worg->GetDBTableGUIDLow() == ownWorgSpawn && worg->IsAlive() && !worg->IsInEvadeMode())
+                return worg;
+        return nullptr;
+    }
+
+    void Reset() override
+    {
+        // the core would give back most of the health at once out of combat: the soldier heals slowly instead
+        me->setRegeneratingHealth(false);
+        events.Reset();
+        events.ScheduleEvent(EVENT_INFANTRY_LOOK, 1500);
+        events.ScheduleEvent(EVENT_INFANTRY_RECOVER, 1000);
+        calledForHeal = false;
+        // between two worgs the soldier stays on guard, weapon raised
+        me->SetUInt32Value(UNIT_FIELD_EMOTE_STATE, EMOTE_STATE_READY1H);
+    }
+
+    void JustReachedHome() override
+    {
+        me->SetUInt32Value(UNIT_FIELD_EMOTE_STATE, EMOTE_STATE_READY1H);
+    }
+
+    // Each fight draws its own pace, from 5 to 17 blows, so the soldiers never all finish together
+    void EnterCombat(Unit* /*who*/) override
+    {
+        fightPace = urand(6, 18);
+        me->SetUInt32Value(UNIT_FIELD_EMOTE_STATE, EMOTE_ONESHOT_NONE);
+    }
+
+    // The fight is paced in shares of health, whatever the levels; the worg barely scratches the soldier,
+    // who never dies from it
+    void DamageDealt(Unit* victim, uint32& damage, DamageEffectType /*damageType*/) override
+    {
+        if (damage && victim->GetEntry() == NPC_BLACKROCK_BATTLE_WORG)
+            damage = std::max<uint32>(1, victim->CountPctFromMaxHealth(urand(fightPace - 3, fightPace + 3)));
+    }
+
+    void DamageTaken(Unit* attacker, uint32& damage, DamageEffectType /*dmgType*/) override
+    {
+        if (!damage || !attacker || attacker->GetEntry() != NPC_BLACKROCK_BATTLE_WORG)
+            return;
+
+        // fights follow one another every few seconds: a worg never takes a soldier below 30 % of his health
+        uint64 const floor = me->CountPctFromMaxHealth(INFANTRY_HEALTH_FLOOR_PCT);
+        damage = std::max<uint32>(1, me->CountPctFromMaxHealth(urand(1, 3)));
+        if (me->GetHealth() <= floor)
+            damage = 0;
+        else if (me->GetHealth() - damage < floor)
+            damage = uint32(me->GetHealth() - floor);
+    }
+
+    // Worgs are hostile now: without this, every soldier would run after all the worgs of the field.
+    // His own worg is engaged by the look-out below
+    void MoveInLineOfSight(Unit* who) override
+    {
+        if (who->GetEntry() == NPC_BLACKROCK_BATTLE_WORG)
+            return;
+        // the spies hide in the bushes: they are the players' business
+        if (who->GetEntry() == NPC_BLACKROCK_SPY)
+            return;
+
+        ScriptedAI::MoveInLineOfSight(who);
+    }
+
+    void UpdateAI(uint32 diff) override
+    {
+        events.Update(diff);
+        while (uint32 eventId = events.ExecuteEvent())
+        {
+            switch (eventId)
+            {
+                case EVENT_INFANTRY_LOOK:
+                    if (!me->isInCombat() && !me->IsInEvadeMode())
+                        if (Creature* worg = FindOwnWorg())
+                            AttackStart(worg);
+                    events.ScheduleEvent(EVENT_INFANTRY_LOOK, 1500);
+                    break;
+                case EVENT_INFANTRY_RECOVER:
+                    // back to full health from the 30 % floor in about seven seconds, before the worg returns
+                    if (!me->isInCombat() && me->IsAlive() && me->GetHealth() < me->GetMaxHealth())
+                        me->ModifyHealth(std::max<uint32>(1, me->CountPctFromMaxHealth(10)));
+                    events.ScheduleEvent(EVENT_INFANTRY_RECOVER, 1000);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        if (!UpdateVictim())
+            return;
+
+        if (!calledForHeal && HealthBelowPct(55))
+        {
+            calledForHeal = true;
+            Talk(SAY_INFANTRY_CALL_FOR_HEAL);
+        }
+
+        DoMeleeAttackIfReady();
+    }
+};
+
+struct npc_blackrock_battle_worg : public ScriptedAI
+{
+    npc_blackrock_battle_worg(Creature* creature) : ScriptedAI(creature) { }
+
+    // Felled by a soldier, the worg comes back 7 to 10 seconds later so that the fight goes on;
+    // killed by a player, it keeps its corpse for the loot and the usual respawn
+    void JustDied(Unit* killer) override
+    {
+        if (killer && killer->GetEntry() == NPC_STORMWIND_INFANTRY)
+            me->DespawnOrUnsummon(2000, Seconds(urand(5, 8)));
+    }
+
+    // Players are fair game at the usual range; the soldiers start the fights themselves
+    void MoveInLineOfSight(Unit* who) override
+    {
+        if (who->GetEntry() == NPC_STORMWIND_INFANTRY || who->GetEntry() == NPC_BROTHER_PAXTON)
+            return;
+
+        ScriptedAI::MoveInLineOfSight(who);
+    }
+};
+
+// Hostile to players, but the soldiers and Paxton count as players for the factions: the spy leaves them alone
+struct npc_blackrock_spy : public ScriptedAI
+{
+    npc_blackrock_spy(Creature* creature) : ScriptedAI(creature) { }
+
+    void MoveInLineOfSight(Unit* who) override
+    {
+        if (who->GetEntry() == NPC_STORMWIND_INFANTRY || who->GetEntry() == NPC_BROTHER_PAXTON)
+            return;
+
+        ScriptedAI::MoveInLineOfSight(who);
+    }
+
+    void EnterCombat(Unit* who) override
+    {
+        if (who && who->IsPlayer() && roll_chance_i(25))
+            Talk(SAY_SPY_AGGRO, who->GetGUID());
+    }
+};
+
+struct npc_brother_paxton : public ScriptedAI
+{
+    npc_brother_paxton(Creature* creature) : ScriptedAI(creature) { }
+
+    EventMap events;
+
+    void Reset() override
+    {
+        events.Reset();
+        events.ScheduleEvent(EVENT_PAXTON_TEND, urand(4000, 8000));
+    }
+
+    void UpdateAI(uint32 diff) override
+    {
+        events.Update(diff);
+        if (events.ExecuteEvent() == EVENT_PAXTON_TEND)
+        {
+            TendInfantry();
+            events.ScheduleEvent(EVENT_PAXTON_TEND, urand(8000, 12000));
+        }
+
+        if (!UpdateVictim())
+            return;
+
+        DoMeleeAttackIfReady();
+    }
+
+    // Paxton heals, he does not join the brawl around him
+    void MoveInLineOfSight(Unit* who) override
+    {
+        if (who->GetEntry() == NPC_BLACKROCK_BATTLE_WORG || who->GetEntry() == NPC_BLACKROCK_SPY)
+            return;
+
+        ScriptedAI::MoveInLineOfSight(who);
+    }
+
+    void TendInfantry()
+    {
+        if (me->isInCombat() || me->HasUnitState(UNIT_STATE_CASTING))
+            return;
+
+        std::list<Creature*> soldiers;
+        me->GetCreatureListWithEntryInGrid(soldiers, NPC_STORMWIND_INFANTRY, 30.0f);
+
+        Creature* hurt = nullptr;
+        Creature* unblessed = nullptr;
+        for (Creature* soldier : soldiers)
+        {
+            if (!soldier->IsAlive())
+                continue;
+            if (soldier->GetHealthPct() < 100.0f && !soldier->HasAura(SPELL_PAXTON_RENEW) && (!hurt || soldier->GetHealthPct() < hurt->GetHealthPct()))
+                hurt = soldier;
+            if (!unblessed && !soldier->HasAura(SPELL_PAXTON_FORTITUDE))
+                unblessed = soldier;
+        }
+
+        if (hurt)
+        {
+            me->SetFacingToObject(hurt);
+            DoCast(hurt, SPELL_PAXTON_RENEW);
+            // One heal in three is cried out, otherwise the yard would never be quiet
+            if (roll_chance_i(33))
+                Talk(SAY_PAXTON_HEAL, hurt->GetGUID());
+        }
+        else if (unblessed)
+        {
+            me->SetFacingToObject(unblessed);
+            DoCast(unblessed, SPELL_PAXTON_FORTITUDE);
+        }
+    }
+};
+
 void AddSC_elwynn_forest()
 {
     RegisterCreatureAI(npc_hogger);
     RegisterCreatureAI(npc_hogger_minion);
+    RegisterCreatureAI(npc_brother_paxton);
+    RegisterCreatureAI(npc_stormwind_infantry);
+    RegisterCreatureAI(npc_blackrock_battle_worg);
+    RegisterCreatureAI(npc_blackrock_spy);
 }
