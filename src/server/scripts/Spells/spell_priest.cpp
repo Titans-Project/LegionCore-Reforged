@@ -1535,6 +1535,8 @@ class spell_pri_shadowform : public AuraScript
 
         if (update <= 0)
         {
+            update = 1000;
+
             if (Unit* caster = GetCaster())
             {
                 // check power
