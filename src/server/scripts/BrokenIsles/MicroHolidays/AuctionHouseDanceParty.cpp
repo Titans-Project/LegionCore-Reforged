@@ -6,9 +6,6 @@
 ///                                      ///
 ////////////////////////////////////////////
 
-/*
-*/
- 
 #include "ScriptPCH.h"
 
 enum eSay
@@ -222,38 +219,19 @@ struct npc_ashtar : ScriptedAI
         DoCast(243089);
     }
  
+    // the auctioneers and guards leave through game_event_creature; only the players already on the floor need the music
     void CleanPlace()
     {
-        if (auto auctionist1 = me->FindNearestCreature(44865, 100.0f))
-            auctionist1->SetVisible(false);
-        if (auto auctionist2 = me->FindNearestCreature(44867, 100.0f))
-            auctionist2->SetVisible(false);
-        if (auto auctionist3 = me->FindNearestCreature(44866, 100.0f))
-            auctionist3->SetVisible(false);
-        if (auto auctionist4 = me->FindNearestCreature(44868, 100.0f))
-            auctionist4->SetVisible(false);
-        if (auto guard1 = me->FindNearestCreature(44871, 100.0f))
-            guard1->SetVisible(false);
-        if (auto guard2 = me->FindNearestCreature(44872, 100.0f))
-            guard2->SetVisible(false);
-        if (auto guard3 = me->FindNearestCreature(14376, 100.0f))
-            guard3->SetVisible(false);
-
         std::list<Player*> playerList;
-        std::list<GameObject*> GoList;
         GetPlayerListInGrid(playerList, me, 12.0f);
-        GetGameObjectListWithEntryInGrid(GoList, me, 269949, 100.0f);
 
-        for (auto& go : GoList)
-            go->SetPhaseMask(0, true);
-
+        // going on stage ends the music, which comes back on the stage as on the floor
         for (auto& player : playerList)
         {
-            if (!player->HasAura(243089) || !player->HasAura(248207))
-            {
+            if (!player->HasAura(243089))
                 player->CastSpell(player, 243089, true);
-                player->AddAura(248207, player);
-            }
+            if (!player->HasAura(248203))
+                player->AddAura(248203, player);
         }
     }
  
@@ -266,43 +244,6 @@ struct npc_ashtar : ScriptedAI
     {
         events.Update(diff);
 
-        if (sGameEventMgr->IsActiveEvent(313))
-        {
-            if (auto auctionist1 = me->FindNearestCreature(44865, 100.0f))
-                auctionist1->SetVisible(true);
-            if (auto auctionist2 = me->FindNearestCreature(44867, 100.0f))
-                auctionist2->SetVisible(true);
-            if (auto auctionist3 = me->FindNearestCreature(44866, 100.0f))
-                auctionist3->SetVisible(true);
-            if (auto auctionist4 = me->FindNearestCreature(44868, 100.0f))
-                auctionist4->SetVisible(true);
-            if (auto guard1 = me->FindNearestCreature(44871, 100.0f))
-                guard1->SetVisible(true);
-            if (auto guard2 = me->FindNearestCreature(44872, 100.0f))
-                guard2->SetVisible(true);
-            if (auto guard3 = me->FindNearestCreature(14376, 100.0f))
-                guard3->SetVisible(true);
-
-            std::list<GameObject*> GoList;
-            GetGameObjectListWithEntryInGrid(GoList, me, 269949, 100.0f);
-            for (auto& go : GoList)
-                go->SetPhaseMask(1, true);
-
-            std::list<Player*> playerList;
-            GetPlayerListInGrid(playerList, me, 100.0f);
-            for (auto& player : playerList)
-            {
-                if (player->HasAura(243089) || player->HasAura(248207))
-                {
-                    player->RemoveAura(243089);
-                    player->RemoveAura(248207);
-                }
-            }
-
-            sGameEventMgr->StopEvent(313, true);
-            sGameEventMgr->StopEvent(300, true);
-        }
- 
         if (uint32 eventId = events.ExecuteEvent())
         {
             switch (eventId)
@@ -403,6 +344,7 @@ struct npc_ashtar : ScriptedAI
             case EVENT_2:
             {
                 CleanPlace();
+                events.RescheduleEvent(EVENT_2, 2000);
                 break;
             }
             }
@@ -492,70 +434,29 @@ struct npc_marla : ScriptedAI
         CreatureAI::EnterEvadeMode();
     }
 
+    // the auctioneers leave through game_event_creature; only the players already on the floor need the music
     void CleanPlace()
     {
-        if (auto auctionist1 = me->FindNearestCreature(8670, 100.0f))
-            auctionist1->SetVisible(false);
-        if (auto auctionist2 = me->FindNearestCreature(8719, 100.0f))
-            auctionist2->SetVisible(false);
-        if (auto auctionist3 = me->FindNearestCreature(15659, 100.0f))
-            auctionist3->SetVisible(false);
-        if (auto citizen = me->FindNearestCreature(83678, 100.0f))
-            citizen->SetVisible(false);
-
         std::list<Player*> playerList;
-        std::list<GameObject*> GoList;
-        GetPlayerListInGrid(playerList, me, 12.0f);
-        GetGameObjectListWithEntryInGrid(GoList, me, 270011, 100.0f);
+        GetPlayerListInGrid(playerList, me, 25.0f);
 
-        for (auto& go : GoList)
-            go->SetPhaseMask(0, true);
-
+        // going on stage ends the music, which comes back on the stage as on the floor;
+        // the floor's centre is that of its event object, the stage lies beyond it
         for (auto& player : playerList)
         {
-            if (!player->HasAura(243089) || !player->HasAura(248203))
-            {
+            if (!player->HasAura(243530) && player->GetDistance2d(-8823.9f, 656.4f) > 12.0f)
+                continue;
+
+            if (!player->HasAura(243089))
                 player->CastSpell(player, 243089, true);
-                player->AddAura(248203, player);
-            }
+            if (!player->HasAura(248207))
+                player->AddAura(248207, player);
         }
     }
  
     void UpdateAI(uint32 diff) override
     {
         events.Update(diff);
-
-        if (sGameEventMgr->IsActiveEvent(313))
-        {
-            if (auto auctionist1 = me->FindNearestCreature(8670, 100.0f))
-                auctionist1->SetVisible(true);
-            if (auto auctionist2 = me->FindNearestCreature(8719, 100.0f))
-                auctionist2->SetVisible(true);
-            if (auto auctionist3 = me->FindNearestCreature(15659, 100.0f))
-                auctionist3->SetVisible(true);
-            if (auto citizen = me->FindNearestCreature(83678, 100.0f))
-                citizen->SetVisible(true);
-
-            std::list<GameObject*> GoList;
-            GetGameObjectListWithEntryInGrid(GoList, me, 270011, 100.0f);
-            for (auto& go : GoList)
-                go->SetPhaseMask(1, true);
-
-            std::list<Player*> playerList;
-            GetPlayerListInGrid(playerList, me, 100.0f);
-
-            for (auto& player : playerList)
-            {
-                if (player->HasAura(243089) || player->HasAura(248203))
-                {
-                    player->RemoveAura(243089);
-                    player->RemoveAura(248203);
-                }
-            }
-
-            sGameEventMgr->StopEvent(313, true);
-            sGameEventMgr->StopEvent(300, true);
-        }
 
         if (uint32 eventId = events.ExecuteEvent())
         {
@@ -669,6 +570,7 @@ struct npc_marla : ScriptedAI
             case EVENT_2:
             {
                 CleanPlace();
+                events.RescheduleEvent(EVENT_2, 2000);
                 break;
             }
             }
@@ -753,21 +655,19 @@ public:
  
     bool OnTrigger(Player* player, EventObject* eo, bool enter) override
     {
-        if (!enter)
-            return true;
-
-        if (sGameEventMgr->IsActiveEvent(300))
+        // leaving the floor, or a floor outside the party, stops the dance and the music
+        if (enter && sGameEventMgr->IsActiveEvent(300))
         {
-            if (!player->HasAura(243089) || !player->HasAura(248207))
+            if (!player->HasAura(243089) || !player->HasAura(248203))
             {
                 player->CastSpell(player, 243089, true);
-                player->AddAura(248207, player);
+                player->AddAura(248203, player);
             }
         }
         else
         {
             player->RemoveAura(243089);
-            player->RemoveAura(248207);
+            player->RemoveAura(248203);
         }
         return true;
     }
@@ -780,21 +680,19 @@ public:
  
     bool OnTrigger(Player* player, EventObject* eo, bool enter) override
     {
-        if (!enter)
-            return true;
-
-        if (sGameEventMgr->IsActiveEvent(300))
+        // leaving the floor, or a floor outside the party, stops the dance and the music
+        if (enter && sGameEventMgr->IsActiveEvent(300))
         {
-            if (!player->HasAura(243089) || !player->HasAura(248203))
+            if (!player->HasAura(243089) || !player->HasAura(248207))
             {
                 player->CastSpell(player, 243089, true);
-                player->AddAura(248203, player);
+                player->AddAura(248207, player);
             }
         }
         else
         {
             player->RemoveAura(243089);
-            player->RemoveAura(248203);
+            player->RemoveAura(248207);
         }
         return true;
     }
@@ -886,12 +784,48 @@ class spell_teleport_off_stage_alliance : public SpellScript
     }
 };
 
+//243138
+class spell_happy_feet : public AuraScript
+{
+    PrepareAuraScript(spell_happy_feet);
+
+    void HandlePeriodic(AuraEffect const* /*aurEff*/)
+    {
+        Unit* target = GetTarget();
+        Map* map = target->GetMap();
+
+        // the regeneration sleeps in instances and in PvP and wakes up outside, like the Dino Mojo's adaptations
+        bool suspended = target->HasAura(197912) || map->IsDungeon() || map->IsRaid() || map->isChallenge() || map->IsEventScenario() || map->IsScenario();
+        bool dancing = target->GetUInt32Value(UNIT_FIELD_EMOTE_STATE) == EMOTE_STATE_DANCE;
+
+        if (!suspended && dancing)
+        {
+            if (!target->HasAura(246050))
+                target->CastSpell(target, 246050, true);
+        }
+        else
+            target->RemoveAurasDueToSpell(246050);
+    }
+
+    void HandleRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+    {
+        GetTarget()->RemoveAurasDueToSpell(246050);
+    }
+
+    void Register() override
+    {
+        OnEffectPeriodic += AuraEffectPeriodicFn(spell_happy_feet::HandlePeriodic, EFFECT_0, SPELL_AURA_PERIODIC_DUMMY);
+        AfterEffectRemove += AuraEffectRemoveFn(spell_happy_feet::HandleRemove, EFFECT_0, SPELL_AURA_PERIODIC_DUMMY, AURA_EFFECT_HANDLE_REAL);
+    }
+};
+
 void AddSC_AuctionHouseDanceParty()
 {
     RegisterCreatureAI(npc_ashtar);
     RegisterCreatureAI(npc_marla);
     RegisterSpellScript(spell_teleport_off_stage_horde);
     RegisterSpellScript(spell_teleport_off_stage_alliance);
+    RegisterAuraScript(spell_happy_feet);
     new eventobject_dance_studio_orgrimmar();
     new eventobject_dance_studio_stormwind();
 }

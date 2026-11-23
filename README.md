@@ -174,7 +174,7 @@ The core descends from LegionCore 7.3.5, built on the 2020 UWOW source, itself d
 
 | Micro-holiday | Status |
 |---|---|
-| Auction House Dance Party | 🔴 Untested |
+| Auction House Dance Party | 🟢 |
 | Call of the Scarab | 🔴 Untested |
 | Darkmoon Faire Concert | 🔴 Untested |
 | Glowcap Festival | 🔴 Untested |
