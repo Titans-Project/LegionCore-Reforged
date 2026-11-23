@@ -448,9 +448,11 @@ class spell_dk_anti_magic_shell_self : public SpellScriptLoader
                     uint32 RPCap = target->CountPctFromMaxHealth(1);
                     if (RPCap > 0)
                     {
-                        float bp = (container + absorbAmount) / RPCap;
-                        container = (container + absorbAmount) - (bp * RPCap);
-                        bp *= 10;
+                        // Whole percents become Runic Power, the rest carries over to the next absorb
+                        uint32 total = container + uint32(absorbAmount);
+                        uint32 chunks = total / RPCap;
+                        container = total - chunks * RPCap;
+                        float bp = chunks * 10.0f;
                         if (target->HasAura(207188)) // Volatile Shielding
                             bp *= 2;
 
