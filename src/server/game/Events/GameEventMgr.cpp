@@ -35,6 +35,37 @@
 
 static uint32 timerConstant = 946684800; // 01/01/2000 00:00:00
 
+// yearly events keep the calendar day and hour of their start: a fixed step of 365 days slips a day every leap year
+static uint32 const YearlyOccurence = 365 * DAY / MINUTE;
+static std::set<uint16> YearlyEvents;
+
+static time_t GetYearlyDate(tm const& origin, int year)
+{
+    tm date = origin;
+    date.tm_year = year;
+    date.tm_isdst = -1;
+    return mktime(&date);
+}
+
+// the start moves to the latest anniversary already reached, the period runs to the next one
+static void AnchorYearlyEvent(GameEventData& data, time_t now)
+{
+    if (data.start > now)
+        return;
+
+    tm origin, today;
+    localtime_r(&data.start, &origin);
+    localtime_r(&now, &today);
+
+    int year = today.tm_year;
+    time_t start = GetYearlyDate(origin, year);
+    if (start > now)
+        start = GetYearlyDate(origin, --year);
+
+    data.start = start;
+    data.occurence = uint32((GetYearlyDate(origin, year + 1) - start) / MINUTE);
+}
+
 GameEventMgr::ActiveEvents const& GameEventMgr::GetActiveEventList() const
 {
     return m_ActiveEvents;
@@ -262,6 +293,8 @@ void GameEventMgr::LoadFromDB()
             return;
         }
 
+        YearlyEvents.clear();
+
         uint32 count = 0;
         do
         {
@@ -321,6 +354,12 @@ void GameEventMgr::LoadFromDB()
                 pGameEvent.start = GreatGnomereganRun::GetCurrentStart();
                 pGameEvent.occurence = uint32((GreatGnomereganRun::GetNextStart(pGameEvent.start) - pGameEvent.start) / MINUTE);
                 pGameEvent.length = sWorld->getIntConfig(CONFIG_GNOMEREGAN_RUN_DAYS) * DAY / MINUTE;
+            }
+
+            if (pGameEvent.occurence == YearlyOccurence && timewalkingSlot < 0 && pGameEvent.holiday_id != GreatGnomereganRun::HOLIDAY_ID)
+            {
+                YearlyEvents.insert(event_id);
+                AnchorYearlyEvent(pGameEvent, GameTime::GetGameTime());
             }
 
             ++count;
@@ -1114,6 +1153,10 @@ uint32 GameEventMgr::Update()                               // return the next e
     std::set<uint16> activate, deactivate;
     for (size_t itr = 1; itr < mGameEvent.size(); ++itr)
     {
+        // a yearly event that came round moves on to its next calendar date
+        if (YearlyEvents.count(uint16(itr)) && currenttime >= mGameEvent[itr].start + time_t(mGameEvent[itr].occurence) * MINUTE)
+            AnchorYearlyEvent(mGameEvent[itr], currenttime);
+
         // must do the activating first, and after that the deactivating
         // so first queue it
         //TC_LOG_ERROR("sql.sql", "Checking event %u", itr);
