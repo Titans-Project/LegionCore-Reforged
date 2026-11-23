@@ -1719,7 +1719,7 @@ class spell_pal_judgment : public SpellScriptLoader
             {
                 Unit* caster = GetCaster();
                 Unit* target = GetHitUnit();
-                if (!caster && !target)
+                if (!caster || !target)
                     return;
 
                 if (AuraEffect* aurEff = caster->GetAuraEffect(231657, EFFECT_0)) // Judgment (lvl 2 for Protection)
