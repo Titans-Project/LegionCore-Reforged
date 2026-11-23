@@ -1,3 +1,15 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
+
 #include "ScriptedEscortAI.h"
 #include "CreatureTextMgr.h"
 #include "MapManager.h"
@@ -5346,6 +5358,51 @@ public:
     }
     
 };
+
+// Fanning the Flames: nothing else brings the Living Air that carries the Fluttering Breeze
+enum WindStone
+{
+    QUEST_FANNING_THE_FLAMES    = 29523,
+    NPC_LIVING_AIR              = 54631,
+    GO_WIND_STONE               = 209325,
+};
+
+// 106299 - Wind Stone
+class spell_wandering_isle_wind_stone : public SpellScriptLoader
+{
+public:
+    spell_wandering_isle_wind_stone() : SpellScriptLoader("spell_wandering_isle_wind_stone") { }
+
+    class spell_wandering_isle_wind_stone_SpellScript : public SpellScript
+    {
+        PrepareSpellScript(spell_wandering_isle_wind_stone_SpellScript);
+
+        void HandleAfterCast()
+        {
+            Player* player = GetCaster() ? GetCaster()->ToPlayer() : nullptr;
+            if (!player || player->GetQuestStatus(QUEST_FANNING_THE_FLAMES) != QUEST_STATUS_INCOMPLETE)
+                return;
+
+            Position pos = player->GetNearPosition(5.0f, 0.0f);
+            if (GameObject* stone = player->FindNearestGameObject(GO_WIND_STONE, 40.0f))
+                pos = stone->GetNearPosition(2.0f, stone->GetAngle(player) - stone->GetOrientation());
+
+            if (TempSummon* air = player->SummonCreature(NPC_LIVING_AIR, pos, TEMPSUMMON_TIMED_DESPAWN_OUT_OF_COMBAT, 30000, 0, player->GetGUID()))
+                air->AI()->AttackStart(player);
+        }
+
+        void Register() override
+        {
+            AfterCast += SpellCastFn(spell_wandering_isle_wind_stone_SpellScript::HandleAfterCast);
+        }
+    };
+
+    SpellScript* GetSpellScript() const override
+    {
+        return new spell_wandering_isle_wind_stone_SpellScript();
+    }
+};
+
 void AddSC_WanderingIsland()
 {
     //new mob_tushui_trainee();
@@ -5408,4 +5465,5 @@ void AddSC_WanderingIsland()
     new npc_shen_healer();
     new npc_shang_xi_choose_faction();
     new mob_garosh_hord_way();
+    new spell_wandering_isle_wind_stone();
 }
