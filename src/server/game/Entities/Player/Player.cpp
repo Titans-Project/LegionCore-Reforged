@@ -21148,8 +21148,11 @@ bool Player::TalkedToCreature(uint32 entry, ObjectGuid guid)
     return false;
 }
 
-void Player::MoneyChanged(uint32 count)
+void Player::MoneyChanged(uint32 /*count*/)
 {
+    // The parameter is cut to 32 bits: read the real amount
+    uint64 const money = GetMoney();
+
     for (uint8 i = 0; i < MAX_QUEST_LOG_SIZE; ++i)
     {
         uint32 questid = GetQuestSlotQuestId(i);
@@ -21157,25 +21160,28 @@ void Player::MoneyChanged(uint32 count)
             continue;
 
         Quest const* qInfo = sQuestDataStore->GetQuestTemplate(questid);
-        if (qInfo && GetQuestMoneyReward(qInfo))
-        {
-            QuestStatusData* q_status = getQuestStatus(questid);
-            if (!q_status)
-                continue;
+        if (!qInfo)
+            continue;
 
-            if (q_status->Status == QUEST_STATUS_INCOMPLETE)
-            {
-                if (count >= static_cast<uint32>(GetQuestMoneyReward(qInfo)))
-                {
-                    if (CanCompleteQuest(questid))
-                        CompleteQuest(questid);
-                }
-            }
-            else if (q_status->Status == QUEST_STATUS_COMPLETE)
-            {
-                if (count < static_cast<uint32>(GetQuestMoneyReward(qInfo)))
-                    IncompleteQuest(questid);
-            }
+        // Only a negative amount is a price to pay; a money reward must never undo a completed quest
+        int32 const moneyReward = GetQuestMoneyReward(qInfo);
+        if (moneyReward >= 0)
+            continue;
+
+        uint64 const price = uint64(-int64(moneyReward));
+        QuestStatusData* q_status = getQuestStatus(questid);
+        if (!q_status)
+            continue;
+
+        if (q_status->Status == QUEST_STATUS_INCOMPLETE)
+        {
+            if (money >= price && CanCompleteQuest(questid))
+                CompleteQuest(questid);
+        }
+        else if (q_status->Status == QUEST_STATUS_COMPLETE)
+        {
+            if (money < price)
+                IncompleteQuest(questid);
         }
     }
 }
