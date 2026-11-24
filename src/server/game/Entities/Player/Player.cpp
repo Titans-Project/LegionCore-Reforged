@@ -18669,8 +18669,11 @@ void Player::PrepareQuestMenu(ObjectGuid guid)
         if (!CanTakeQuest(quest, false))
             continue;
 
+        // A turn-in quest never enters the log, so the client draws it from the active list as unfinished (grey);
+        // listed as available, a repeatable one gets the blue mark, which is what it shows once its items are held.
         if (quest->IsAutoComplete())
-            qm.AddMenuItem(quest_id, 4);
+            qm.AddMenuItem(quest_id, quest->IsRepeatable() && !quest->IsDailyOrWeekly() && !quest->IsMonthly() &&
+                CanCompleteRepeatableQuest(quest) ? 2 : 4);
         else if (GetQuestStatus(quest_id) == QUEST_STATUS_NONE)
             qm.AddMenuItem(quest_id, 2);
     }

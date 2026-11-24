@@ -1655,7 +1655,10 @@ void ObjectMgr::LoadCreatureModelInfo()
         modelInfo.hostileId            = fields[4].GetUInt32();
 
         // Checks
-        if (modelInfo.gender > GENDER_NONE || modelInfo.gender == GENDER_UNKNOWN)
+        // the client data itself leaves some models without gender: not an error of the table
+        if (modelInfo.gender == GENDER_UNKNOWN)
+            modelInfo.gender = GENDER_MALE;
+        else if (modelInfo.gender > GENDER_NONE)
         {
             TC_LOG_ERROR("sql.sql", "Table `creature_model_info` has wrong gender (%u) for display id (%u).", uint32(modelInfo.gender), displayId);
             modelInfo.gender = GENDER_MALE;
