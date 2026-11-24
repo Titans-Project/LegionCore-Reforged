@@ -48,6 +48,7 @@ EndContentData */
 #include "PhaseMgr.h"
 #include "ConditionMgr.h"
 #include "Map.h"
+#include "GameEventMgr.h"
 /*###
 ## npc_highlord_demitrian
 ###*/
@@ -263,6 +264,7 @@ enum SilithusWound
     ZONE_SILITHUS          = 1377,
     SPELL_TIME_TRAVELLING  = 255152,   // wearing it means being before the Wound; without it, the sword
     GOSSIP_TEXT_ZIDORMI    = 14065,    // Zidormi's text, the one the Northrend Zidormi already uses
+    EVENT_CALL_OF_THE_SCARAB = 78,     // the holiday takes place before the Wound and sends everyone there once
 
     ACTION_TO_THE_PAST     = GOSSIP_ACTION_INFO_DEF + 1,   // adds the aura: travel to before the Wound
     ACTION_TO_THE_PRESENT  = GOSSIP_ACTION_INFO_DEF + 2    // removes it: come back, the sword reappears
@@ -348,7 +350,9 @@ public:
         // Closing the travel must not leave anyone stranded in the past: a marker taken before the
         // option was turned off is removed on entering the zone. The present is then the only
         // possible state, with the sword planted.
-        if (!sWorld->getBoolConfig(CONFIG_SILITHUS_WOUND_DEFAULT) && player->HasAura(SPELL_TIME_TRAVELLING))
+        // Call of the Scarab sends everyone to the past whatever the option: the holiday takes place there.
+        if (!sWorld->getBoolConfig(CONFIG_SILITHUS_WOUND_DEFAULT) && player->HasAura(SPELL_TIME_TRAVELLING)
+            && !sGameEventMgr->IsActiveEvent(EVENT_CALL_OF_THE_SCARAB))
         {
             player->RemoveAurasDueToSpell(SPELL_TIME_TRAVELLING);
 

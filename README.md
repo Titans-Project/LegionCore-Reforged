@@ -175,7 +175,7 @@ The core descends from LegionCore 7.3.5, built on the 2020 UWOW source, itself d
 | Micro-holiday | Status |
 |---|---|
 | Auction House Dance Party | 🟢 |
-| Call of the Scarab | 🔴 Untested |
+| Call of the Scarab | 🟢 |
 | Darkmoon Faire Concert | 🔴 Untested |
 | Glowcap Festival | 🔴 Untested |
 | Great Gnomeregan Run | 🔴 Untested |
@@ -228,8 +228,7 @@ The server needs all the generated folders: `dbc`, `maps`, `vmaps`, `mmaps`, `ca
 
 **Your bug reports are what move this project forward.** Legion is a huge expansion and a small team cannot test all of it alone. Every report helps.
 
-- **Test and report**: play, and whenever something does not behave as it did on retail, [open an issue](https://github.com/Titans-Project/LegionCore-Reforged/issues/new) using the template. Describe what you did, what you expected and what happened; IDs and screenshots help a lot. Reports are read and fixed quickly.
-- **Fixes are welcome too**: if you already have a fix, open a pull request. Keep one subject per commit, titled `Category/Subject: what is fixed`, in English.
+- **Test and report**: play, and whenever something does not behave as it did on retail, [open an issue](https://github.com/Titans-Project/LegionCore-Reforged/issues/new?template=bug_report.md) using the template. Describe what you did, what you expected and what happened; IDs and screenshots help a lot. Reports are read and fixed quickly.
 
 ## Credits
 

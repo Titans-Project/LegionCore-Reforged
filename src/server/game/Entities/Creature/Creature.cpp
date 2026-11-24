@@ -4034,6 +4034,19 @@ float Creature::GetBaseDamageForLevel(uint8 level) const
     return stats->GenerateBaseDamage(cInfo);
 }
 
+float Creature::GetSpellDamageScale(WorldObject const* target, SpellInfo const* spellInfo, SpellEffIndex effIndex) const
+{
+    if (!m_spellBaseLevel || !target || !spellInfo)
+        return 1.0f;
+
+    if (SpellEffectInfo const* effect = spellInfo->GetEffect(effIndex))
+        if (effect->Scaling.Coefficient != 0.0f)
+            return 1.0f;
+
+    float const base = GetBaseDamageForLevel(m_spellBaseLevel);
+    return base > 0.0f ? GetBaseDamageForLevel(GetLevelForTarget(target)) / base : 1.0f;
+}
+
 float Creature::GetDamageMultiplierForTarget(WorldObject const* target) const
 {
     if (!HasScalableLevels())

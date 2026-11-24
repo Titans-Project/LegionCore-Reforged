@@ -659,6 +659,10 @@ class TC_GAME_API Creature : public Unit, public GridObject<Creature>, public Ma
         uint8 GetCurrentEquipmentId() const { return m_equipmentId; }
         void SetCurrentEquipmentId(uint8 id) { m_equipmentId = id; }
         float GetSpellDamageMod(int32 Rank);
+        // spells keep their flat values of old: a creature raised far above the level they were made for scales them
+        // from that level up to the one it fights the target at (effects with a scaling coefficient already follow the level)
+        float GetSpellDamageScale(WorldObject const* target, SpellInfo const* spellInfo, SpellEffIndex effIndex) const;
+        void SetSpellBaseLevel(uint8 level) { m_spellBaseLevel = level; }
 
         VendorItemData const* GetVendorItems() const;
         uint32 GetVendorItemCurrentCount(VendorItem const* vItem);
@@ -834,6 +838,7 @@ class TC_GAME_API Creature : public Unit, public GridObject<Creature>, public Ma
         static float _GetDamageMod(int32 Rank);
 
         float m_SightDistance, m_CombatDistance;
+        uint8 m_spellBaseLevel = 0;
 
         void FarTeleportTo(Map* map, float X, float Y, float Z, float O);
 

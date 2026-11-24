@@ -12838,7 +12838,7 @@ uint32 Unit::SpellDamageBonusDone(Unit* victim, SpellInfo const* spellProto, uin
 
     // Pet damage?
     if (IsCreature() && !ToCreature()->isPet())
-        DoneTotalMod *= ToCreature()->GetSpellDamageMod(ToCreature()->GetCreatureTemplate()->Classification);
+        DoneTotalMod *= ToCreature()->GetSpellDamageMod(ToCreature()->GetCreatureTemplate()->Classification) * ToCreature()->GetSpellDamageScale(victim, spellProto, effIndex);
 
     Player* spellModOwner = GetSpellModOwner();
     if (spellModOwner)
