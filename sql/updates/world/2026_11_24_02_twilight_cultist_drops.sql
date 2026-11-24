@@ -1,0 +1,31 @@
+-- Silithus: the Twilight cultists drop their armour again, and the Abyssal Crest without a quest
+DELETE FROM `creature_loot_template` WHERE `Entry` IN (11880, 11881, 11882, 11883, 14479, 15201, 15213, 15541, 15542) AND `Item` IN (20406, 20407, 20408);
+INSERT INTO `creature_loot_template` (`Entry`, `Item`, `Currency`, `Reference`, `Chance`, `QuestRequired`, `LootMode`, `GroupId`, `MinCount`, `MaxCount`, `Shared`, `Comment`) VALUES
+(15201, 20406, 0, 0, 4.6, 0, 0, 0, 1, 1, 0, 'Twilight Flamereaver - Twilight Cultist Mantle'),
+(15201, 20407, 0, 0, 4.86, 0, 0, 0, 1, 1, 0, 'Twilight Flamereaver - Twilight Cultist Robe'),
+(15201, 20408, 0, 0, 4.7, 0, 0, 0, 1, 1, 0, 'Twilight Flamereaver - Twilight Cultist Cowl'),
+(15213, 20406, 0, 0, 4.28, 0, 0, 0, 1, 1, 0, 'Twilight Overlord - Twilight Cultist Mantle'),
+(15213, 20407, 0, 0, 4.63, 0, 0, 0, 1, 1, 0, 'Twilight Overlord - Twilight Cultist Robe'),
+(15213, 20408, 0, 0, 4.4, 0, 0, 0, 1, 1, 0, 'Twilight Overlord - Twilight Cultist Cowl'),
+(11883, 20406, 0, 0, 4.44, 0, 0, 0, 1, 1, 0, 'Twilight Master - Twilight Cultist Mantle'),
+(11883, 20407, 0, 0, 4.52, 0, 0, 0, 1, 1, 0, 'Twilight Master - Twilight Cultist Robe'),
+(11883, 20408, 0, 0, 4.11, 0, 0, 0, 1, 1, 0, 'Twilight Master - Twilight Cultist Cowl'),
+(15542, 20406, 0, 0, 3.62, 0, 0, 0, 1, 1, 0, 'Twilight Marauder - Twilight Cultist Mantle'),
+(15542, 20407, 0, 0, 2.86, 0, 0, 0, 1, 1, 0, 'Twilight Marauder - Twilight Cultist Robe'),
+(15542, 20408, 0, 0, 2.6, 0, 0, 0, 1, 1, 0, 'Twilight Marauder - Twilight Cultist Cowl'),
+(14479, 20406, 0, 0, 2.62, 0, 0, 0, 1, 1, 0, 'Twilight Lord Everun - Twilight Cultist Mantle'),
+(14479, 20407, 0, 0, 3.69, 0, 0, 0, 1, 1, 0, 'Twilight Lord Everun - Twilight Cultist Robe'),
+(14479, 20408, 0, 0, 2.71, 0, 0, 0, 1, 1, 0, 'Twilight Lord Everun - Twilight Cultist Cowl'),
+(15541, 20406, 0, 0, 2.43, 0, 0, 0, 1, 1, 0, 'Twilight Marauder Morna - Twilight Cultist Mantle'),
+(15541, 20407, 0, 0, 3.73, 0, 0, 0, 1, 1, 0, 'Twilight Marauder Morna - Twilight Cultist Robe'),
+(15541, 20408, 0, 0, 2.9, 0, 0, 0, 1, 1, 0, 'Twilight Marauder Morna - Twilight Cultist Cowl'),
+(11880, 20406, 0, 0, 2.13, 0, 0, 0, 1, 1, 0, 'Twilight Avenger - Twilight Cultist Mantle'),
+(11880, 20407, 0, 0, 2.24, 0, 0, 0, 1, 1, 0, 'Twilight Avenger - Twilight Cultist Robe'),
+(11880, 20408, 0, 0, 2.15, 0, 0, 0, 1, 1, 0, 'Twilight Avenger - Twilight Cultist Cowl'),
+(11881, 20406, 0, 0, 2.25, 0, 0, 0, 1, 1, 0, 'Twilight Geolord - Twilight Cultist Mantle'),
+(11881, 20407, 0, 0, 2.42, 0, 0, 0, 1, 1, 0, 'Twilight Geolord - Twilight Cultist Robe'),
+(11881, 20408, 0, 0, 2.29, 0, 0, 0, 1, 1, 0, 'Twilight Geolord - Twilight Cultist Cowl'),
+(11882, 20406, 0, 0, 1.26, 0, 0, 0, 1, 1, 0, 'Twilight Stonecaller - Twilight Cultist Mantle'),
+(11882, 20407, 0, 0, 1.31, 0, 0, 0, 1, 1, 0, 'Twilight Stonecaller - Twilight Cultist Robe'),
+(11882, 20408, 0, 0, 1.3, 0, 0, 0, 1, 1, 0, 'Twilight Stonecaller - Twilight Cultist Cowl');
+UPDATE `creature_loot_template` SET `QuestRequired` = 0 WHERE `Entry` IN (11880, 11881, 11882, 11883) AND `Item` = 143865;
