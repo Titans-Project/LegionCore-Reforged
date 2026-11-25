@@ -231,41 +231,6 @@ class spell_dk_festering_strike : public SpellScriptLoader
         }
 };
 
-// Pillar of Frost - 51271
-class spell_dk_pillar_of_frost : public SpellScriptLoader
-{
-    public:
-        spell_dk_pillar_of_frost() : SpellScriptLoader("spell_dk_pillar_of_frost") { }
-
-        class spell_dk_pillar_of_frost_AuraScript : public AuraScript
-        {
-            PrepareAuraScript(spell_dk_pillar_of_frost_AuraScript);
-
-            void OnRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
-            {
-                if (Player* _player = GetTarget()->ToPlayer())
-                    _player->ApplySpellImmune(51271, IMMUNITY_MECHANIC, MECHANIC_INCAPACITATE, false);
-            }
-
-            void OnApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
-            {
-                if (Player* _player = GetTarget()->ToPlayer())
-                    _player->ApplySpellImmune(51271, IMMUNITY_MECHANIC, MECHANIC_INCAPACITATE, true);
-            }
-
-            void Register() override
-            {
-                OnEffectApply += AuraEffectApplyFn(spell_dk_pillar_of_frost_AuraScript::OnApply, EFFECT_2, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
-                OnEffectRemove += AuraEffectRemoveFn(spell_dk_pillar_of_frost_AuraScript::OnRemove, EFFECT_2, SPELL_AURA_DUMMY, AURA_EFFECT_HANDLE_REAL);
-            }
-        };
-
-        AuraScript* GetAuraScript() const override
-        {
-            return new spell_dk_pillar_of_frost_AuraScript();
-        }
-};
-
 // Purgatory - 116888
 class spell_dk_purgatory : public SpellScriptLoader
 {
@@ -2664,7 +2629,6 @@ void AddSC_deathknight_spell_scripts()
 {
     new spell_dk_desecrated_ground();
     new spell_dk_festering_strike();
-    new spell_dk_pillar_of_frost();
     new spell_dk_purgatory();
     new spell_dk_purgatory_absorb();
     new spell_dk_anti_magic_shell_raid();
