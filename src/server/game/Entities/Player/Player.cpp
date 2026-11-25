@@ -22741,6 +22741,11 @@ bool Player::LoadFromDB(ObjectGuid guid, CharacterDatabaseQueryHolder const& hol
     _LoadQuestStatusObjectives(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOAD_QUEST_STATUS_OBJECTIVES));
     RemoveStrayAshranTasks();
     _LoadQuestStatusRewarded(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOADQUESTSTATUSREW));
+
+    // Death Gate is no longer granted by the skill: characters that finished The Light of Dawn keep it
+    if (getClass() == CLASS_DEATH_KNIGHT && GetQuestRewardStatus(12801) && !HasSpell(50977))
+        learnSpell(50977, false);
+
     _LoadDailyQuestStatus(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOADDAILYQUESTSTATUS));
     _LoadWeeklyQuestStatus(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOADWEEKLYQUESTSTATUS));
     _LoadSeasonalQuestStatus(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOADSEASONALQUESTSTATUS));
@@ -31112,6 +31117,10 @@ void Player::learnSkillRewardedSpells(uint32 skillId, uint32 skillValue)
         {
             //First Aid in Draenor don't learning misc spells
             if (skillId == SKILL_FIRST_AID || (skillId == SKILL_DEMON_HUNTER && IsLoXpMap(GetMapId())))
+                continue;
+
+            // Death Gate is the reward of The Light of Dawn
+            if (skillId == SKILL_GENERAL_DEATH_KNIGHT)
                 continue;
         }
         else
