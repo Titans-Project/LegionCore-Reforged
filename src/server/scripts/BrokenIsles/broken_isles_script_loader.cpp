@@ -191,22 +191,6 @@ void AddSC_zone_suramar();
 void AddSC_zone_valsharah();
 void AddSC_demon_invasion_prepatch();
 
-// Micro-Holidays
-void AddSC_CallOfTheScarab();
-void AddSC_GlowcapFestival();
-void AddSC_HatchingOfTheHippogryphs();
-void AddSC_KirinTorTavernCrawl();
-void AddSC_MarchOfTheTadpoles();
-void AddSC_SpringBalloonFestival();
-void AddSC_ThousandBoatBash();
-void AddSC_UnGoroMadness();
-void AddSC_VolunteerGuardDay();
-void AddSC_TrialofStyle();
-void AddSC_AuctionHouseDanceParty();
-void AddSC_DarkMoonConcertBlightBoar();
-void AddSC_TheGreatGromereganRun();
-void AddSC_MoonkinFestival();
-
 // Scenarios
 void AddSC_brokenIslands();
 void AddSC_instance_broken_islands();
@@ -474,21 +458,6 @@ void AddBrokenIslesScripts()
     AddSC_zone_suramar();
     AddSC_zone_valsharah();
     AddSC_demon_invasion_prepatch();
-
-    AddSC_CallOfTheScarab();
-    AddSC_GlowcapFestival();
-    AddSC_HatchingOfTheHippogryphs();
-    AddSC_KirinTorTavernCrawl();
-    AddSC_MarchOfTheTadpoles();
-    AddSC_SpringBalloonFestival();
-    AddSC_ThousandBoatBash();
-    AddSC_UnGoroMadness();
-    AddSC_VolunteerGuardDay();
-    AddSC_TrialofStyle();
-    AddSC_AuctionHouseDanceParty();
-    AddSC_DarkMoonConcertBlightBoar();
-    AddSC_TheGreatGromereganRun();
-    AddSC_MoonkinFestival();
 
     // Scenarios
     AddSC_brokenIslands();
