@@ -90,8 +90,6 @@ void WorldSession::HandleQuestGiverHello(WorldPackets::Quest::QuestGiverHello& p
     // Stop the npc if moving
     {
         uint32 pause = creature->GetMovementTemplate().GetInteractionPauseTimer();
-        if (!pause)
-            pause = 300 * IN_MILLISECONDS;
         creature->PauseMovement(pause);
         creature->SetHomePosition(creature->GetPosition());
     }
