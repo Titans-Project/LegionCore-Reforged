@@ -672,6 +672,7 @@ bool Player::Create(ObjectGuid::LowType guidlow, WorldPackets::Character::Charac
     {
         SetActiveTalentGroup(defaultSpec->OrderIndex);
         SetPrimarySpecialization(defaultSpec->ID);
+        SetUInt32Value(PLAYER_FIELD_CURRENT_SPEC_ID, defaultSpec->ID); // saved as the specialization, the starting action bar is built for it
     }
 
     SetMap(sMapMgr->CreateMap(loc.GetMapId(), this));
