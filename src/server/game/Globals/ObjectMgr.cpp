@@ -883,7 +883,15 @@ void ObjectMgr::LoadCreatureTemplates()
         creatureTemplate.AffixState = fields[index++].GetUInt32();
         creatureTemplate.MaxVisible = fields[index++].GetBool();
         creatureTemplate.SandboxScalingID = fields[index++].GetUInt16();
-        creatureTemplate.HealthScalingExpansion = fields[index++].GetUInt32();
+        creatureTemplate.HealthScalingExpansion = fields[index++].GetInt32();
+        // Used as an index into the base stats: -1 left as is read outside the tables (huge health, no damage)
+        if (creatureTemplate.HealthScalingExpansion == EXPANSION_LEVEL_CURRENT)
+            creatureTemplate.HealthScalingExpansion = CURRENT_EXPANSION;
+        else if (creatureTemplate.HealthScalingExpansion < 0 || creatureTemplate.HealthScalingExpansion >= MAX_EXPANSIONS)
+        {
+            TC_LOG_ERROR("sql.sql", "Table `creature_template` lists creature (Entry: %u) with `HealthScalingExpansion` %i. Ignored and set to 0.", entry, creatureTemplate.HealthScalingExpansion);
+            creatureTemplate.HealthScalingExpansion = 0;
+        }
         creatureTemplate.VisibilityDistance = fields[index++].GetFloat();
 
         if(creatureTemplate.TypeFlags[0] & CREATURE_TYPEFLAGS_BOSS)
