@@ -32769,6 +32769,9 @@ void Player::SetViewpoint(WorldObject* target, bool apply)
 
             target->ToUnit()->AddPlayerToVision(this);
         }
+
+        // The client only asks for far sight spells: a possessed unit far away would show nothing around it
+        m_seer = target;
     }
     else
     {
