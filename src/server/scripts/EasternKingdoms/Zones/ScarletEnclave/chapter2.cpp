@@ -1,19 +1,14 @@
-/*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
@@ -178,16 +173,16 @@ public:
 
 enum Koltira
 {
-    SAY_BREAKOUT1                   = 1,
-    SAY_BREAKOUT2                   = 2,
-    SAY_BREAKOUT3                   = 3,
-    SAY_BREAKOUT4                   = 4,
-    SAY_BREAKOUT5                   = 5,
-    SAY_BREAKOUT6                   = 6,
-    SAY_BREAKOUT7                   = 7,
-    SAY_BREAKOUT8                   = 8,
-    SAY_BREAKOUT9                   = 9,
-    SAY_BREAKOUT10                  = 10,
+    SAY_BREAKOUT1                   = 0,
+    SAY_BREAKOUT2                   = 1,
+    SAY_BREAKOUT3                   = 2,
+    SAY_BREAKOUT4                   = 3,
+    SAY_BREAKOUT5                   = 4,
+    SAY_BREAKOUT6                   = 5,
+    SAY_BREAKOUT7                   = 6,
+    SAY_BREAKOUT8                   = 7,
+    SAY_BREAKOUT9                   = 8,
+    SAY_BREAKOUT10                  = 9,
 
     SPELL_KOLTIRA_TRANSFORM         = 52899,
     SPELL_ANTI_MAGIC_ZONE           = 52894,
@@ -506,6 +501,9 @@ public:
 
         void UpdateAI(uint32 diff) override
         {
+            if (!UpdateVictim())
+                return;
+
             if (uiRenew_timer <= diff)
             {
                 Shout();
@@ -551,7 +549,10 @@ public:
         void JustDied(Unit* killer) override
         {
             Talk(SAY_VALROTH6);
-            killer->CastSpell(me, SPELL_SUMMON_VALROTH_REMAINS, true);
+
+            // The remains belong to whoever casts them: the player, never a pet or a guard
+            if (Player* player = killer ? killer->GetCharmerOrOwnerPlayerOrPlayerItself() : nullptr)
+                player->CastSpell(me, SPELL_SUMMON_VALROTH_REMAINS, true);
         }
     };
 

@@ -14,6 +14,7 @@
 #include "CombatAI.h"
 #include "GameObjectAI.h"
 #include "MoveSplineInit.h"
+#include "MovementPackets.h"
 #include "ObjectMgr.h"
 #include "PassiveAI.h"
 #include "ScriptMgr.h"
@@ -1134,7 +1135,6 @@ struct npc_eye_of_acherus : public ScriptedAI
 
     void InitializeAI() override
     {
-        me->AddUnitState(UNIT_STATE_ROOT);
         DoCastSelf(SPELL_EYE_OF_ACHERUS_VISUAL);
         _events.ScheduleEvent(EVENT_ANNOUNCE_LAUNCH_TO_DESTINATION, 7s);
     }
@@ -1150,6 +1150,19 @@ struct npc_eye_of_acherus : public ScriptedAI
 
     void UpdateAI(uint32 diff) override
     {
+        // The possession hands the eye to the player at once: hold it back until it reaches New Avalon
+        if (!_controlHeld)
+        {
+            if (Player* player = GetControllingPlayer())
+            {
+                SendControl(player, false);
+                // Sent once the player moves the eye, otherwise his client lets it fall while it waits
+                me->SetDisableGravity(true);
+                me->SetControlled(true, UNIT_STATE_ROOT);
+                _controlHeld = true;
+            }
+        }
+
         _events.Update(diff);
 
         while (uint32 eventId = _events.ExecuteEvent())
@@ -1162,9 +1175,9 @@ struct npc_eye_of_acherus : public ScriptedAI
                     _events.ScheduleEvent(EVENT_UNROOT, 1s + 200ms);
                     break;
                 case EVENT_UNROOT:
-                    me->ClearUnitState(UNIT_STATE_ROOT);
+                    me->SetControlled(false, UNIT_STATE_ROOT);
 
-                    DoCastSelf(SPELL_EYE_OF_ACHERUS_FLIGHT_BOOST);
+                    DoCastSelf(SPELL_EYE_OF_ACHERUS_FLIGHT_BOOST, true);
                     _events.ScheduleEvent(EVENT_LAUNCH_TOWARDS_DESTINATION, 1s + 200ms);
                     break;
                 case EVENT_LAUNCH_TOWARDS_DESTINATION:
@@ -1173,19 +1186,21 @@ struct npc_eye_of_acherus : public ScriptedAI
                     Movement::PointsArray path(EyeOfAcherusPath, EyeOfAcherusPath + EyeOfAcherusPathSize);
                     init.MovebyPath(path);
                     init.SetFly();
-                    if (Unit* owner = me->GetCharmerOrOwner())
-                        init.SetVelocity(owner->GetSpeed(MOVE_RUN));
+                    init.SetVelocity(me->GetSpeed(MOVE_RUN)); // carries the flight boost
                     me->GetMotionMaster()->LaunchMoveSpline(std::move(init), POINT_NEW_AVALON, MOTION_SLOT_ACTIVE, POINT_MOTION_TYPE);
                     break;
                 }
                 case EVENT_GRANT_CONTROL:
                     me->SetSheath(SHEATH_STATE_MELEE);
-                    me->ClearUnitState(UNIT_STATE_ROOT);
+                    me->SetControlled(false, UNIT_STATE_ROOT);
 
-                    DoCastSelf(SPELL_EYE_OF_ACHERUS_FLIGHT);
+                    DoCastSelf(SPELL_EYE_OF_ACHERUS_FLIGHT, true);
                     me->RemoveAurasDueToSpell(SPELL_EYE_OF_ACHERUS_FLIGHT_BOOST);
-                    if (Unit* owner = me->GetCharmerOrOwner())
-                        Talk(SAY_EYE_UNDER_CONTROL, owner->GetGUID());
+                    if (Player* player = GetControllingPlayer())
+                    {
+                        SendControl(player, true);
+                        Talk(SAY_EYE_UNDER_CONTROL, player->GetGUID());
+                    }
                     break;
                 default:
                     break;
@@ -1201,7 +1216,7 @@ struct npc_eye_of_acherus : public ScriptedAI
         switch (pointId)
         {
             case POINT_NEW_AVALON:
-                me->AddUnitState(UNIT_STATE_ROOT);
+                me->SetControlled(true, UNIT_STATE_ROOT);
 
                 _events.ScheduleEvent(EVENT_GRANT_CONTROL, 2s + 500ms);
                 break;
@@ -1211,7 +1226,23 @@ struct npc_eye_of_acherus : public ScriptedAI
     }
 
 private:
+    Player* GetControllingPlayer() const
+    {
+        Unit* charmer = me->GetCharmer();
+        return charmer ? charmer->ToPlayer() : nullptr;
+    }
+
+    // Only the packet: Player::SetClientControl also makes the eye the client's mover again, which hands control back and breaks the flight
+    void SendControl(Player* player, bool allow)
+    {
+        WorldPackets::Movement::ControlUpdate update;
+        update.Guid = me->GetGUID();
+        update.On = allow;
+        player->SendDirectMessage(update.Write());
+    }
+
     EventMap _events;
+    bool _controlHeld = false;
 };
 
 void AddSC_the_scarlet_enclave_c1()
