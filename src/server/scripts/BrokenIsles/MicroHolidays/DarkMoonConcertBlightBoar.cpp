@@ -6,7 +6,12 @@
 ///                                      ///
 ////////////////////////////////////////////
 
+#include "MoveSpline.h"
 #include "MoveSplineInit.h"
+#include "Group.h"
+#include "QuestData.h"
+#include "SpellAuraEffects.h"
+#include <numeric>
 
 enum eSay
 {
@@ -65,7 +70,14 @@ enum eSpells
     SPELL_STAGE_DIVE                = 245105,
     SPELL_IN_THE_CROWD              = 245148,
     SPELL_WHOOOOOOAH                = 245155,
+    SPELL_YEAAAAH                   = 245152,
+    SPELL_WOOOH_YEAH                = 245154,
     SPELL_SCORE_UP                  = 248246,
+    SPELL_SCORE_DOWN                = 248247,
+    SPELL_NUMBER_ONE_FAN            = 245102,
+    // server-side only, the criteria of Mosh Pit and Perfect Performance
+    SPELL_CREDIT_MOSH_PIT           = 246668,
+    SPELL_CREDIT_PERFECT            = 246679,
     //CAGE HEAD
     SPELL_BASS                      = 245160,
     //VFX BUNNY
@@ -108,8 +120,63 @@ enum eEvents
     EVENT_ARMY_OF_THE_DEAD      = 12,
     //DEVLYNN STYX
     EVENT_JUMP_SCREAM           = 13,
-    EVENT_WHOOOOOOAH            = 14
+    EVENT_WHOOOOOOAH            = 14,
+    EVENT_UPDATE_FANS           = 15,
+    EVENT_FLAG_SPECIAL_LOOT     = 16,
+    EVENT_POWER_CHORDS          = 17,
+    EVENT_STYX_RETURN           = 18
 };
+
+enum eConcert
+{
+    // the rare loot of the knight once per character and per Darkmoon Faire
+    QUEST_DEATH_METAL_KNIGHT    = 47767,
+
+    GO_PROPHETIC_GRAVE          = 269654,
+    GO_STAGE_EFFECT             = 272825,
+
+    ACTION_ARMY_OF_THE_DEAD     = 1,
+    ACTION_GHOUL_REACHED_STAGE  = 2,
+    ACTION_STYX_INTO_CROWD      = 3,
+    DATA_GHOUL_KILLED           = 1,
+    DATA_KNIGHT_LOOTER          = 2,
+    DATA_WALL_HIT               = 3,
+
+    SPELL_POWER_CHORD_MISSILE   = 245032,
+    SPELL_WAILING_WALL_DAMAGE   = 244954,
+    SPELL_WEAK_LINK             = 140949,
+
+    SCORE_GHOUL                 = 10,
+    SCORE_KNIGHT                = 50,
+    SCORE_GHOUL_REACHED         = -10,
+    SCORE_CHORD_CAUGHT          = 5,
+    SCORE_WALL_HIT              = -10,
+    SCORE_SERIOUS_FAN           = 30,
+    SCORE_HARDCORE_FAN          = 60
+};
+
+float const CONCERT_FAN_RANGE = 50.0f;
+float const POWER_CHORD_RADIUS = 8.0f;   // radius of Mind Blown
+uint32 const POWER_CHORD_PERIOD = 20000; // period of Power Chords (245031)
+uint32 const KNIGHT_CORPSE_TIME = 120000; // left to loot the knight, even past the end of the show
+int32 const ARMY_HEALTH_PCT[] = { 60, 30 }; // a wave of ghouls at each threshold
+uint8 const GHOULS_PER_WAVE = 3;
+
+static Creature* GetConcertManager(Unit* from)
+{
+    return from->FindNearestCreature(NPC_MANAGER, 150.0f, true);
+}
+
+static void FlagKnightSpecialLoot(Player* player)
+{
+    Quest const* quest = sQuestDataStore->GetQuestTemplate(QUEST_DEATH_METAL_KNIGHT);
+    if (!quest || player->IsQuestRewarded(QUEST_DEATH_METAL_KNIGHT))
+        return;
+
+    player->AddQuest(quest, nullptr);
+    player->CompleteQuest(QUEST_DEATH_METAL_KNIGHT);
+    player->RewardQuest(quest, 0, player, false);
+}
 
 static Position destSummon[10] =
 {
@@ -257,12 +324,217 @@ struct npc_darkmoon_manager : public ScriptedAI
     SummonList summons;
     ObjectGuid InvisibleStalkerGUID;
     bool startEvent;
+    bool concertRunning;
+    bool ghoulsSummoned;
+    bool ghoulReachedStage;
+    std::map<ObjectGuid, int32> fanScores;
+    GuidSet knightLooters;
+    // the band role: rhythm = Wailing Walls avoided, notes = own Power Chords caught
+    std::map<ObjectGuid, uint32> wallHits;
+    std::map<ObjectGuid, uint32> lastWallHit;
+    std::map<ObjectGuid, uint32> missedChords;
+    std::vector<std::pair<Position, ObjectGuid>> pendingChords;
 
     void Reset() override
     {
         events.Reset();
         startEvent = false;
+        concertRunning = false;
+        ghoulsSummoned = false;
+        ghoulReachedStage = false;
+        fanScores.clear();
+        knightLooters.clear();
+        wallHits.clear();
+        lastWallHit.clear();
+        missedChords.clear();
+        pendingChords.clear();
     }
+
+    void DoAction(int32 const action) override
+    {
+        switch (action)
+        {
+            case ACTION_ARMY_OF_THE_DEAD:
+                ghoulsSummoned = true;
+                // the singer leaps into the crowd, where the ghouls go for her
+                for (ObjectGuid const& guid : summons)
+                    if (Creature* styx = ObjectAccessor::GetCreature(*me, guid))
+                        if (styx->GetEntry() == NPC_DEVLYNN_STYX && styx->IsAlive() && styx->IsAIEnabled)
+                            styx->AI()->DoAction(ACTION_STYX_INTO_CROWD);
+                break;
+            case ACTION_GHOUL_REACHED_STAGE:
+                ghoulReachedStage = true;
+                for (auto const& fan : fanScores)
+                    AddScore(fan.first, SCORE_GHOUL_REACHED);
+                break;
+            default:
+                break;
+        }
+    }
+
+    void SetGUID(ObjectGuid const& guid, int32 id) override
+    {
+        if (!concertRunning)
+            return;
+
+        switch (id)
+        {
+            case DATA_GHOUL_KILLED:
+                AddScore(guid, SCORE_GHOUL);
+                break;
+            case DATA_KNIGHT_LOOTER:
+                if (knightLooters.insert(guid).second)
+                    AddScore(guid, SCORE_KNIGHT);
+                break;
+            case DATA_WALL_HIT:
+            {
+                // the wall is a row of touching wraiths: one hit per wave
+                uint32 const now = getMSTime();
+                auto itr = lastWallHit.find(guid);
+                if (itr != lastWallHit.end() && getMSTimeDiff(itr->second, now) < 3000)
+                    break;
+                lastWallHit[guid] = now;
+                ++wallHits[guid];
+                AddScore(guid, SCORE_WALL_HIT);
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    // one chord falls near each fan, who has to stand under it
+    void DropPowerChords()
+    {
+        Unit* caster = me;
+        for (ObjectGuid const& guid : summons)
+            if (Creature* guitarist = ObjectAccessor::GetCreature(*me, guid))
+                if (guitarist->GetEntry() == NPC_JON_GRAVES && guitarist->IsAlive())
+                    caster = guitarist;
+
+        for (auto const& fan : fanScores)
+        {
+            Player* player = ObjectAccessor::GetPlayer(*me, fan.first);
+            if (!player || !player->IsAlive() || !player->IsWithinDist(me, CONCERT_FAN_RANGE))
+                continue;
+
+            Position dest = player->GetPosition();
+            player->MovePositionToFirstCollision(dest, frand(4.0f, 9.0f), frand(0.0f, float(2 * M_PI)));
+            pendingChords.emplace_back(dest, fan.first);
+            caster->CastSpell(dest, SPELL_POWER_CHORD_MISSILE, true);
+        }
+    }
+
+    void PowerChordLanded(Position const& dest)
+    {
+        auto chord = std::min_element(pendingChords.begin(), pendingChords.end(), [&dest](auto const& a, auto const& b)
+        {
+            return a.first.GetExactDist(&dest) < b.first.GetExactDist(&dest);
+        });
+        if (chord == pendingChords.end() || chord->first.GetExactDist(&dest) > 2.0f)
+            return;
+
+        ObjectGuid const owner = chord->second;
+        pendingChords.erase(chord);
+        if (!concertRunning)
+            return;
+
+        bool ownerCaught = false;
+        for (auto const& fan : fanScores)
+        {
+            Player* player = ObjectAccessor::GetPlayer(*me, fan.first);
+            if (!player || !player->IsAlive() || player->GetExactDist(&dest) > POWER_CHORD_RADIUS)
+                continue;
+
+            AddScore(fan.first, SCORE_CHORD_CAUGHT);
+            if (fan.first == owner)
+                ownerCaught = true;
+        }
+
+        if (!ownerCaught)
+            ++missedChords[owner];
+    }
+
+    void AddScore(ObjectGuid const& guid, int32 points)
+    {
+        Player* player = ObjectAccessor::GetPlayer(*me, guid);
+        if (!player)
+            return;
+
+        int32& score = fanScores[guid];
+        score = std::max(0, score + points);
+        me->CastSpell(player, points > 0 ? SPELL_SCORE_UP : SPELL_SCORE_DOWN, true);
+        UpdateFanAura(player, score);
+    }
+
+    // Casual, Serious then Hardcore Fan; the tooltip of the aura shows the score
+    void UpdateFanAura(Player* player, int32 score)
+    {
+        uint32 tier = score >= SCORE_HARDCORE_FAN ? SPELL_HARDCORE_FUN : score >= SCORE_SERIOUS_FAN ? SPELL_SERIOUS_FAN : SPELL_CASUAL_FAN;
+        for (uint32 spellId : { SPELL_CASUAL_FAN, SPELL_SERIOUS_FAN, SPELL_HARDCORE_FUN })
+            if (spellId != tier)
+                player->RemoveAurasDueToSpell(spellId);
+
+        if (!player->HasAura(tier))
+            player->CastSpell(player, tier, true);
+
+        if (Aura* aura = player->GetAura(tier))
+            if (AuraEffect* effect = aura->GetEffect(EFFECT_0))
+                effect->ChangeAmount(float(score));
+    }
+
+    void UpdateFans()
+    {
+        std::list<Player*> players;
+        me->GetPlayerListInGrid(players, CONCERT_FAN_RANGE);
+        for (Player* player : players)
+        {
+            if (!player->IsAlive() || player->isGameMaster() || fanScores.count(player->GetGUID()))
+                continue;
+
+            fanScores[player->GetGUID()] = 0;
+            UpdateFanAura(player, 0);
+        }
+    }
+
+    void TallyScores()
+    {
+        int32 best = 0;
+        for (auto const& fan : fanScores)
+            best = std::max(best, fan.second);
+
+        bool const moshPit = ghoulsSummoned && !ghoulReachedStage;
+
+        for (auto const& fan : fanScores)
+        {
+            Player* player = ObjectAccessor::GetPlayer(*me, fan.first);
+            if (!player)
+                continue;
+
+            int32 const score = fan.second;
+            for (uint32 spellId : { SPELL_CASUAL_FAN, SPELL_SERIOUS_FAN, SPELL_HARDCORE_FUN })
+                player->RemoveAurasDueToSpell(spellId);
+
+            player->UpdateAchievementCriteria(CRITERIA_TYPE_BE_SPELL_TARGET, SPELL_ACHIEVEMENT, 0, 0, me);
+
+            bool const rhythm = !wallHits[fan.first];
+            bool const notes = !missedChords[fan.first];
+            bool const perfect = moshPit && rhythm && notes;
+            if (moshPit)
+                player->UpdateAchievementCriteria(CRITERIA_TYPE_BE_SPELL_TARGET, SPELL_CREDIT_MOSH_PIT, 0, 0, me);
+            if (perfect)
+                player->UpdateAchievementCriteria(CRITERIA_TYPE_BE_SPELL_TARGET, SPELL_CREDIT_PERFECT, 0, 0, me);
+
+            uint32 role = rhythm ? (notes ? SPELL_DRUMMER : SPELL_BASSIST) : (notes ? SPELL_VOCALS : SPELL_GUITARIST);
+            for (uint32 spellId : { SPELL_GUITARIST, SPELL_BASSIST, SPELL_VOCALS, SPELL_DRUMMER })
+                player->RemoveAurasDueToSpell(spellId);
+            player->CastSpell(player, role, true);
+
+            if (best > 0 && score == best)
+                player->CastSpell(player, SPELL_NUMBER_ONE_FAN, true);
+        }
+    }
+
 
     void JustSummoned(Creature* sum) override
     {
@@ -315,20 +587,47 @@ struct npc_darkmoon_manager : public ScriptedAI
             {
             case EVENT_START_CONCERT:
                 DoCast(SPELL_PLAY_MUSIC);
-                DoCast(SPELL_ACTIVATE_GAMEOBJECTS);
+                // the graves and the stage play for the length of the show; 252525 would make them clickable
+                {
+                    std::list<GameObject*> stage;
+                    me->GetGameObjectListWithEntryInGrid(stage, GO_PROPHETIC_GRAVE, 100.0f);
+                    me->GetGameObjectListWithEntryInGridAppend(stage, GO_STAGE_EFFECT, 100.0f);
+                    for (GameObject* go : stage)
+                        go->UseDoorOrButton();
+                }
                 me->SummonCreatureGroup(0);
+                concertRunning = true;
+                UpdateFans();
+                events.RescheduleEvent(EVENT_UPDATE_FANS, 2000);
+                events.RescheduleEvent(EVENT_POWER_CHORDS, POWER_CHORD_PERIOD);
                 events.RescheduleEvent(EVENT_END_CONCERT, 312300);
+                break;
+            case EVENT_UPDATE_FANS:
+                if (concertRunning)
+                {
+                    UpdateFans();
+                    events.RescheduleEvent(EVENT_UPDATE_FANS, 2000);
+                }
+                break;
+            case EVENT_POWER_CHORDS:
+                // the last chords must land before the scores are tallied
+                if (concertRunning && events.GetTimeUntilEvent(EVENT_END_CONCERT) > 15000)
+                {
+                    DropPowerChords();
+                    events.RescheduleEvent(EVENT_POWER_CHORDS, POWER_CHORD_PERIOD);
+                }
                 break;
             case EVENT_END_CONCERT:
                 if (auto stalker = me->GetCreature(*me, InvisibleStalkerGUID))
                     stalker->CastSpell(stalker, SPELL_COSMETIC_FEL_EXPLOSION, true);
 
-                startEvent = false;
-                DoCast(SPELL_ACHIEVEMENT);
+                // startEvent stays set: the manager is gone before the next show
+                concertRunning = false;
+                TallyScores();
                 DoCast(SPELL_END_SONG);
-                events.RescheduleEvent(EVENT_2, 2000);
+                events.RescheduleEvent(EVENT_FLAG_SPECIAL_LOOT, 2000);
                 break;
-            case EVENT_2:
+            case EVENT_FLAG_SPECIAL_LOOT:
                 me->DespawnOrUnsummon();
                 break;
             }
@@ -351,7 +650,8 @@ struct npc_death_metal_knight : public ScriptedAI
     }
 
     EventMap events;
-    bool army;
+    bool armyCasting;
+    uint8 armyWaves;
     bool introDone;
     bool introDone2;
 
@@ -360,9 +660,20 @@ struct npc_death_metal_knight : public ScriptedAI
         events.Reset();
         DespawnAllSummons();
         me->RemoveAllAreaObjects();
-        me->SetReactState(REACT_PASSIVE);
+        // passive only until he reaches the crowd, or he would never fight back after a wipe
+        me->SetReactState(introDone2 ? REACT_AGGRESSIVE : REACT_PASSIVE);
         DoCast(SPELL_SWORD);
-        army = false;
+        armyCasting = false;
+        armyWaves = 0;
+    }
+
+    void DamageTaken(Unit* /*attacker*/, uint32& /*damage*/, DamageEffectType /*dmgType*/) override
+    {
+        if (armyWaves < sizeof(ARMY_HEALTH_PCT) / sizeof(ARMY_HEALTH_PCT[0]) &&me->HealthBelowPct(ARMY_HEALTH_PCT[armyWaves]))
+        {
+            ++armyWaves;
+            events.RescheduleEvent(EVENT_ARMY_OF_THE_DEAD, 500);
+        }
     }
 
     void EnterEvadeMode() override
@@ -384,6 +695,44 @@ struct npc_death_metal_knight : public ScriptedAI
         Talk(SAY_DEATH_METAL_KNIGHT_DEATH);
         me->RemoveAllAreaObjects();
         DespawnAllSummons();
+
+        // summoned for the length of the show: the corpse would vanish with it, loot included
+        uint32 corpseTime = KNIGHT_CORPSE_TIME;
+        if (TempSummon* summon = me->ToTempSummon())
+        {
+            summon->SetTempSummonType(TEMPSUMMON_CORPSE_TIMED_DESPAWN);
+            if (summon->GetTimer() < KNIGHT_CORPSE_TIME)
+                summon->AddDuration(KNIGHT_CORPSE_TIME - summon->GetTimer());
+            corpseTime = summon->GetTimer();
+        }
+
+        // everyone who received a share of the personal loot
+        GuidSet looters;
+        for (ObjectGuid const& guid : *me->GetSaveThreatList())
+        {
+            Player* looter = ObjectAccessor::GetPlayer(*me, guid);
+            if (!looter || !me->isTappedBy(looter))
+                continue;
+
+            looters.insert(guid);
+            if (Group* group = looter->GetGroup())
+                group->ForEachMemberInMap(me->GetMap(), [&](Player* member)
+                {
+                    if (member->IsAtGroupRewardDistance(me))
+                        looters.insert(member->GetGUID());
+                });
+        }
+
+        Creature* manager = GetConcertManager(me);
+        for (ObjectGuid const& guid : looters)
+        {
+            if (manager && manager->IsAIEnabled)
+                manager->AI()->SetGUID(guid, DATA_KNIGHT_LOOTER);
+
+            // the rare loot once per Faire: flagged once the corpse is gone, or its loot would vanish under the looter's eyes
+            if (Player* looter = ObjectAccessor::GetPlayer(*me, guid))
+                looter->AddDelayedEvent(corpseTime + 2000, [looter]() -> void { FlagKnightSpecialLoot(looter); });
+        }
     }
 
     void DespawnAllSummons()
@@ -413,18 +762,6 @@ struct npc_death_metal_knight : public ScriptedAI
         }
     }
 
-    void DamageTaken(Unit* /*attacker*/, uint32& damage, DamageEffectType /*dmgType*/) override
-    {
-        if (!me->HealthAbovePct(28) && !army)
-        {
-            if (me->HealthBelowPct(28))
-            {
-                army = true;
-                events.RescheduleEvent(EVENT_ARMY_OF_THE_DEAD, 1000);
-            }
-        }
-    }
-
     void MovementInform(uint32 type, uint32 id) override
     {
         switch (id)
@@ -447,7 +784,10 @@ struct npc_death_metal_knight : public ScriptedAI
     void SpellFinishCast(SpellInfo const* spell) override
     {
         if (spell->Id == SPELL_ARMY_OF_THE_DEAD)
+        {
+            armyCasting = false;
             me->SetReactState(REACT_AGGRESSIVE);
+        }
     }
 
     void UpdateAI(uint32 diff) override
@@ -459,6 +799,13 @@ struct npc_death_metal_knight : public ScriptedAI
 
         if (me->HasUnitState(UNIT_STATE_CASTING))
             return;
+
+        // Army of the Dead interrupted: SpellFinishCast never comes
+        if (armyCasting)
+        {
+            armyCasting = false;
+            me->SetReactState(REACT_AGGRESSIVE);
+        }
 
         if (uint32 eventId = events.ExecuteEvent())
         {
@@ -476,8 +823,11 @@ struct npc_death_metal_knight : public ScriptedAI
                 me->CastStop();
                 me->SetReactState(REACT_PASSIVE);
                 DoCast(SPELL_ARMY_OF_THE_DEAD);
+                armyCasting = true;
+                if (Creature* manager = GetConcertManager(me))
+                    if (manager->IsAIEnabled)
+                        manager->AI()->DoAction(ACTION_ARMY_OF_THE_DEAD);
                 Talk(SAY_DEATH_METAL_KNIGHT_DEATHKNIGHT_ARMYOFTHEDEAD);
-                events.RescheduleEvent(EVENT_ARMY_OF_THE_DEAD, 25000);
                 break;
             }
         }
@@ -487,28 +837,90 @@ struct npc_death_metal_knight : public ScriptedAI
 
 struct npc_darkmoon_ghoul : public ScriptedAI
 {
-    npc_darkmoon_ghoul(Creature* creature) : ScriptedAI(creature) {}
+    npc_darkmoon_ghoul(Creature* creature) : ScriptedAI(creature), reachedStage(false) {}
+
+    bool reachedStage;
+    ObjectGuid targetGUID;
+    uint32 followCheck = 1000;
 
     void Reset() override
     {
         me->SetReactState(REACT_PASSIVE);
     }
 
-    void IsSummonedBy(Unit* owner) override
+    // hit or knocked back by Death's Advance, they keep walking to the singer instead of standing still
+    void EnterEvadeMode() override {}
+    void AttackStart(Unit* /*who*/) override {}
+
+    // always the singer, never the knight who raised them
+    void FollowTarget()
+    {
+        Creature* styx = me->FindNearestCreature(NPC_DEVLYNN_STYX, 100.0f, true);
+        if (!styx)
+            return;
+
+        targetGUID = styx->GetGUID();
+        me->SetWalk(true);
+        me->GetMotionMaster()->MoveFollow(styx, 0.5f, 1.5f, MOTION_SLOT_ACTIVE);
+    }
+
+    void UpdateAI(uint32 diff) override
+    {
+        if (reachedStage)
+            return;
+
+        if (followCheck > diff)
+        {
+            followCheck -= diff;
+            return;
+        }
+        followCheck = 1000;
+
+        if (me->HasUnitState(UNIT_STATE_CONTROLLED | UNIT_STATE_JUMPING) || !me->movespline->Finalized())
+            return;
+
+        // Weak Link leaps them back on every blow, and the follow does not resume after it
+        Unit* target = ObjectAccessor::GetUnit(*me, targetGUID);
+        if (me->GetMotionMaster()->GetCurrentMovementGeneratorType() != FOLLOW_MOTION_TYPE || !target || !me->IsWithinDist(target, 3.0f))
+        {
+            me->GetMotionMaster()->Clear(false);
+            FollowTarget();
+        }
+    }
+
+    void JustDied(Unit* killer) override
+    {
+        if (reachedStage || !killer)
+            return;
+
+        if (Player* player = killer->GetCharmerOrOwnerPlayerOrPlayerItself())
+            if (Creature* manager = GetConcertManager(me))
+                if (manager->IsAIEnabled)
+                    manager->AI()->SetGUID(player->GetGUID(), DATA_GHOUL_KILLED);
+    }
+
+    void IsSummonedBy(Unit* /*owner*/) override
     {
         DoCast(SPELL_DEATHLY_PALLOR);
         DoCast(SPELL_DEATHS_ADVANCE);
 
-        if (auto styx = me->FindNearestCreature(NPC_DEVLYNN_STYX, 100.0f, true))
-            me->GetMotionMaster()->MoveFollow(styx, 0.5, 1.5, MOTION_SLOT_ACTIVE);
-        else
-            me->GetMotionMaster()->MoveFollow(owner, 0.5, 1.5, MOTION_SLOT_ACTIVE);
+        // they shamble towards the singer, giving the crowd time to stop them
+        // 0.75 yard per second, walking or running, so that a lone player can stop the three of them
+        me->SetSpeed(MOVE_WALK, 0.3f);
+        me->SetSpeed(MOVE_RUN, 0.3f * baseMoveSpeed[MOVE_WALK] / baseMoveSpeed[MOVE_RUN]);
+        FollowTarget();
     }
 
     void MovementInform(uint32 type, uint32 id) override
     {
-        if (type == FOLLOW_MOTION_TYPE)
-            DoCast(SPELL_TOUCH_OF_THE_GRAVE);
+        if (type != FOLLOW_MOTION_TYPE || reachedStage)
+            return;
+
+        reachedStage = true;
+        if (Creature* manager = GetConcertManager(me))
+            if (manager->IsAIEnabled)
+                manager->AI()->DoAction(ACTION_GHOUL_REACHED_STAGE);
+        DoCast(SPELL_TOUCH_OF_THE_GRAVE);
     }
 };
 
@@ -517,42 +929,95 @@ struct npc_devlynn_styx : public ScriptedAI
     npc_devlynn_styx(Creature* creature) : ScriptedAI(creature) {}
 
     EventMap events;
+    bool inCrowd = false;
+    uint32 crowdTime = 0;
 
     void Reset() override
     {
         events.Reset();
-        events.RescheduleEvent(EVENT_JUMP_SCREAM, 120000);
+        inCrowd = false;
+        // she screams at any ghoul close enough, on the stage or in the crowd
+        events.RescheduleEvent(EVENT_WHOOOOOOAH, 6000);
+    }
+
+    void DoAction(int32 const action) override
+    {
+        if (action != ACTION_STYX_INTO_CROWD || inCrowd)
+            return;
+
+        // she leaps into the middle of the cave, where the ghouls go for her
+        Creature* manager = GetConcertManager(me);
+        if (!manager)
+            return;
+
+        inCrowd = true;
+        crowdTime = 0;
+        me->CastSpell(manager, SPELL_STAGE_DIVE, true);
+        // should the dive find no landing, she jumps there all the same
+        Position const landing = manager->GetPosition();
+        me->AddDelayedEvent(2500, [this, landing]() -> void
+        {
+            Position const home = me->GetHomePosition();
+            if (inCrowd && me->GetExactDist(&home) < 5.0f)
+                me->GetMotionMaster()->MoveJump(landing.GetPositionX(), landing.GetPositionY(), landing.GetPositionZ(), landing.GetOrientation(), 20.0f, 15.0f, EVENT_JUMP, true);
+        });
+        Talk(SAY_DEVLYNN_STYX_SCREAM);
+        me->AddDelayedEvent(1000, [=]() -> void { DoCast(SPELL_IN_THE_CROWD); });
+        events.RescheduleEvent(EVENT_WHOOOOOOAH, 3000);
+        events.RescheduleEvent(EVENT_STYX_RETURN, 2000);
+    }
+
+    // the cries are a cone against her enemies, but the band is friendly to everyone: the spell finds no
+    // target and fails, so it is only the voice and the wave, the blow is dealt here
+    void Scream(Creature* towards)
+    {
+        me->SetOrientation(me->GetAngle(towards));
+        me->SetFacingTo(towards);
+        me->CastSpell(towards, RAND(SPELL_YEAAAAH, SPELL_WOOOH_YEAH, SPELL_WHOOOOOOAH), true);
+
+        std::list<Creature*> ghouls;
+        me->GetCreatureListWithEntryInGrid(ghouls, NPC_GHOUL, 30.0f);
+        for (Creature* ghoul : ghouls)
+            if (ghoul->IsAlive() && (ghoul == towards || me->HasInArc(float(M_PI) / 2, ghoul)))
+            {
+                me->DealDamage(ghoul, uint32(ghoul->CountPctFromMaxHealth(10)));
+                // the blast throws them back, as a blow from the crowd does
+                if (ghoul->IsAlive())
+                    ghoul->CastSpell(ghoul, SPELL_WEAK_LINK, true);
+            }
     }
 
     void UpdateAI(uint32 diff) override
     {
         events.Update(diff);
+        if (inCrowd)
+            crowdTime += diff;
+
+        if (me->HasUnitState(UNIT_STATE_CASTING))
+            return;
 
         if (uint32 eventId = events.ExecuteEvent())
         {
             switch (eventId)
             {
-            case EVENT_JUMP_SCREAM:
-            {
-                DoCast(SPELL_STAGE_DIVE);
-                events.RescheduleEvent(EVENT_WHOOOOOOAH, 13000);
-                events.RescheduleEvent(EVENT_JUMP_SCREAM, 120000);
-                Talk(SAY_DEVLYNN_STYX_SCREAM);
-                me->AddDelayedEvent(1000, [=]() -> void { DoCast(SPELL_IN_THE_CROWD); });
-                break;
-            }
             case EVENT_WHOOOOOOAH:
-                std::list<Player*> playerList;
-                GetPlayerListInGrid(playerList, me, 100.0f);
-                Trinity::Containers::RandomResizeList(playerList, 1);
-
-                for (auto& player : playerList)
+                // her scream hits the ghouls in front of her
+                if (Creature* ghoul = me->FindNearestCreature(NPC_GHOUL, 25.0f, true))
+                    Scream(ghoul);
+                events.RescheduleEvent(EVENT_WHOOOOOOAH, 6000);
+                break;
+            case EVENT_STYX_RETURN:
+                // back on the stage once the wave is over
+                if (crowdTime >= 10000 && (!me->FindNearestCreature(NPC_GHOUL, 100.0f, true) || crowdTime >= 60000))
                 {
-                    me->SetFacingTo(player);
-                    DoCast(SPELL_WHOOOOOOAH);
+                    inCrowd = false;
+                    me->RemoveAurasDueToSpell(SPELL_IN_THE_CROWD);
+                    float x, y, z, o;
+                    me->GetHomePosition(x, y, z, o);
+                    me->GetMotionMaster()->MoveJump(x, y, z, o, 20.0f, 15.0f, EVENT_JUMP, true);
                 }
-
-                events.RescheduleEvent(EVENT_WHOOOOOOAH, 25000);
+                else
+                    events.RescheduleEvent(EVENT_STYX_RETURN, 2000);
                 break;
             }
         }
@@ -564,21 +1029,71 @@ class spell_army_of_the_dead : public AuraScript
 {
     PrepareAuraScript(spell_army_of_the_dead);
 
-    uint8 RandSummonCheck{};
-
     void Tick(AuraEffect const* aurEff)
     {
-        // the ten places in turn, round again if the aura lasts longer
-        if (Creature* deathmetal = GetCaster() ? GetCaster()->ToCreature() : nullptr)
-        {
-            deathmetal->CastSpell(destSummon[RandSummonCheck % 10], SPELL_SUMMON_GHOUL, false);
-            RandSummonCheck++;
-        }
+        // a few ghouls together, each out of a different grave
+        if (aurEff->GetTickNumber() != 1)
+            return;
+
+        Creature* deathmetal = GetCaster() ? GetCaster()->ToCreature() : nullptr;
+        if (!deathmetal)
+            return;
+
+        std::vector<uint8> graves(10);
+        std::iota(graves.begin(), graves.end(), 0);
+        Trinity::Containers::RandomShuffle(graves);
+        for (uint8 i = 0; i < GHOULS_PER_WAVE; ++i)
+            deathmetal->CastSpell(destSummon[graves[i]], SPELL_SUMMON_GHOUL, true);
     }
 
     void Register() override
     {
         OnEffectPeriodic += AuraEffectPeriodicFn(spell_army_of_the_dead::Tick, EFFECT_0, SPELL_AURA_PERIODIC_DUMMY);
+    }
+};
+
+// 245032 - Power Chords: tells the concert where the chord landed
+class spell_darkmoon_power_chord : public SpellScript
+{
+    PrepareSpellScript(spell_darkmoon_power_chord);
+
+    void HandleLanded(SpellEffIndex /*effIndex*/)
+    {
+        Unit* caster = GetCaster();
+        WorldLocation const* dest = GetHitDest();
+        if (!caster || !dest)
+            return;
+
+        if (Creature* manager = GetConcertManager(caster))
+            if (npc_darkmoon_manager* ai = CAST_AI(npc_darkmoon_manager, manager->AI()))
+                ai->PowerChordLanded(*dest);
+    }
+
+    void Register() override
+    {
+        OnEffectHit += SpellEffectFn(spell_darkmoon_power_chord::HandleLanded, EFFECT_0, SPELL_EFFECT_TRIGGER_MISSILE);
+    }
+};
+
+// 244954 - Wailing Wall: a fan caught by the wraiths loses the rhythm
+class spell_darkmoon_wailing_wall : public SpellScript
+{
+    PrepareSpellScript(spell_darkmoon_wailing_wall);
+
+    void HandleHit(SpellEffIndex /*effIndex*/)
+    {
+        Player* player = GetHitUnit() ? GetHitUnit()->ToPlayer() : nullptr;
+        if (!player)
+            return;
+
+        if (Creature* manager = GetConcertManager(player))
+            if (manager->IsAIEnabled)
+                manager->AI()->SetGUID(player->GetGUID(), DATA_WALL_HIT);
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_darkmoon_wailing_wall::HandleHit, EFFECT_0, SPELL_EFFECT_SCHOOL_DAMAGE);
     }
 };
 
@@ -590,4 +1105,6 @@ void AddSC_DarkMoonConcertBlightBoar()
     RegisterCreatureAI(npc_darkmoon_ghoul);
     RegisterCreatureAI(npc_devlynn_styx);
     RegisterAuraScript(spell_army_of_the_dead);
+    RegisterSpellScript(spell_darkmoon_power_chord);
+    RegisterSpellScript(spell_darkmoon_wailing_wall);
 }
