@@ -34713,8 +34713,8 @@ void Player::ActivateTalentGroup(ChrSpecializationEntry const* spec)
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHARACTER_ACTIONS_SPEC);
     stmt->setUInt64(0, GetGUIDLow());
     stmt->setUInt8(1, GetActiveTalentGroup());
-    if (PreparedQueryResult result = CharacterDatabase.Query(stmt))
-        _LoadActions(result);
+    // Also without saved buttons: the previous specialization's ones would stay, and buttons placed over them would be updated instead of saved
+    _LoadActions(CharacterDatabase.Query(stmt));
 
     SendActionButtons(1);
     InitialPowers();
