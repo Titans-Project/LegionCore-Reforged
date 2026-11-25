@@ -1,19 +1,14 @@
-/*
- * Copyright (C) 2008-2013 TrinityCore <http://www.trinitycore.org/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2013 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 #include "AreaTrigger.h"
 #include "AreaTriggerAI.h"
@@ -1513,6 +1508,10 @@ float AreaTrigger::GetRadius() const
     float radius = _radius;
     if (atInfo.HasDynamicShape && atInfo.MorphCurveID && isMoving())
         radius = G3D::lerp(atInfo.Radius, atInfo.RadiusTarget, sDB2Manager.GetCurveValueAt(atInfo.MorphCurveID, GetProgress()));
+
+    // the client grows and shrinks the area along this curve: the hits must follow what players see
+    if (atInfo.ScaleCurveID && int32(GetUInt32Value(AREATRIGGER_FIELD_DURATION)) > 0)
+        radius *= sDB2Manager.GetCurveValueAt(atInfo.ScaleCurveID, std::min(GetProgress(), 1.0f));
 
     return radius;
 }
