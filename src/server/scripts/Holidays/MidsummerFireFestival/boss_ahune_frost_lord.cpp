@@ -1,10 +1,18 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 /*
 
 Event Boss Ahune Base Script
 
 */
 
-#include "the_slave_pens.h"
+#include "Outland/Dungeons/TheSlavePens/the_slave_pens.h"
 #include "LFGMgr.h"
 #include "Group.h"
 #include "CreatureTextMgr.h"

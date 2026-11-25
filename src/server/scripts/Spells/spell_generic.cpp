@@ -706,55 +706,6 @@ class spell_gen_trick : public SpellScriptLoader
         }
 };
 
-// 24751 Trick or Treat
-enum TrickOrTreatSpells
-{
-    SPELL_TRICK                 = 24714,
-    SPELL_TREAT                 = 24715,
-    SPELL_TRICKED_OR_TREATED    = 24755,
-    SPELL_TRICKY_TREAT_SPEED    = 42919,
-    SPELL_TRICKY_TREAT_TRIGGER  = 42965,
-    SPELL_UPSET_TUMMY           = 42966
-};
-
-class spell_gen_trick_or_treat : public SpellScriptLoader
-{
-    public:
-        spell_gen_trick_or_treat() : SpellScriptLoader("spell_gen_trick_or_treat") {}
-
-        class spell_gen_trick_or_treat_SpellScript : public SpellScript
-        {
-            PrepareSpellScript(spell_gen_trick_or_treat_SpellScript);
-
-            bool Validate(SpellInfo const* /*SpellInfo*/) override
-            {
-                if (!sSpellMgr->GetSpellInfo(SPELL_TRICK) || !sSpellMgr->GetSpellInfo(SPELL_TREAT) || !sSpellMgr->GetSpellInfo(SPELL_TRICKED_OR_TREATED))
-                    return false;
-                return true;
-            }
-
-            void HandleScript(SpellEffIndex /*effIndex*/)
-            {
-                Unit* caster = GetCaster();
-                if (Player* target = GetHitPlayer())
-                {
-                    caster->CastSpell(target, roll_chance_i(50) ? SPELL_TRICK : SPELL_TREAT, true, NULL);
-                    caster->CastSpell(target, SPELL_TRICKED_OR_TREATED, true, NULL);
-                }
-            }
-
-            void Register() override
-            {
-                OnEffectHitTarget += SpellEffectFn(spell_gen_trick_or_treat_SpellScript::HandleScript, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
-            }
-        };
-
-        SpellScript* GetSpellScript() const override
-        {
-            return new spell_gen_trick_or_treat_SpellScript();
-        }
-};
-
 class spell_creature_permanent_feign_death : public SpellScriptLoader
 {
     public:
@@ -2884,50 +2835,13 @@ class spell_gen_summon_elemental : public SpellScriptLoader
 
 enum Mounts
 {
-    // Magic Broom
-    SPELL_MAGIC_BROOM_60                = 42680,
-    SPELL_MAGIC_BROOM_100               = 42683,
-    SPELL_MAGIC_BROOM_150               = 42667,
-    SPELL_MAGIC_BROOM_280               = 42668,
-
-    // Headless Horseman's Mount
-    SPELL_HEADLESS_HORSEMAN_MOUNT_60    = 51621,
-    SPELL_HEADLESS_HORSEMAN_MOUNT_100   = 48024,
-    SPELL_HEADLESS_HORSEMAN_MOUNT_150   = 51617,
-    SPELL_HEADLESS_HORSEMAN_MOUNT_280   = 48023,
-
     // Winged Steed of the Ebon Blade
     SPELL_WINGED_STEED_150              = 54726,
     SPELL_WINGED_STEED_280              = 54727,
 
-    // Big Love Rocket
-    SPELL_BIG_LOVE_ROCKET_0             = 71343,
-    SPELL_BIG_LOVE_ROCKET_60            = 71344,
-    SPELL_BIG_LOVE_ROCKET_100           = 71345,
-    SPELL_BIG_LOVE_ROCKET_150           = 71346,
-    SPELL_BIG_LOVE_ROCKET_310           = 71347,
-
-    // Invincible
-    SPELL_INVINCIBLE_60                 = 72281,
-    SPELL_INVINCIBLE_100                = 72282,
-    SPELL_INVINCIBLE_150                = 72283,
-    SPELL_INVINCIBLE_310                = 72284,
-
     // Blazing Hippogryph
     SPELL_BLAZING_HIPPOGRYPH_150        = 74854,
     SPELL_BLAZING_HIPPOGRYPH_280        = 74855,
-
-    // Celestial Steed
-    SPELL_CELESTIAL_STEED_60            = 75619,
-    SPELL_CELESTIAL_STEED_100           = 75620,
-    SPELL_CELESTIAL_STEED_150           = 75617,
-    SPELL_CELESTIAL_STEED_280           = 75618,
-    SPELL_CELESTIAL_STEED_310           = 76153,
-
-    // X-53 Touring Rocket
-    SPELL_X53_TOURING_ROCKET_150        = 75957,
-    SPELL_X53_TOURING_ROCKET_280        = 75972,
-    SPELL_X53_TOURING_ROCKET_310        = 76154,
 };
 
 class spell_gen_mount : public SpellScriptLoader
@@ -3339,184 +3253,6 @@ class spell_gen_gobelin_gumbo : public SpellScriptLoader
         AuraScript* GetAuraScript() const override
         {
             return new spell_gen_gobelin_gumbo_AuraScript();
-        }
-};
-
-enum eBrewfestSpeedSpells
-{
-    SPELL_BREWFEST_RAM          = 43880,
-    SPELL_RAM_FATIGUE           = 43052,
-    SPELL_SPEED_RAM_GALLOP      = 42994,
-    SPELL_SPEED_RAM_CANTER      = 42993,
-    SPELL_SPEED_RAM_TROT        = 42992,
-    SPELL_SPEED_RAM_NORMAL      = 43310,
-    SPELL_SPEED_RAM_EXHAUSED    = 43332
-};
-
-class spell_brewfest_speed : public SpellScriptLoader
-{
-public:
-    spell_brewfest_speed() : SpellScriptLoader("spell_brewfest_speed") {}
-
-    class spell_brewfest_speed_AuraScript : public AuraScript
-    {
-        PrepareAuraScript(spell_brewfest_speed_AuraScript)
-        bool Validate(SpellInfo const * /*SpellInfo*/) override
-        {
-            if (!sSpellMgr->GetSpellInfo(SPELL_RAM_FATIGUE))
-                return false;
-            if (!sSpellMgr->GetSpellInfo(SPELL_BREWFEST_RAM))
-                return false;
-            if (!sSpellMgr->GetSpellInfo(SPELL_SPEED_RAM_GALLOP))
-                return false;
-            if (!sSpellMgr->GetSpellInfo(SPELL_SPEED_RAM_CANTER))
-                return false;
-            if (!sSpellMgr->GetSpellInfo(SPELL_SPEED_RAM_TROT))
-                return false;
-            if (!sSpellMgr->GetSpellInfo(SPELL_SPEED_RAM_NORMAL))
-                return false;
-            if (!sSpellMgr->GetSpellInfo(SPELL_SPEED_RAM_GALLOP))
-                return false;
-            if (!sSpellMgr->GetSpellInfo(SPELL_SPEED_RAM_EXHAUSED))
-                return false;
-            return true;
-        }
-
-        void HandleEffectPeriodic(AuraEffect const* /*aurEff*/)
-        {
-            if (GetId() == SPELL_SPEED_RAM_EXHAUSED)
-                return;
-            Player* pCaster = GetCaster()->ToPlayer();
-            if (!pCaster)
-                return;
-            int i;
-            switch (GetId())
-            {
-                case SPELL_SPEED_RAM_GALLOP:
-                    for (i = 0; i < 5; i++)
-                       pCaster->AddAura(SPELL_RAM_FATIGUE,pCaster);
-                    break;
-                case SPELL_SPEED_RAM_CANTER:
-                    pCaster->AddAura(SPELL_RAM_FATIGUE,pCaster);
-                    break;
-                case SPELL_SPEED_RAM_TROT:
-                    if (pCaster->HasAura(SPELL_RAM_FATIGUE))
-                        if (pCaster->GetAura(SPELL_RAM_FATIGUE)->GetStackAmount() <= 2)
-                            pCaster->RemoveAura(SPELL_RAM_FATIGUE);
-                        else
-                            pCaster->GetAura(SPELL_RAM_FATIGUE)->ModStackAmount(-2);
-                    break;
-                case SPELL_SPEED_RAM_NORMAL:
-                    if (pCaster->HasAura(SPELL_RAM_FATIGUE))
-                        if (pCaster->GetAura(SPELL_RAM_FATIGUE)->GetStackAmount() <= 4)
-                            pCaster->RemoveAura(SPELL_RAM_FATIGUE);
-                        else
-                            pCaster->GetAura(SPELL_RAM_FATIGUE)->ModStackAmount(-4);
-                    break;
-            }
-            if (pCaster->HasAura(SPELL_RAM_FATIGUE))
-                if (pCaster->GetAura(SPELL_RAM_FATIGUE)->GetStackAmount() >= 100)
-                    pCaster->CastSpell(pCaster,SPELL_SPEED_RAM_EXHAUSED, false);
-        }
-
-        void HandleEffectRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
-        {
-            Player* pCaster = GetCaster()->ToPlayer();
-            if (!pCaster)
-                return;
-            if (!pCaster->HasAura(SPELL_BREWFEST_RAM))
-                return;
-            if (GetId() == SPELL_SPEED_RAM_EXHAUSED) 
-            {
-                if (pCaster->HasAura(SPELL_RAM_FATIGUE))
-                    pCaster->GetAura(SPELL_RAM_FATIGUE)->ModStackAmount(-15);
-            } else if (!pCaster->HasAura(SPELL_RAM_FATIGUE) || pCaster->GetAura(SPELL_RAM_FATIGUE)->GetStackAmount() < 100)
-                switch (GetId())
-                {
-                    case SPELL_SPEED_RAM_GALLOP:
-                        if (!pCaster->HasAura(SPELL_SPEED_RAM_EXHAUSED))
-                            pCaster->CastSpell(pCaster,SPELL_SPEED_RAM_CANTER, false);
-                        break;
-                    case SPELL_SPEED_RAM_CANTER:
-                        if (!pCaster->HasAura(SPELL_SPEED_RAM_GALLOP))
-                            pCaster->CastSpell(pCaster,SPELL_SPEED_RAM_TROT, false);
-                        break;
-                    case SPELL_SPEED_RAM_TROT:
-                        if (!pCaster->HasAura(SPELL_SPEED_RAM_CANTER))
-                            pCaster->CastSpell(pCaster,SPELL_SPEED_RAM_NORMAL, false);
-                        break;
-                }
-        }
-
-        void HandleEffectApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
-        {
-            Player* pCaster = GetCaster()->ToPlayer();
-            if (!pCaster)
-                return;
-            switch (GetId())
-            {
-                case SPELL_SPEED_RAM_GALLOP:
-                    pCaster->GetAura(SPELL_SPEED_RAM_GALLOP)->SetDuration(4000);
-                    break;
-                case SPELL_SPEED_RAM_CANTER:
-                    pCaster->GetAura(SPELL_SPEED_RAM_CANTER)->SetDuration(4000);
-                    break;
-                case SPELL_SPEED_RAM_TROT:
-                    pCaster->GetAura(SPELL_SPEED_RAM_TROT)->SetDuration(4000);
-                    break;
-            }
-        }
-
-        void Register() override
-        {
-            OnEffectApply += AuraEffectApplyFn(spell_brewfest_speed_AuraScript::HandleEffectApply, EFFECT_0, SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED, AURA_EFFECT_HANDLE_REAL);
-            OnEffectPeriodic += AuraEffectPeriodicFn(spell_brewfest_speed_AuraScript::HandleEffectPeriodic,EFFECT_1, SPELL_AURA_PERIODIC_DUMMY);
-            OnEffectRemove += AuraEffectRemoveFn(spell_brewfest_speed_AuraScript::HandleEffectRemove, EFFECT_2, SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED, AURA_EFFECT_HANDLE_REAL);
-        }
-    };
-
-    AuraScript* GetAuraScript() const override
-    {
-        return new spell_brewfest_speed_AuraScript();
-    }
-};
-
-class spell_gen_tricky_treat : public SpellScriptLoader
-{
-    public:
-        spell_gen_tricky_treat() : SpellScriptLoader("spell_gen_tricky_treat") {}
-
-        class spell_gen_tricky_treat_SpellScript : public SpellScript
-        {
-            PrepareSpellScript(spell_gen_tricky_treat_SpellScript);
-
-            bool Validate(SpellInfo const* /*SpellInfo*/) override
-            {
-                if (!sSpellMgr->GetSpellInfo(SPELL_TRICKY_TREAT_SPEED))
-                    return false;
-                if (!sSpellMgr->GetSpellInfo(SPELL_TRICKY_TREAT_TRIGGER))
-                    return false;
-                if (!sSpellMgr->GetSpellInfo(SPELL_UPSET_TUMMY))
-                    return false;
-                return true;
-            }
-
-            void HandleScript(SpellEffIndex /*effIndex*/)
-            {
-                if (Unit* caster = GetCaster())
-                    if (caster->HasAura(SPELL_TRICKY_TREAT_TRIGGER) && caster->GetAuraCount(SPELL_TRICKY_TREAT_SPEED) > 3 && roll_chance_i(33))
-                        caster->CastSpell(caster, SPELL_UPSET_TUMMY, true);
-            }
-
-            void Register() override
-            {
-                OnEffectHitTarget += SpellEffectFn(spell_gen_tricky_treat_SpellScript::HandleScript, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
-            }
-        };
-
-        SpellScript* GetSpellScript() const override
-        {
-            return new spell_gen_tricky_treat_SpellScript();
         }
 };
 
@@ -7258,57 +6994,6 @@ class spell_generic_cleanup : public AuraScript
     }
 };
 
-uint32 morph_list_alliance_darkmoon[49] =
-{
-    1437, 17514, 25521, 1697, 3086,
-    1430, 6975, 18295, 1477, 21621,
-    2271, 17216, 5042, 25336, 14754,
-    17515, 3120, 2258, 5040, 17486,
-    2226, 17506, 17241, 2222, 17500,
-    3104, 17682, 18296, 17503, 5083,
-    1521, 1496, 3052, 17478, 2203,
-    2263, 1404, 1449, 10620, 17507,
-    3064, 3596, 9823, 10573, 10575,
-    8478, 7769, 6844, 15453
-};
-
-uint32 morph_list_horde_darkmoon[53] =
-{
-    1314, 16801, 1358, 4359,
-    4537, 4356, 8000, 1680, 27286,
-    16824, 11750, 1366, 4064, 1378,
-    4532, 4087, 4084, 15570, 11901,
-    2671, 12049, 19798, 14759, 3604,
-    17671, 16823, 1976, 1394, 1879,
-    4363, 30894, 1384, 5846, 1319,
-    16781, 7040, 18159, 1329, 4057,
-    2648, 16753, 4009, 2666, 1395,
-    27293, 4053, 4534, 1317, 15701,
-    17278, 4075, 4610, 2629
-};
-
-// 70764
-class spell_gen_citizen_costume_alliance_darkmoon : public AuraScript
-{
-    PrepareAuraScript(spell_gen_citizen_costume_alliance_darkmoon);
-
-    void AfterApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
-    {
-        Unit* caster = GetCaster();
-        if (!caster)
-            return;
-
-        uint32 select_morph = morph_list_alliance_darkmoon[urand(0, 48)];
-
-        caster->SetDisplayId(select_morph);
-    }
-
-    void Register() override
-    {
-        AfterEffectApply += AuraEffectApplyFn(spell_gen_citizen_costume_alliance_darkmoon::AfterApply, EFFECT_0, SPELL_AURA_TRANSFORM, AURA_EFFECT_HANDLE_REAL);
-    }
-};
-
 // Raging Storm - 215296
 struct areatrigger_gen_raging_storm : public AreaTriggerAI
 {
@@ -7364,28 +7049,6 @@ struct areatrigger_gen_raging_storm : public AreaTriggerAI
     void OnRemove() override
     {
         DoCast();
-    }
-};
-
-// 71084
-class spell_gen_citizen_costume_horde_darkmoon : public AuraScript
-{
-    PrepareAuraScript(spell_gen_citizen_costume_horde_darkmoon);
-
-    void AfterApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
-    {
-        Unit* caster = GetCaster();
-        if (!caster)
-            return;
-
-        uint32 select_morph = morph_list_horde_darkmoon[urand(0, 52)];
-
-        caster->SetDisplayId(select_morph);
-    }
-
-    void Register() override
-    {
-        AfterEffectApply += AuraEffectApplyFn(spell_gen_citizen_costume_horde_darkmoon::AfterApply, EFFECT_0, SPELL_AURA_TRANSFORM, AURA_EFFECT_HANDLE_REAL);
     }
 };
 
@@ -8487,7 +8150,6 @@ void AddSC_generic_spell_scripts()
     new spell_gen_pet_summoned();
     new spell_gen_remove_flight_auras();
     new spell_gen_trick();
-    new spell_gen_trick_or_treat();
     new spell_creature_permanent_feign_death();
     new spell_pvp_trinket_wotf_shared_cd();
     new spell_gen_animal_blood();
@@ -8532,22 +8194,14 @@ void AddSC_generic_spell_scripts()
     new spell_gen_lifebloom("spell_faction_champion_dru_lifebloom", SPELL_FACTION_CHAMPIONS_DRU_LIFEBLOOM_FINAL_HEAL);
     new spell_gen_summon_elemental("spell_gen_summon_fire_elemental", SPELL_SUMMON_FIRE_ELEMENTAL);
     new spell_gen_summon_elemental("spell_gen_summon_earth_elemental", SPELL_SUMMON_EARTH_ELEMENTAL);
-    new spell_gen_mount("spell_magic_broom", 0, SPELL_MAGIC_BROOM_60, SPELL_MAGIC_BROOM_100, SPELL_MAGIC_BROOM_150, SPELL_MAGIC_BROOM_280);
-    new spell_gen_mount("spell_headless_horseman_mount", 0, SPELL_HEADLESS_HORSEMAN_MOUNT_60, SPELL_HEADLESS_HORSEMAN_MOUNT_100, SPELL_HEADLESS_HORSEMAN_MOUNT_150, SPELL_HEADLESS_HORSEMAN_MOUNT_280);
     new spell_gen_mount("spell_winged_steed_of_the_ebon_blade", 0, 0, 0, SPELL_WINGED_STEED_150, SPELL_WINGED_STEED_280);
-    new spell_gen_mount("spell_big_love_rocket", SPELL_BIG_LOVE_ROCKET_0, SPELL_BIG_LOVE_ROCKET_60, SPELL_BIG_LOVE_ROCKET_100, SPELL_BIG_LOVE_ROCKET_150, SPELL_BIG_LOVE_ROCKET_310);
-    new spell_gen_mount("spell_invincible", 0, SPELL_INVINCIBLE_60, SPELL_INVINCIBLE_100, SPELL_INVINCIBLE_150, SPELL_INVINCIBLE_310);
     new spell_gen_mount("spell_blazing_hippogryph", 0, 0, 0, SPELL_BLAZING_HIPPOGRYPH_150, SPELL_BLAZING_HIPPOGRYPH_280);
-    new spell_gen_mount("spell_celestial_steed", 0, SPELL_CELESTIAL_STEED_60, SPELL_CELESTIAL_STEED_100, SPELL_CELESTIAL_STEED_150, SPELL_CELESTIAL_STEED_280, SPELL_CELESTIAL_STEED_310);
-    new spell_gen_mount("spell_x53_touring_rocket", 0, 0, 0, SPELL_X53_TOURING_ROCKET_150, SPELL_X53_TOURING_ROCKET_280, SPELL_X53_TOURING_ROCKET_310);
     new spell_gen_upper_deck_create_foam_sword();
     new spell_gen_bonked();
     new spell_gen_running_wild();
     new spell_gen_two_forms();
     new spell_gen_darkflight();
     new spell_gen_gobelin_gumbo();
-    new spell_brewfest_speed();
-    new spell_gen_tricky_treat();
     new spell_gen_leviroth_self_impale();
     new spell_gulp_frog_toxin();
     new spell_time_lost_wisdom();
@@ -8616,8 +8270,6 @@ void AddSC_generic_spell_scripts()
     RegisterAuraScript(spell_gen_nerubian_chitin);
     RegisterAuraScript(spell_gen_nefarious_pact);
     RegisterSpellScript(spell_gen_temptation);
-    RegisterAuraScript(spell_gen_citizen_costume_alliance_darkmoon);
-    RegisterAuraScript(spell_gen_citizen_costume_horde_darkmoon);
     RegisterAuraScript(spell_gen_dressed_to_kill);
     RegisterAuraScript(spell_mount_summon_chauffeur);
     RegisterAuraScript(spell_gen_shadowy_reflection);

@@ -1,20 +1,14 @@
-/*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 /* ScriptData
 SDName: Areatrigger_Scripts
@@ -376,61 +370,6 @@ class AreaTrigger_at_bring_your_orphan_to : public AreaTriggerScript
 };
 
 /*######
-## at_brewfest
-######*/
-
-enum Brewfest
-{
-    NPC_TAPPER_SWINDLEKEG       = 24711,
-    NPC_IPFELKOFER_IRONKEG      = 24710,
-
-    AT_BREWFEST_DUROTAR         = 4829,
-    AT_BREWFEST_DUN_MOROGH      = 4820,
-
-    SAY_WELCOME                 = 4,
-
-    AREATRIGGER_TALK_COOLDOWN   = 5, // in seconds
-};
-
-class AreaTrigger_at_brewfest : public AreaTriggerScript
-{
-    public:
-        AreaTrigger_at_brewfest() : AreaTriggerScript("at_brewfest")
-        {
-            // Initialize for cooldown
-            _triggerTimes[AT_BREWFEST_DUROTAR] = _triggerTimes[AT_BREWFEST_DUN_MOROGH] = 0;
-        }
-
-        bool OnTrigger(Player* player, AreaTriggerEntry const* trigger, bool /*enter*/) override
-        {
-            uint32 triggerId = trigger->ID;
-            // Second trigger happened too early after first, skip for now
-            if (GameTime::GetGameTime() - _triggerTimes[triggerId] < AREATRIGGER_TALK_COOLDOWN)
-                return false;
-
-            switch (triggerId)
-            {
-                case AT_BREWFEST_DUROTAR:
-                    if (Creature* tapper = player->FindNearestCreature(NPC_TAPPER_SWINDLEKEG, 20.0f))
-                        tapper->AI()->Talk(SAY_WELCOME, player->GetGUID());
-                    break;
-                case AT_BREWFEST_DUN_MOROGH:
-                    if (Creature* ipfelkofer = player->FindNearestCreature(NPC_IPFELKOFER_IRONKEG, 20.0f))
-                        ipfelkofer->AI()->Talk(SAY_WELCOME, player->GetGUID());
-                    break;
-                default:
-                    break;
-            }
-
-            _triggerTimes[triggerId] = GameTime::GetGameTime();
-            return false;
-        }
-
-    private:
-        std::map<uint32, time_t> _triggerTimes;
-};
-
-/*######
 ## at_area_52_entrance
 ######*/
 
@@ -603,7 +542,6 @@ void AddSC_areatrigger_scripts()
     new AreaTrigger_at_sholazar_waygate();
     new AreaTrigger_at_nats_landing();
     new AreaTrigger_at_bring_your_orphan_to();
-    new AreaTrigger_at_brewfest();
     new AreaTrigger_at_area_52_entrance();
     new areatrigger_at_dinner_party();
     new areatrigger_skorpyron_scorpid_swarm();

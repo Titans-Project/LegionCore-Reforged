@@ -12,7 +12,7 @@
 ///                                      ///
 ////////////////////////////////////////////
 
-#include "scarlet_monastery.h"
+#include "EasternKingdoms/Dungeons/ScarletMonastery/scarlet_monastery.h"
 #include "LFGMgr.h"
 #include "Group.h"
 #include "QuestData.h"

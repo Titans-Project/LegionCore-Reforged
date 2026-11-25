@@ -149,7 +149,6 @@ void AddSC_instance_scarlet_halls();
 void AddSC_boss_thalnos_the_soulrender();    // Scarlet Monastery
 void AddSC_boss_brother_korloff();
 void AddSC_boss_high_inquisitor_whitemane();
-void AddSC_boss_headless_horseman();
 void AddSC_instance_scarlet_monastery();
 
 void AddSC_instance_scholomance();           // Scholomance
@@ -396,7 +395,6 @@ void AddEasternKingdomsScripts()
     AddSC_boss_thalnos_the_soulrender();    // Scarlet Monastery
     AddSC_boss_brother_korloff();
     AddSC_boss_high_inquisitor_whitemane();
-    AddSC_boss_headless_horseman();
     AddSC_instance_scarlet_monastery();
 
     AddSC_instance_scholomance();           // Scholomance

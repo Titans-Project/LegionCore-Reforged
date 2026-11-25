@@ -14,15 +14,11 @@ void AddSC_go_scripts();
 void AddSC_guards();
 void AddSC_item_scripts();
 void AddSC_npc_professions();
-void AddSC_npc_innkeeper();
 void AddSC_npcs_special();
 void AddSC_npc_taxi();
 void AddSC_achievement_scripts();
 void AddSC_challenge_scripts();
 void AddSC_player_special_scripts();
-void AddSC_fireworks_spectacular();
-void AddSC_hallows_end_village_fires();
-void AddSC_hallows_end_stink_bombs();
 void AddSC_world_player_fixes();
 void AddSC_scene_scripts();
 
@@ -50,15 +46,11 @@ void AddWorldScripts()
     AddSC_guards();
     AddSC_item_scripts();
     AddSC_npc_professions();
-    AddSC_npc_innkeeper();
     AddSC_npcs_special();
     AddSC_npc_taxi();
     AddSC_achievement_scripts();
     AddSC_challenge_scripts();
     AddSC_player_special_scripts();
-    AddSC_fireworks_spectacular();
-    AddSC_hallows_end_village_fires();
-    AddSC_hallows_end_stink_bombs();
     AddSC_world_player_fixes();
     AddSC_scene_scripts();
 

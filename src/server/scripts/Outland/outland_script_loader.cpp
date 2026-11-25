@@ -35,7 +35,6 @@ void AddSC_instance_steam_vault();
 void AddSC_boss_hungarfen();                 //CR Underbog
 void AddSC_instance_the_slave_pens();
 void AddSC_the_slave_pens();
-void AddSC_boss_ahune_frost_lord();          //CR Slave Pens
 void AddSC_boss_the_black_stalker();
 void AddSC_boss_gruul();                     //Gruul's Lair
 void AddSC_boss_high_king_maulgar();
@@ -126,7 +125,6 @@ void AddOutlandScripts()
     AddSC_boss_hungarfen();                 //CR Underbog
     AddSC_instance_the_slave_pens();
     AddSC_the_slave_pens();
-    AddSC_boss_ahune_frost_lord();          //CR The Slave Pens
     AddSC_boss_the_black_stalker();
     AddSC_boss_gruul();                     //Gruul's Lair
     AddSC_boss_high_king_maulgar();

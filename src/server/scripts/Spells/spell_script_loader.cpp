@@ -15,7 +15,6 @@ void AddSC_monk_spell_scripts();
 void AddSC_mastery_spell_scripts();
 void AddSC_quest_spell_scripts();
 void AddSC_item_spell_scripts();
-void AddSC_holiday_spell_scripts();
 
 void AddSpellsScripts()
 {
@@ -35,5 +34,4 @@ void AddSpellsScripts()
     AddSC_mastery_spell_scripts();
     AddSC_quest_spell_scripts();
     AddSC_item_spell_scripts();
-    AddSC_holiday_spell_scripts();
 }

@@ -1499,73 +1499,6 @@ class spell_item_impale_leviroth : public SpellScriptLoader
         }
 };
 
-enum BrewfestMountTransformation
-{
-    SPELL_MOUNT_RAM_100                         = 43900,
-    SPELL_MOUNT_RAM_60                          = 43899,
-    SPELL_MOUNT_KODO_100                        = 49379,
-    SPELL_MOUNT_KODO_60                         = 49378,
-    SPELL_BREWFEST_MOUNT_TRANSFORM              = 49357,
-    SPELL_BREWFEST_MOUNT_TRANSFORM_REVERSE      = 52845,
-};
-
-class spell_item_brewfest_mount_transformation : public SpellScriptLoader
-{
-    public:
-        spell_item_brewfest_mount_transformation() : SpellScriptLoader("spell_item_brewfest_mount_transformation") { }
-
-        class spell_item_brewfest_mount_transformation_SpellScript : public SpellScript
-        {
-            PrepareSpellScript(spell_item_brewfest_mount_transformation_SpellScript);
-
-            bool Validate(SpellInfo const* /*spell*/) override
-            {
-                if (!sSpellMgr->GetSpellInfo(SPELL_MOUNT_RAM_100) || !sSpellMgr->GetSpellInfo(SPELL_MOUNT_RAM_60) || !sSpellMgr->GetSpellInfo(SPELL_MOUNT_KODO_100) || !sSpellMgr->GetSpellInfo(SPELL_MOUNT_KODO_60))
-                    return false;
-                return true;
-            }
-
-            void HandleDummy(SpellEffIndex /* effIndex */)
-            {
-                Player* caster = GetCaster()->ToPlayer();
-                if (caster->HasAuraType(SPELL_AURA_MOUNTED))
-                {
-                    caster->RemoveAurasByType(SPELL_AURA_MOUNTED);
-                    uint32 spell_id;
-
-                    switch (GetSpellInfo()->Id)
-                    {
-                        case SPELL_BREWFEST_MOUNT_TRANSFORM:
-                            if (caster->GetSpeedRate(MOVE_RUN) >= 2.0f)
-                                spell_id = caster->GetTeam() == ALLIANCE ? SPELL_MOUNT_RAM_100 : SPELL_MOUNT_KODO_100;
-                            else
-                                spell_id = caster->GetTeam() == ALLIANCE ? SPELL_MOUNT_RAM_60 : SPELL_MOUNT_KODO_60;
-                            break;
-                        case SPELL_BREWFEST_MOUNT_TRANSFORM_REVERSE:
-                            if (caster->GetSpeedRate(MOVE_RUN) >= 2.0f)
-                                spell_id = caster->GetTeam() == HORDE ? SPELL_MOUNT_RAM_100 : SPELL_MOUNT_KODO_100;
-                            else
-                                spell_id = caster->GetTeam() == HORDE ? SPELL_MOUNT_RAM_60 : SPELL_MOUNT_KODO_60;
-                            break;
-                        default:
-                            return;
-                    }
-                    caster->CastSpell(caster, spell_id, true);
-                }
-            }
-
-            void Register() override
-            {
-                OnEffectHitTarget += SpellEffectFn(spell_item_brewfest_mount_transformation_SpellScript::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
-            }
-        };
-
-        SpellScript* GetSpellScript() const override
-        {
-            return new spell_item_brewfest_mount_transformation_SpellScript();
-        }
-};
-
 enum NitroBoots
 {
     SPELL_NITRO_BOOTS_SUCCESS       = 54861,
@@ -4576,7 +4509,6 @@ void AddSC_item_spell_scripts()
     new spell_item_demon_broiled_surprise();
     new spell_item_complete_raptor_capture();
     new spell_item_impale_leviroth();
-    new spell_item_brewfest_mount_transformation();
     new spell_item_teach_language();
     new spell_item_rocket_boots();
     new spell_item_pygmy_oil();

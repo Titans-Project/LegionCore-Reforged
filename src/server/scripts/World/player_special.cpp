@@ -740,30 +740,6 @@ public:
     }
 };
 
-class playerScriptDarkmoonMisc : public PlayerScript
-{
-public:
-    playerScriptDarkmoonMisc() : PlayerScript("playerScriptDarkmoonMisc") {}
-
-    void OnLogin(Player* player) override
-    {
-        player->AddDelayedEvent(100, [player]() -> void
-        {
-            if (!player)
-                return;
-
-            if (!sGameEventMgr->IsActiveEvent(75))
-                if (player->GetMapId() == 974)
-                    if (!player->isGameMaster())
-                        player->CastSpell(player, 188816, true);
-
-            //toy
-            if (!player->HasAura(74890))
-                player->RemoveAurasDueToSpell(75055);
-        });
-    }
-};
-
 class playerScriptWeeklyQuests : public PlayerScript
 {
 public:
@@ -1037,7 +1013,6 @@ void AddSC_player_special_scripts()
     new player_level_rewards();
     new player_hyjal_protectors_random();
     new playerScriptWoDMisc();
-    new playerScriptDarkmoonMisc();
     new playerScriptWeeklyQuests();
     new player_kick_afk_moderators();
     new player_heirloom_achieve_check();

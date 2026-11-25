@@ -1,20 +1,14 @@
-/*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 /* ContentData
 go_cat_figurine (the "trap" version of GO, two different exist)
@@ -1278,28 +1272,6 @@ class go_veil_skith_cage : public GameObjectScript
 };
 
 
-/*######
-## go_midsummer_bonfire
-######*/
-
-enum MidsummerBonfire
-{
-    STAMP_OUT_BONFIRE_QUEST_COMPLETE    = 45458,
-};
-
-class go_midsummer_bonfire : public GameObjectScript
-{
-public:
-    go_midsummer_bonfire() : GameObjectScript("go_midsummer_bonfire") { }
-
-    bool OnGossipSelect(Player* player, GameObject* /*go*/, uint32 /*sender*/, uint32 /*action*/) override
-    {
-        player->CastSpell(player, STAMP_OUT_BONFIRE_QUEST_COMPLETE, true);
-        player->CLOSE_GOSSIP_MENU();
-        return false;
-    }
-};
-
 class go_sikthik_cage : public GameObjectScript
 {
 public:
@@ -1314,20 +1286,6 @@ public:
         }
         return false;
     }
-};
-
-// Quest: Clean Up in Stormwind - 29144 and Clean Up in Undercity - 29375
-class go_forsaken_stink_bomb : public GameObjectScript
-{
-    public:
-        go_forsaken_stink_bomb() : GameObjectScript("go_forsaken_stink_bomb") { }
-
-        bool OnGossipHello(Player* player, GameObject* go) override
-        {
-            go->SetLootState(GO_JUST_DEACTIVATED);
-            player->CastSpell(player, 97157, true);
-            return true;
-        }
 };
 
 // 251168 GO: 5 crystals for mount
@@ -1451,255 +1409,6 @@ struct go_toy_train_set : public GameObjectAI
     }
 };
 
-enum BrewfestMusic
-{
-    EVENT_BREWFESTDWARF01 = 11810, // 1.35 min
-    EVENT_BREWFESTDWARF02 = 11812, // 1.55 min
-    EVENT_BREWFESTDWARF03 = 11813, // 0.23 min
-    EVENT_BREWFESTGOBLIN01 = 11811, // 1.08 min
-    EVENT_BREWFESTGOBLIN02 = 11814, // 1.33 min
-    EVENT_BREWFESTGOBLIN03 = 11815 // 0.28 min
-};
-
-enum BrewfestMusicTime
-{
-    EVENT_BREWFESTDWARF01_TIME = 95000,
-    EVENT_BREWFESTDWARF02_TIME = 155000,
-    EVENT_BREWFESTDWARF03_TIME = 23000,
-    EVENT_BREWFESTGOBLIN01_TIME = 68000,
-    EVENT_BREWFESTGOBLIN02_TIME = 93000,
-    EVENT_BREWFESTGOBLIN03_TIME = 28000
-};
-
-enum BrewfestMusicAreas
-{
-    SILVERMOON = 3430, // Horde
-    UNDERCITY = 1497,
-    ORGRIMMAR_1 = 1296,
-    ORGRIMMAR_2 = 14,
-    THUNDERBLUFF = 1638,
-    IRONFORGE_1 = 809, // Alliance
-    IRONFORGE_2 = 1,
-    STORMWIND = 12,
-    EXODAR = 3557,
-    DARNASSUS = 1657
-};
-
-enum BrewfestMusicEvents
-{
-    EVENT_BM_SELECT_MUSIC = 1,
-    EVENT_BM_START_MUSIC = 2
-};
-
-struct go_brewfest_music : public GameObjectAI
-{
-    go_brewfest_music(GameObject* go) : GameObjectAI(go)
-    {
-        events.ScheduleEvent(EVENT_BM_SELECT_MUSIC, 1000);
-        events.ScheduleEvent(EVENT_BM_START_MUSIC, 2000);
-    }
-
-    EventMap events;
-    uint32 rnd = 0;
-    uint32 musicTime = 1000;
-
-    void UpdateAI(uint32 diff) override
-    {
-        events.Update(diff);
-
-        while (uint32 eventId = events.ExecuteEvent())
-        {
-            switch (eventId)
-            {
-            case EVENT_BM_SELECT_MUSIC:
-                if (IsHolidayActive(HOLIDAY_BREWFEST))
-                    rnd = urand(0, 2);
-
-                events.ScheduleEvent(EVENT_BM_SELECT_MUSIC, musicTime);
-                break;
-            case EVENT_BM_START_MUSIC:
-                if (IsHolidayActive(HOLIDAY_BREWFEST))
-                {
-                    if (go->GetAreaId() == SILVERMOON || go->GetAreaId() == UNDERCITY || go->GetAreaId() == ORGRIMMAR_1 || go->GetAreaId() == ORGRIMMAR_2 || go->GetAreaId() == THUNDERBLUFF)
-                    {
-                        switch (rnd)
-                        {
-                        case 0:
-                            go->PlayDirectSound(EVENT_BREWFESTGOBLIN01);
-                            musicTime = EVENT_BREWFESTGOBLIN01_TIME;
-                            break;
-                        case 1:
-                            go->PlayDirectSound(EVENT_BREWFESTGOBLIN02);
-                            musicTime = EVENT_BREWFESTGOBLIN02_TIME;
-                            break;
-                        case 2:
-                            go->PlayDirectSound(EVENT_BREWFESTGOBLIN03);
-                            musicTime = EVENT_BREWFESTGOBLIN03_TIME;
-                            break;
-                        }
-                    }
-                    if (go->GetAreaId() == IRONFORGE_1 || go->GetAreaId() == IRONFORGE_2 || go->GetAreaId() == STORMWIND || go->GetAreaId() == EXODAR || go->GetAreaId() == DARNASSUS)
-                    {
-                        switch (rnd)
-                        {
-                        case 0:
-                            go->PlayDirectSound(EVENT_BREWFESTDWARF01);
-                            musicTime = EVENT_BREWFESTDWARF01_TIME;
-                            break;
-                        case 1:
-                            go->PlayDirectSound(EVENT_BREWFESTDWARF02);
-                            musicTime = EVENT_BREWFESTDWARF02_TIME;
-                            break;
-                        case 2:
-                            go->PlayDirectSound(EVENT_BREWFESTDWARF03);
-                            musicTime = EVENT_BREWFESTDWARF03_TIME;
-                            break;
-                        }
-                    }
-                }
-                events.ScheduleEvent(EVENT_BM_START_MUSIC, 5000);
-                break;
-            default:
-                break;
-            }
-        }
-    }
-};
-
-struct go_midsummer_music : public GameObjectAI
-{
-    go_midsummer_music(GameObject* go) : GameObjectAI(go)
-    {
-        events.ScheduleEvent(EVENT_1, 1000);
-    }
-
-    EventMap events;
-
-    void UpdateAI(uint32 diff) override
-    {
-        events.Update(diff);
-
-        while (uint32 eventId = events.ExecuteEvent())
-        {
-            switch (eventId)
-            {
-            case EVENT_1:
-            {
-                if (IsHolidayActive(HOLIDAY_FIRE_FESTIVAL))
-                {
-                    std::list<Player*> playersNearby;
-                    go->GetPlayerListInGrid(playersNearby, go->GetMap()->GetVisibilityRange());
-                    for (auto& player : playersNearby)
-                    {
-                        if (player->GetTeamId() == TEAM_HORDE)
-                            go->PlayDirectSound(12325, player);
-                        else
-                            go->PlayDirectSound(12319, player);
-                    }
-                }
-                events.ScheduleEvent(EVENT_1, 5000);
-                break;
-            }
-            default:
-                break;
-            }
-        }
-    }
-};
-
-// The faire's music (darkmoonfaire_2, 74 s) used to go out every 5 s to the whole visibility range,
-// through SoundKit 8440, heard up to 150 yards: a new copy over the zone music every 5 s. It now goes
-// once per play-through to players who come within 18 yards, through a copy of that kit that fades
-// out over those 18 yards. 8440 itself stays as it is: it is also the Darkmoon Island zone music.
-// Meanwhile a near-silent stinger holds their music channel, which keeps the zone music quiet.
-struct go_darkmoon_faire_music : public GameObjectAI
-{
-    enum
-    {
-        SOUND_KIT_MUSIC_CLOSE   = 98010,
-        SOUND_KIT_HUSH          = 98011,
-        MUSIC_LENGTH            = 75 * IN_MILLISECONDS,
-        HUSH_EVERY              = 8,        // seconds; the stinger lasts 9.8
-    };
-
-    go_darkmoon_faire_music(GameObject* go) : GameObjectAI(go)
-    {
-        events.ScheduleEvent(EVENT_1, 1000);
-    }
-
-    EventMap events;
-    std::unordered_map<ObjectGuid, uint32> startedAt;
-    uint32 tick = 0;
-
-    void UpdateAI(uint32 diff) override
-    {
-        events.Update(diff);
-
-        while (uint32 eventId = events.ExecuteEvent())
-        {
-            switch (eventId)
-            {
-            case EVENT_1:
-            {
-                uint32 const now = getMSTime();
-                for (auto itr = startedAt.begin(); itr != startedAt.end();)
-                    itr = getMSTimeDiff(itr->second, now) >= uint32(MUSIC_LENGTH) ? startedAt.erase(itr) : std::next(itr);
-
-                if (IsHolidayActive(HOLIDAY_DARKMOON_FAIRE))
-                {
-                    bool const hush = tick++ % HUSH_EVERY == 0;
-                    std::list<Player*> playersNearby;
-                    go->GetPlayerListInGrid(playersNearby, 18.0f);
-                    for (Player* player : playersNearby)
-                    {
-                        bool const arriving = startedAt.emplace(player->GetGUID(), now).second;
-                        if (arriving || hush)
-                            player->SendMusic(SOUND_KIT_HUSH);
-                        if (arriving)
-                            go->PlayDirectSound(SOUND_KIT_MUSIC_CLOSE, player);
-                    }
-                }
-
-                events.ScheduleEvent(EVENT_1, 1000);
-                break;
-            }
-            default:
-                break;
-            }
-        }
-    }
-};
-
-struct go_pirate_day_music : public GameObjectAI
-{
-    go_pirate_day_music(GameObject* go) : GameObjectAI(go)
-    {
-        events.ScheduleEvent(EVENT_1, 1000);
-    }
-
-    EventMap events;
-
-    void UpdateAI(uint32 diff) override
-    {
-        events.Update(diff);
-
-        while (uint32 eventId = events.ExecuteEvent())
-        {
-            switch (eventId)
-            {
-            case EVENT_1:
-                if (IsHolidayActive(HOLIDAY_PIRATES_DAY))
-                    go->PlayDirectSound(12845);
-
-                events.ScheduleEvent(EVENT_1, 5000);
-                break;
-            default:
-                break;
-            }
-        }
-    }
-};
-
 /// Allied race banners of the embassies: their retail spells (257927, 257928, 257989, 257990) are not in the 7.3.5 client, the server opens the window itself
 class go_allied_race_banner : public GameObjectScript
 {
@@ -1763,15 +1472,9 @@ void AddSC_go_scripts()
     new go_gjalerbron_cage;
     new go_large_gjalerbron_cage;
     new go_veil_skith_cage;
-    new go_midsummer_bonfire;
     new go_sikthik_cage;
-    new go_forsaken_stink_bomb;
     new go_ephemeral_crystal;
     new go_azsuna_soul_gem;
     RegisterGameObjectAI(go_toy_train_set);
-    RegisterGameObjectAI(go_brewfest_music);
-    RegisterGameObjectAI(go_midsummer_music);
-    RegisterGameObjectAI(go_darkmoon_faire_music);
-    RegisterGameObjectAI(go_pirate_day_music);
     new go_allied_race_banner();
 }
