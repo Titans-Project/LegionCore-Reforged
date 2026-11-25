@@ -22,6 +22,12 @@ enum eSpells
     SPELL_BURNING_EARTH = 215856,
 };
 
+enum eShartos
+{
+    ITEM_SKULL_OF_SHARTHOS = 140659,
+    FACTION_DREAMWEAVERS = 1883
+};
+
 // 108678
 class boss_shartos : public CreatureScript
 {
@@ -38,6 +44,16 @@ public:
         {
             events.Reset();
             me->RemoveAllAreaObjects();
+        }
+
+        // Skull of Shar'thos: warriors exalted with the Dreamweavers, for the hidden appearance of the Warswords of the Valarjar
+        void JustDied(Unit* /*killer*/) override
+        {
+            for (ObjectGuid const& guid : *me->GetSaveThreatList())
+                if (Player* player = ObjectAccessor::GetPlayer(*me, guid))
+                    if (player->getClass() == CLASS_WARRIOR && player->GetReputationRank(FACTION_DREAMWEAVERS) >= REP_EXALTED
+                        && !player->HasItemCount(ITEM_SKULL_OF_SHARTHOS, 1, true) && me->isTappedBy(player))
+                        player->AddItem(ITEM_SKULL_OF_SHARTHOS, 1);
         }
 
         void EnterCombat(Unit* unit) override
@@ -80,7 +96,7 @@ public:
                         DoCast(SPELL_NIGHTMARE_BREATH);
                         break;
                     case EVENT_5:
-                        DoCast(SPELL_BURNING_EARTH);  // �� �������...
+                        DoCast(SPELL_BURNING_EARTH); // spell_dummy_trigger: a growing patch of fire under each player
                         events.RescheduleEvent(EVENT_5, 25000);
                         break;
                 }
