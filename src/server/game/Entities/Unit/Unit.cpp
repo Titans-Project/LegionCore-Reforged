@@ -528,6 +528,8 @@ void Unit::Update(uint32 p_time)
                         if (auto creature = unit->ToCreature())
                         {
                             dist = std::max(creature->GetAttackDistance(this), threatRadius) + creature->m_CombatDistance;
+                            if (creature->isWorldBoss())
+                                dist = std::max(dist, WORLD_BOSS_COMBAT_RADIUS);
                             float threshold = dist + selfSize + creature->GetObjectSize();
                             if (GetExactDistSq(creature) > threshold * threshold || creature->isTrainingDummy())
                                 refManager.deleteReference(creature);
