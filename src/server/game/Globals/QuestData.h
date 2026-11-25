@@ -288,6 +288,7 @@ private:
     WorldQuestItemList _worldQuestRelic;
     WorldQuestItemList _worldQuestItem;
     WorldQuestItemList _worldQuestItemDungeon;
+    std::unordered_map<uint32, WorldQuestItemList> _worldQuestItemByDungeonMap;  // dungeon world quests: the loot of their own dungeon, by map
     WorldQuestItemList _worldQuestCAItem;
     WorldQuestMap _worldQuest;
     WorldQuestRecipeMap _worldQuestRecipes;

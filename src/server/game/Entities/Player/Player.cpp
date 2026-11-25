@@ -19636,9 +19636,7 @@ void Player::RewardQuest(Quest const* quest, uint32 reward, Object* questGiver, 
                     if (CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, wq->Recipe->ItemID, wq->Recipe->ItemCount) == EQUIP_ERR_OK)
                     {
                         auto bonusTree = GetWorldQuestBonusTreeMod(wq);
-                        uint32 needLevel = std::get<1>(bonusTree);
-                        if (wq->worldQuest->MinItemLevel)
-                            needLevel = wq->worldQuest->MinItemLevel;
+                        uint32 needLevel = GetWorldQuestRewardItemLevel(wq);
 
                         rewardItem = StoreNewItem(dest, wq->Recipe->ItemID, true, Item::GenerateItemRandomPropertyId(wq->Recipe->ItemID, GetLootSpecID()), GuidSet(), sObjectMgr->GetItemBonusTree(wq->Recipe->ItemID, std::get<0>(bonusTree), getLevel(), 0, 0, needLevel), std::get<0>(bonusTree));
                         // triggers some lua events
@@ -19669,9 +19667,7 @@ void Player::RewardQuest(Quest const* quest, uint32 reward, Object* questGiver, 
                     if (ItemTemplate const* pProto = sObjectMgr->GetItemTemplate(ItemID))
                     {
                         auto bonusTree = GetWorldQuestBonusTreeMod(wq);
-                        uint32 needLevel = std::get<1>(bonusTree);
-                        if (wq->worldQuest->MinItemLevel)
-                            needLevel = wq->worldQuest->MinItemLevel;
+                        uint32 needLevel = GetWorldQuestRewardItemLevel(wq);
 
                         rewardItem = StoreNewItem(dest, ItemID, true, Item::GenerateItemRandomPropertyId(ItemID, GetLootSpecID()), GuidSet(), sObjectMgr->GetItemBonusTree(ItemID, std::get<0>(bonusTree), getLevel(), 0, 0, needLevel), std::get<0>(bonusTree));
                         // triggers some lua events
@@ -38787,6 +38783,28 @@ std::tuple<uint32, uint32> Player::GetWorldQuestBonusTreeMod(WorldQuest const* w
 
     uint32 needLevel = (uint32(currentItemLevel / 5) * 5) + BonusLevel; // round to 5
     return std::make_tuple(modTreeID, needLevel);
+}
+
+// The dungeon world quests follow the dungeons of the open tier: the heroic reward below its item level,
+// the mythic one beyond. The PvP ones take the common rule until PvP seasons follow the tiers.
+uint32 Player::GetWorldQuestRewardItemLevel(WorldQuest const* wq)
+{
+    uint32 needLevel = std::get<1>(GetWorldQuestBonusTreeMod(wq));
+    if (!wq || !wq->worldQuest)
+        return needLevel;
+
+    switch (wq->worldQuest->QuestInfoID)
+    {
+        case QUEST_INFO_DUNGEON_WORLD_QUEST:
+        {
+            uint32 const heroic = sWorld->getIntConfig(CONFIG_ITEMLEVEL_DUNGEON_HEROIC);
+            return GetAverageItemLevelTotal(false) < float(heroic) ? heroic : sWorld->getIntConfig(CONFIG_ITEMLEVEL_DUNGEON_MYTHIC);
+        }
+        case QUEST_INFO_PVP_WORLD_QUEST:
+            return needLevel;
+        default:
+            return wq->worldQuest->MinItemLevel ? wq->worldQuest->MinItemLevel : needLevel;
+    }
 }
 
 void Player::ResetWorldQuest(uint32 QuestID)

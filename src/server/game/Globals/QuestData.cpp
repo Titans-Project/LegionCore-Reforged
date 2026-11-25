@@ -348,6 +348,23 @@ void QuestDataStoreMgr::LoadWorldQuestTemplates()
                     _worldQuestItemDungeon.push_back(proto);
             }
         }
+
+        // the same pieces sorted by dungeon, through the encounter journal
+        for (JournalEncounterItemEntry const* encounterItem : sJournalEncounterItemStore)
+        {
+            if (!itemListIDs->count(encounterItem->ItemID))
+                continue;
+
+            JournalEncounterEntry const* encounter = sJournalEncounterStore.LookupEntry(encounterItem->JournalEncounterID);
+            JournalInstanceEntry const* instance = encounter ? sJournalInstanceStore.LookupEntry(encounter->JournalInstanceID) : nullptr;
+            ItemTemplate const* proto = sObjectMgr->GetItemTemplate(encounterItem->ItemID);
+            if (!instance || !proto || proto->GetClass() == ITEM_CLASS_GEM)
+                continue;
+
+            WorldQuestItemList& list = _worldQuestItemByDungeonMap[instance->MapID];
+            if (std::find(list.begin(), list.end(), proto) == list.end())
+                list.push_back(proto);
+        }
     }
 
     result = WorldDatabase.Query("SELECT * FROM `world_quest_faction_analogs`");
@@ -2117,15 +2134,20 @@ void QuestDataStoreMgr::CalculateWorldQuestReward(WorldQuestTemplate const* qTem
                     bool _run = !_worldQuestItem.empty() || !qTemplate->ArmorList.empty();
                     if (qTemplate->QuestInfoID == QUEST_INFO_DUNGEON_WORLD_QUEST)
                     {
-                        _run = !_worldQuestItemDungeon.empty();
-                        tempList = _worldQuestItemDungeon;
+                        // only the loot of the dungeon the quest sends to (its zone lies on the dungeon map)
+                        tempList.clear();
+                        if (AreaTableEntry const* area = Wq->quest && Wq->quest->QuestSortID > 0 ? sAreaTableStore.LookupEntry(Wq->quest->QuestSortID) : nullptr)
+                            if (WorldQuestItemList const* dungeonList = Trinity::Containers::MapGetValuePtr(_worldQuestItemByDungeonMap, area->ContinentID))
+                                tempList = *dungeonList;
+                        _run = !tempList.empty();
                     }
                     else if (!qTemplate->ArmorList.empty())
                         tempList = qTemplate->ArmorList;
                     else if (!_worldQuestItem.empty())
                         tempList = _worldQuestItem;
 
-                    while (_run)
+                    // a small loot table may never cover every class: stop rather than spin
+                    for (uint32 tries = 0; _run && tries < 2000; ++tries)
                     {
                         ItemTemplate const* proto = Trinity::Containers::SelectRandomContainerElement(tempList);
                         if (!proto)

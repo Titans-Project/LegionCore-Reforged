@@ -2069,6 +2069,7 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
         void SendQuestUpdateAddPlayer(Quest const* quest, uint16 old_count, uint16 add_count);
         void SendQuestGiverStatusMultiple();
         std::tuple<uint32, uint32> GetWorldQuestBonusTreeMod(WorldQuest const* wq);
+        uint32 GetWorldQuestRewardItemLevel(WorldQuest const* wq);
         bool WorldQuestCompleted(uint32 QuestID) const;
         void ResetWorldQuest(uint32 QuestID = 0);
         void ClearWorldQuest();

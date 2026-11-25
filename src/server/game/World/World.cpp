@@ -1461,14 +1461,13 @@ void World::LoadConfigSettings(bool reload)
     m_float_configs[CONFIG_CAP_KILLPOINTS] = sConfigMgr->GetFloatDefault("Cap.KillPoints", 150.0f);
     m_float_configs[CONFIG_CAP_KILL_CREATURE_POINTS] = sConfigMgr->GetFloatDefault("Cap.KillCreaturePoints", 150.0f);
 
-    m_bool_configs[CONFIG_WORLD_QUEST] = sConfigMgr->GetBoolDefault("WorldQuest", true);
+    m_bool_configs[CONFIG_WORLD_QUEST] = true;
     m_int_configs[CONFIG_WORLD_QUEST_RESET_TIME_HOUR]  = sConfigMgr->GetIntDefault("WorldQuest.ResetTimeHour", 4);
     m_int_configs[CONFIG_WORLD_QUEST_HOURLY_RESET]  = ClampConfigRange("WorldQuest.HourlyReset", sConfigMgr->GetIntDefault("WorldQuest.HourlyReset", 6), 1, 24 * 30);
     m_int_configs[CONFIG_WORLD_QUEST_DAILY_RESET]  = ClampConfigRange("WorldQuest.DailyReset", sConfigMgr->GetIntDefault("WorldQuest.DailyReset", 1), 1, 365);
     m_int_configs[CONFIG_INVASION_POINT_RESET]  = ClampConfigRange("WorldQuest.InvasionPoint", sConfigMgr->GetIntDefault("WorldQuest.InvasionPoint", 2), 1, 24 * 30);
 
-    m_int_configs[CONFIG_WORLD_QUEST_MIN_ITEMLEVEL]  = sConfigMgr->GetIntDefault("WorldQuest.ItemLevel.Min", 805);
-    m_int_configs[CONFIG_WORLD_QUEST_ITEMLEVEL_CAP]  = sConfigMgr->GetIntDefault("WorldQuest.ItemLevel.Max", 855);
+    m_int_configs[CONFIG_WORLD_QUEST_MIN_ITEMLEVEL]  = 805;
 
     // Cross Faction BG
     m_bool_configs[CONFIG_CROSSFACTIONBG] = sConfigMgr->GetBoolDefault("MixedBGs", false);
@@ -1554,6 +1553,21 @@ void World::LoadConfigSettings(bool reload)
     // applied at the end of the expansion (see Custom.ItemLevel.Catchup.Enable).
     // ---------------------------------------------------------------------------------------
     m_int_configs[CONFIG_LEGION_ENABLED_PATCH] = sConfigMgr->GetIntDefault("Game.Patch", PATCH_7_3);
+
+    // World quest pieces follow the open tier: the average item level taken into account stops at this value,
+    // the reward adding its bonus (+5): 840 with 7.0, then 845, 850, 855 and 860 with 7.3.
+    {
+        uint32 worldQuestCap = 855;
+        switch (m_int_configs[CONFIG_LEGION_ENABLED_PATCH])
+        {
+            case PATCH_7_0:   worldQuestCap = 835; break;
+            case PATCH_7_1:   worldQuestCap = 840; break;
+            case PATCH_7_1_5: worldQuestCap = 845; break;
+            case PATCH_7_2:   worldQuestCap = 850; break;
+            default: break;
+        }
+        m_int_configs[CONFIG_WORLD_QUEST_ITEMLEVEL_CAP] = worldQuestCap;
+    }
 
     m_bool_configs[CONFIG_ITEMLEVEL_CATCHUP_ENABLE] = sConfigMgr->GetBoolDefault("Custom.ItemLevel.Catchup.Enable", false);
     m_int_configs[CONFIG_ITEMLEVEL_DUNGEON_TIER] = sConfigMgr->GetIntDefault("Custom.ItemLevel.DungeonTier", 0);

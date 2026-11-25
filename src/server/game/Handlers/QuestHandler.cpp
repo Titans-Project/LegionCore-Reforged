@@ -340,9 +340,7 @@ void WorldSession::HandleQueryTreasurePicker(WorldPackets::Quest::QueryTreasureP
             uint32 modTreeID = 0;
             auto bonusTree = GetPlayer()->GetWorldQuestBonusTreeMod(wq);
             modTreeID = std::get<0>(bonusTree);
-            uint32 needLevel = std::get<1>(bonusTree);
-            if (wq->worldQuest->MinItemLevel)
-                needLevel = wq->worldQuest->MinItemLevel;
+            uint32 needLevel = GetPlayer()->GetWorldQuestRewardItemLevel(wq);
 
             itemRew.Item.ItemBonus.emplace();
             itemRew.Item.ItemBonus->Context = modTreeID;

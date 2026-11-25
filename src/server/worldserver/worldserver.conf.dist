@@ -915,14 +915,6 @@ Player.UnlimitedLegionLegendaries = 1
 DisableRestart = 1
 
 #
-#    WorldQuest
-#        Enables/disables the World Quest system.
-#        Default: 1 - (Enabled)
-#                 0 - (Disabled)
-
-WorldQuest = 1
-
-#
 #    AllFlightPaths
 #        Characters know all flight paths (of both factions) after creation.
 #        Default: 0 - (Disabled)
