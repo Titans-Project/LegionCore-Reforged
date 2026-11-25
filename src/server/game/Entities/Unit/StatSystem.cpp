@@ -1,20 +1,14 @@
-/*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 #include "Unit.h"
 #include "Player.h"
@@ -1890,13 +1884,17 @@ void Creature::UpdateMaxHealth()
     float percHealth = GetHealthPct();
     if (!GetMap()->Instanceable())
     {
-        auto count = GetSizeSaveThreat();
+        uint32 const count = GetSizeSaveThreat();
         if (IsPersonal() && count)
         {
-            mod += _GetHealthModPersonal(count) * count;
+            // the players beyond the first: the call lowers its argument, so it must not be read in the same expression
+            uint32 extraPlayers = count;
+            float const perPlayer = _GetHealthModPersonal(extraPlayers);
+            mod += perPlayer * extraPlayers;
             value *= mod;
         }
-            
+
+        m_personalHealthMod = mod;
         SetMaxHealth(uint64(value));
 
         if (IsPersonal() && count)

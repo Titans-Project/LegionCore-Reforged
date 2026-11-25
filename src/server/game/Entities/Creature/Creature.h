@@ -846,6 +846,8 @@ class TC_GAME_API Creature : public Unit, public GridObject<Creature>, public Ma
         uint32 GetBossId() const { return bossid; }
         uint8 GetMobDifficulty() const { return m_difficulty; }
         uint32 GetPlayerCount() const { return m_playerCount; }
+        // extra health of a personal creature fought by several players, outside instances
+        float GetPersonalHealthMod() const { return m_personalHealthMod; }
 
         float GetFollowAngle() const override { return m_followAngle; }
         void SetFollowAngle(float angle) { m_followAngle = angle; }
@@ -964,6 +966,7 @@ class TC_GAME_API Creature : public Unit, public GridObject<Creature>, public Ma
         uint32 bossid;
         uint8 m_difficulty;
         uint32 m_playerCount;
+        float m_personalHealthMod = 1.0f;
         float m_followAngle;
         float m_followDistance = 2.0f;
 
