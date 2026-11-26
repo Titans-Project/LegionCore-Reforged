@@ -1883,22 +1883,27 @@ public:
         {
             events.Reset();
             me->setActive(true);
-            Start(false, false);
-            if (me->GetPositionY() < 2285.0f)
+            // Reset runs after every evade too: the escort is still running then and resumes by itself,
+            // so start it (and jump to a random route point) only once.
+            if (!HasEscortState(STATE_ESCORT_ESCORTING))
             {
-                switch(me->GetGUID().GetCounter()%3)
+                Start(false, false);
+                if (me->GetPositionY() < 2285.0f)
                 {
-                    case 0:
-                        SetNextWaypoint(urand(0, 15), true, false);
-                        break;
-                    case 1:
-                        SetNextWaypoint(urand(26, 41), true, false);
-                        break;
-                    default:
-                        SetNextWaypoint(urand(51, 66), true, false);
-                        break;
+                    switch(me->GetGUID().GetCounter()%3)
+                    {
+                        case 0:
+                            SetNextWaypoint(urand(0, 15), true, false);
+                            break;
+                        case 1:
+                            SetNextWaypoint(urand(26, 41), true, false);
+                            break;
+                        default:
+                            SetNextWaypoint(urand(51, 66), true, false);
+                            break;
+                    }
+
                 }
-                
             }
             me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC);
             events.ScheduleEvent(EVENT_GENERIC_1, urand(20000, 40000));
