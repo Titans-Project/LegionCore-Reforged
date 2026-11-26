@@ -299,7 +299,8 @@ public:
             player->PrepareQuestMenu(creature->GetGUID());
 
         if (player->GetQuestStatus(12801) == QUEST_STATUS_INCOMPLETE && !creature->FindNearestCreature(NPC_HIGHLORD_TIRION_FORDRING, 30.0f))
-            player->ADD_GOSSIP_ITEM(GossipOptionNpc::None, "I am ready.", GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF+1);
+            // The retail option of his menu, translated through its broadcast text
+            player->ADD_GOSSIP_ITEM_DB(9795, 0, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF+1);
 
         player->SEND_GOSSIP_MENU(player->GetGossipTextId(creature), creature->GetGUID());
 
@@ -364,7 +365,7 @@ public:
                 bIsBattle = false;
                 uiStep = 0;
                 uiPhase_timer = 3000;
-                uiFight_duration = 300000; // 5 minutes
+                uiFight_duration = 180000; // 3 minutes: the 5 of retail felt endless solo
                 uiTotal_dawn = ENCOUNTER_TOTAL_DAWN;
                 uiTotal_scourge = ENCOUNTER_TOTAL_SCOURGE;
                 uiSummon_counter = 0;
@@ -507,19 +508,23 @@ public:
                         temp->AI()->Talk(SAY_LIGHT_OF_DAWN08);
 
                     for (uint8 i = 0; i < ENCOUNTER_GHOUL_NUMBER; ++i)
-                        NPCChangeTarget(uiGhoulGUID[i]);
+                        PairWithNearestFoe(uiGhoulGUID[i], true);
                     for (uint8 i = 0; i < ENCOUNTER_WARRIOR_NUMBER; ++i)
-                        NPCChangeTarget(uiWarriorGUID[i]);
+                        PairWithNearestFoe(uiWarriorGUID[i], true);
                     for (uint8 i = 0; i < ENCOUNTER_ABOMINATION_NUMBER; ++i)
-                        NPCChangeTarget(uiAbominationGUID[i]);
+                        PairWithNearestFoe(uiAbominationGUID[i], true);
                     for (uint8 i = 0; i < ENCOUNTER_BEHEMOTH_NUMBER; ++i)
-                        NPCChangeTarget(uiBehemothGUID[i]);
+                        PairWithNearestFoe(uiBehemothGUID[i], true);
+                    for (uint8 i = 0; i < ENCOUNTER_DEFENDER_NUMBER; ++i)
+                        PairWithNearestFoe(uiDefenderGUID[i], false);
+                    for (uint8 i = 0; i < ENCOUNTER_EARTHSHATTER_NUMBER; ++i)
+                        PairWithNearestFoe(uiEarthshatterGUID[i], false);
                     NPCChangeTarget(uiKoltiraGUID);
                     NPCChangeTarget(uiOrbazGUID);
                     NPCChangeTarget(uiThassarianGUID);
 
                     me->Dismount();
-                    me->CastSpell(me, SPELL_THE_MIGHT_OF_MOGRAINE, true); // need to fix, on player only
+                    // The Might of Mograine is for the players on the quest only (spell_area), not for Darion and his army
 
                     if (Creature* temp = Unit::GetCreature(*me, uiKoltiraGUID))
                         temp->Dismount();
@@ -1183,15 +1188,17 @@ public:
                                 temp->SetSpeed(MOVE_RUN, 3.0f); // workarounds, make Tirion still running
                                 temp->SetWalk(false);
                                 temp->GetMotionMaster()->MovePoint(0, LightofDawnLoc[2].x, LightofDawnLoc[2].y, LightofDawnLoc[2].z);
-                                if (Creature* lktemp = Unit::GetCreature(*me, uiLichKingGUID))
-                                    lktemp->Relocate(LightofDawnLoc[28].x, LightofDawnLoc[28].y, LightofDawnLoc[28].z); // workarounds, he should kick back by Tirion, but here we relocate him
                             }
                             JumpToNextStep(1500);
                             break;
 
                         case 53:
                             if (Creature* temp = Unit::GetCreature(*me, uiLichKingGUID))
+                            {
+                                // Tirion's blow throws him back; a relocation only the server saw made him walk away instead
+                                temp->GetMotionMaster()->MoveJump(LightofDawnLoc[28].x, LightofDawnLoc[28].y, LightofDawnLoc[28].z, temp->GetOrientation(), 15.0f, 6.0f);
                                 temp->AI()->Talk(SAY_LIGHT_OF_DAWN57);
+                            }
                             JumpToNextStep(1000);
                             break;
 
@@ -1400,18 +1407,22 @@ public:
                 if (uiTargetcheck <= diff)
                 {
                     for (uint8 i = 0; i < ENCOUNTER_GHOUL_NUMBER; ++i)
-                        NPCChangeTarget(uiGhoulGUID[i]);
+                        PairWithNearestFoe(uiGhoulGUID[i], true);
                     for (uint8 i = 0; i < ENCOUNTER_WARRIOR_NUMBER; ++i)
-                        NPCChangeTarget(uiWarriorGUID[i]);
+                        PairWithNearestFoe(uiWarriorGUID[i], true);
                     for (uint8 i = 0; i < ENCOUNTER_ABOMINATION_NUMBER; ++i)
-                        NPCChangeTarget(uiAbominationGUID[i]);
+                        PairWithNearestFoe(uiAbominationGUID[i], true);
                     for (uint8 i = 0; i < ENCOUNTER_BEHEMOTH_NUMBER; ++i)
-                        NPCChangeTarget(uiBehemothGUID[i]);
+                        PairWithNearestFoe(uiBehemothGUID[i], true);
+                    for (uint8 i = 0; i < ENCOUNTER_DEFENDER_NUMBER; ++i)
+                        PairWithNearestFoe(uiDefenderGUID[i], false);
+                    for (uint8 i = 0; i < ENCOUNTER_EARTHSHATTER_NUMBER; ++i)
+                        PairWithNearestFoe(uiEarthshatterGUID[i], false);
                     NPCChangeTarget(uiKoltiraGUID);
                     NPCChangeTarget(uiOrbazGUID);
                     NPCChangeTarget(uiThassarianGUID);
 
-                    uiTargetcheck = 10000;
+                    uiTargetcheck = 5000;
                 } else uiTargetcheck -= diff;
 
                 // Battle end
@@ -1429,7 +1440,7 @@ public:
                 if (uiFight_duration <= diff)
                 {
                     bIsBattle = false;
-                    uiFight_duration = 300000;
+                    uiFight_duration = 180000;
 
                     if (me->HasAura(SPELL_THE_MIGHT_OF_MOGRAINE, ObjectGuid::Empty))
                         me->RemoveAurasDueToSpell(SPELL_THE_MIGHT_OF_MOGRAINE);
@@ -1546,17 +1557,83 @@ public:
                         }
         }
 
+        // A random spot on the ground around a centre, so that each army spreads over the field instead of piling up
+        Position SpreadSpot(float centerX, float centerY, float centerZ, float radius) const
+        {
+            float const angle = frand(0.0f, 2.0f * float(M_PI));
+            float const dist = frand(radius * 0.3f, radius);
+            float x = centerX + dist * std::cos(angle);
+            float y = centerY + dist * std::sin(angle);
+            float z = centerZ;
+            me->UpdateGroundPositionZ(x, y, z);
+            return Position(x, y, z, angle);
+        }
+
+        // Each fighter takes on the nearest enemy of the other army and keeps a duel it is already in,
+        // instead of every unit running after a random target across the field
+        void PairWithNearestFoe(ObjectGuid guid, bool scourgeSide)
+        {
+            Creature* unit = Unit::GetCreature(*me, guid);
+            if (!unit || !unit->IsAlive())
+                return;
+
+            if (Unit* victim = unit->getVictim())
+                if (victim->IsAlive() && unit->IsWithinDistInMap(victim, 10.0f))
+                    return;
+
+            Creature* nearest = nullptr;
+            float nearestDist = 0.0f;
+            auto consider = [&](ObjectGuid foeGuid)
+            {
+                if (Creature* foe = Unit::GetCreature(*me, foeGuid))
+                    if (foe->IsAlive())
+                    {
+                        float const dist = unit->GetExactDist2d(foe);
+                        if (!nearest || dist < nearestDist)
+                        {
+                            nearest = foe;
+                            nearestDist = dist;
+                        }
+                    }
+            };
+
+            if (scourgeSide)
+            {
+                for (uint8 i = 0; i < ENCOUNTER_DEFENDER_NUMBER; ++i)
+                    consider(uiDefenderGUID[i]);
+                for (uint8 i = 0; i < ENCOUNTER_EARTHSHATTER_NUMBER; ++i)
+                    consider(uiEarthshatterGUID[i]);
+            }
+            else
+            {
+                for (uint8 i = 0; i < ENCOUNTER_GHOUL_NUMBER; ++i)
+                    consider(uiGhoulGUID[i]);
+                for (uint8 i = 0; i < ENCOUNTER_WARRIOR_NUMBER; ++i)
+                    consider(uiWarriorGUID[i]);
+                for (uint8 i = 0; i < ENCOUNTER_ABOMINATION_NUMBER; ++i)
+                    consider(uiAbominationGUID[i]);
+                for (uint8 i = 0; i < ENCOUNTER_BEHEMOTH_NUMBER; ++i)
+                    consider(uiBehemothGUID[i]);
+            }
+
+            if (nearest)
+            {
+                unit->AddThreat(nearest, 100.0f);
+                unit->AI()->AttackStart(nearest);
+            }
+        }
+
         void SpawnNPC()
         {
             Unit* temp = NULL;
 
-            // Death
+            // Death: reinforcements rise around Darion, not in the middle of the Argent Dawn where both armies piled up
             for (uint8 i = 0; i < ENCOUNTER_GHOUL_NUMBER; ++i)
             {
                 temp = Unit::GetCreature(*me, uiGhoulGUID[i]);
                 if (!temp)
                 {
-                    temp = me->SummonCreature(NPC_ACHERUS_GHOUL, LightofDawnLoc[0].x+rand()%30, LightofDawnLoc[0].y+rand()%30, LightofDawnLoc[0].z, 0, TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 300000);
+                    temp = me->SummonCreature(NPC_ACHERUS_GHOUL, SpreadSpot(me->GetPositionX(), me->GetPositionY(), me->GetPositionZ(), 25.0f), TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 300000);
                     if (temp)
                     {
                         temp->setFaction(2084);
@@ -1569,7 +1646,7 @@ public:
                 temp = Unit::GetCreature(*me, uiAbominationGUID[i]);
                 if (!temp)
                 {
-                    temp = me->SummonCreature(NPC_RAMPAGING_ABOMINATION, LightofDawnLoc[0].x+rand()%30, LightofDawnLoc[0].y+rand()%30, LightofDawnLoc[0].z, 0, TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 300000);
+                    temp = me->SummonCreature(NPC_RAMPAGING_ABOMINATION, SpreadSpot(me->GetPositionX(), me->GetPositionY(), me->GetPositionZ(), 25.0f), TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 300000);
                     if (temp)
                     {
                         temp->setFaction(2084);
@@ -1582,7 +1659,7 @@ public:
                 temp = Unit::GetCreature(*me, uiWarriorGUID[i]);
                 if (!temp)
                 {
-                    temp = me->SummonCreature(NPC_WARRIOR_OF_THE_FROZEN_WASTES, LightofDawnLoc[0].x+rand()%30, LightofDawnLoc[0].y+rand()%30, LightofDawnLoc[0].z, 0, TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 300000);
+                    temp = me->SummonCreature(NPC_WARRIOR_OF_THE_FROZEN_WASTES, SpreadSpot(me->GetPositionX(), me->GetPositionY(), me->GetPositionZ(), 25.0f), TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 300000);
                     if (temp)
                     {
                         temp->setFaction(2084);
@@ -1595,7 +1672,7 @@ public:
                 temp = Unit::GetCreature(*me, uiBehemothGUID[i]);
                 if (!temp)
                 {
-                    temp = me->SummonCreature(NPC_FLESH_BEHEMOTH, LightofDawnLoc[0].x+rand()%30, LightofDawnLoc[0].y+rand()%30, LightofDawnLoc[0].z, 0, TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 300000);
+                    temp = me->SummonCreature(NPC_FLESH_BEHEMOTH, SpreadSpot(me->GetPositionX(), me->GetPositionY(), me->GetPositionZ(), 25.0f), TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 300000);
                     if (temp)
                     {
                         temp->setFaction(2084);
@@ -1610,7 +1687,7 @@ public:
                 temp = Unit::GetCreature(*me, uiDefenderGUID[i]);
                 if (!temp)
                 {
-                    temp = me->SummonCreature(NPC_DEFENDER_OF_THE_LIGHT, LightofDawnLoc[0].x+rand()%30, LightofDawnLoc[0].y+rand()%30, LightofDawnLoc[0].z, 0, TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 300000);
+                    temp = me->SummonCreature(NPC_DEFENDER_OF_THE_LIGHT, SpreadSpot(LightofDawnLoc[0].x + 15.0f, LightofDawnLoc[0].y + 15.0f, LightofDawnLoc[0].z, 30.0f), TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 300000);
                     if (temp)
                     {
                         temp->setFaction(2089);
@@ -1624,7 +1701,7 @@ public:
                 temp = Unit::GetCreature(*me, uiEarthshatterGUID[i]);
                 if (!temp)
                 {
-                    temp = me->SummonCreature(NPC_RIMBLAT_EARTHSHATTER, LightofDawnLoc[0].x+rand()%30, LightofDawnLoc[0].y+rand()%30, LightofDawnLoc[0].z, 0, TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 300000);
+                    temp = me->SummonCreature(NPC_RIMBLAT_EARTHSHATTER, SpreadSpot(LightofDawnLoc[0].x + 15.0f, LightofDawnLoc[0].y + 15.0f, LightofDawnLoc[0].z, 30.0f), TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 300000);
                     if (temp)
                     {
                         temp->setFaction(2089);
@@ -1636,7 +1713,7 @@ public:
             temp = Unit::GetCreature(*me, uiKorfaxGUID);
             if (!temp)
             {
-                temp = me->SummonCreature(NPC_KORFAX_CHAMPION_OF_THE_LIGHT, LightofDawnLoc[0].x+rand()%30, LightofDawnLoc[0].y+rand()%30, LightofDawnLoc[0].z, 0, TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 600000);
+                temp = me->SummonCreature(NPC_KORFAX_CHAMPION_OF_THE_LIGHT, SpreadSpot(LightofDawnLoc[0].x + 15.0f, LightofDawnLoc[0].y + 15.0f, LightofDawnLoc[0].z, 30.0f), TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 600000);
                 if (temp)
                 {
                     temp->setFaction(2089);
@@ -1647,7 +1724,7 @@ public:
             temp = Unit::GetCreature(*me, uiMaxwellGUID);
             if (!temp)
             {
-                temp = me->SummonCreature(NPC_LORD_MAXWELL_TYROSUS, LightofDawnLoc[0].x+rand()%30, LightofDawnLoc[0].y+rand()%30, LightofDawnLoc[0].z, 0, TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 600000);
+                temp = me->SummonCreature(NPC_LORD_MAXWELL_TYROSUS, SpreadSpot(LightofDawnLoc[0].x + 15.0f, LightofDawnLoc[0].y + 15.0f, LightofDawnLoc[0].z, 30.0f), TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 600000);
                 if (temp)
                 {
                     temp->setFaction(2089);
@@ -1658,7 +1735,7 @@ public:
             temp = Unit::GetCreature(*me, uiEligorGUID);
             if (!temp)
             {
-                temp = me->SummonCreature(NPC_COMMANDER_ELIGOR_DAWNBRINGER, LightofDawnLoc[0].x+rand()%30, LightofDawnLoc[0].y+rand()%30, LightofDawnLoc[0].z, 0, TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 600000);
+                temp = me->SummonCreature(NPC_COMMANDER_ELIGOR_DAWNBRINGER, SpreadSpot(LightofDawnLoc[0].x + 15.0f, LightofDawnLoc[0].y + 15.0f, LightofDawnLoc[0].z, 30.0f), TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 600000);
                 if (temp)
                 {
                     temp->setFaction(2089);
@@ -1669,7 +1746,7 @@ public:
             temp = Unit::GetCreature(*me, uiRayneGUID);
             if (!temp)
             {
-                temp = me->SummonCreature(NPC_RAYNE, LightofDawnLoc[0].x+rand()%30, LightofDawnLoc[0].y+rand()%30, LightofDawnLoc[0].z, 0, TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 300000);
+                temp = me->SummonCreature(NPC_RAYNE, SpreadSpot(LightofDawnLoc[0].x + 15.0f, LightofDawnLoc[0].y + 15.0f, LightofDawnLoc[0].z, 30.0f), TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 300000);
                 if (temp)
                 {
                     temp->setFaction(2089);
