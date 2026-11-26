@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 #include "CalendarAnnouncements.h"
 #include "Common.h"
 #include "Config.h"
@@ -329,4 +337,47 @@ void GreatGnomereganRun::PrepareCalendar()
     bool const custom = months != 12 || days != 1;
     WorldDatabase.DirectPExecute("UPDATE custom_calendar_event SET StartDate = FROM_UNIXTIME(%u), EndDate = NULL, DurationDays = %u, "
         "RepeatDays = 0, RepeatMonths = %u, Enabled = %u WHERE HolidayID = %u", uint32(GetCurrentStart()), days, months, uint32(custom), HOLIDAY_ID);
+}
+
+void DarkmoonFaire::PrepareCalendar()
+{
+    // outside the range Publish wipes and rewrites
+    uint32 const HOTFIX_ID = 9100223;
+
+    time_t const now = time(nullptr);
+    tm today;
+    localtime_r(&now, &today);
+
+    std::ostringstream dates;
+    for (int k = 0; k < 16; ++k)
+    {
+        tm day = {};
+        day.tm_year = today.tm_year;
+        day.tm_mon = today.tm_mon + k;
+        day.tm_mday = 1;
+        day.tm_isdst = -1;
+        mktime(&day);
+        // the Friday before the first Sunday of the month
+        day.tm_mday += (7 - day.tm_wday) % 7 - 2;
+        day.tm_isdst = -1;
+        mktime(&day);
+        dates << ',' << PackDate(day);
+    }
+
+    HotfixDatabaseTransaction trans = HotfixDatabase.BeginTransaction();
+    trans->PAppend("DELETE FROM holidays WHERE ID = %u", HOLIDAY_ID);
+    trans->PAppend("INSERT INTO holidays (ID,"
+        "Date1,Date2,Date3,Date4,Date5,Date6,Date7,Date8,Date9,Date10,Date11,Date12,Date13,Date14,Date15,Date16,"
+        "Duration1,Duration2,Duration3,Duration4,Duration5,Duration6,Duration7,Duration8,Duration9,Duration10,"
+        "Region,Looping,"
+        "CalendarFlags1,CalendarFlags2,CalendarFlags3,CalendarFlags4,CalendarFlags5,"
+        "CalendarFlags6,CalendarFlags7,CalendarFlags8,CalendarFlags9,CalendarFlags10,"
+        "Priority,CalendarFilterType,Flags,HolidayNameID,HolidayDescriptionID,"
+        "TextureFileDataID1,TextureFileDataID2,TextureFileDataID3,VerifiedBuild) VALUES "
+        "(%u%s,48,168,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,1,1,1,1,201,235448,235447,235446,%u)",
+        HOLIDAY_ID, dates.str().c_str(), BUILD);
+    trans->PAppend("DELETE FROM hotfix_data WHERE Id = %u", HOTFIX_ID);
+    trans->PAppend("INSERT INTO hotfix_data (Id,TableHash,RecordID,Timestamp,Deleted) VALUES (%u,%u,%u,0,0)",
+        HOTFIX_ID, HASH_HOLIDAYS, HOLIDAY_ID);
+    HotfixDatabase.DirectCommitTransaction(trans);
 }

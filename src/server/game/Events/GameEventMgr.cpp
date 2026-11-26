@@ -38,6 +38,8 @@ static uint32 timerConstant = 946684800; // 01/01/2000 00:00:00
 // yearly events keep the calendar day and hour of their start: a fixed step of 365 days slips a day every leap year
 static uint32 const YearlyOccurence = 365 * DAY / MINUTE;
 static std::set<uint16> YearlyEvents;
+// events that follow the dates of their holiday only (the Darkmoon Faire, rewritten at each startup)
+static std::set<uint16> DatedEvents;
 
 static time_t GetYearlyDate(tm const& origin, int year)
 {
@@ -98,6 +100,11 @@ static bool AnchorHolidayDates(GameEventData& data, time_t now)
         date.tm_isdst = -1;
         dates.push_back(mktime(&date));
     }
+
+    // a hidden first phase (the Darkmoon Faire's two days of setup) comes before the event itself
+    if (!holiday->CalendarFlags[0] && holiday->Duration[1])
+        for (time_t& date : dates)
+            date += time_t(holiday->Duration[0]) * HOUR;
 
     std::sort(dates.begin(), dates.end());
     if (dates.empty() || dates.back() + time_t(YearlyOccurence) * MINUTE <= now)
@@ -339,6 +346,7 @@ void GameEventMgr::LoadFromDB()
         }
 
         YearlyEvents.clear();
+        DatedEvents.clear();
 
         uint32 count = 0;
         do
@@ -401,7 +409,9 @@ void GameEventMgr::LoadFromDB()
                 pGameEvent.length = sWorld->getIntConfig(CONFIG_GNOMEREGAN_RUN_DAYS) * DAY / MINUTE;
             }
 
-            if (pGameEvent.occurence == YearlyOccurence && timewalkingSlot < 0 && pGameEvent.holiday_id != GreatGnomereganRun::HOLIDAY_ID)
+            if (pGameEvent.holiday_id == DarkmoonFaire::HOLIDAY_ID && AnchorHolidayDates(pGameEvent, GameTime::GetGameTime()))
+                DatedEvents.insert(event_id);
+            else if (pGameEvent.occurence == YearlyOccurence && timewalkingSlot < 0 && pGameEvent.holiday_id != GreatGnomereganRun::HOLIDAY_ID)
             {
                 YearlyEvents.insert(event_id);
                 if (!AnchorHolidayDates(pGameEvent, GameTime::GetGameTime()))
@@ -1199,6 +1209,9 @@ uint32 GameEventMgr::Update()                               // return the next e
     std::set<uint16> activate, deactivate;
     for (size_t itr = 1; itr < mGameEvent.size(); ++itr)
     {
+        if (DatedEvents.count(uint16(itr)) && currenttime >= mGameEvent[itr].start + time_t(mGameEvent[itr].occurence) * MINUTE)
+            AnchorHolidayDates(mGameEvent[itr], currenttime);
+
         // a yearly event that came round moves on to its next calendar date
         if (YearlyEvents.count(uint16(itr)) && currenttime >= mGameEvent[itr].start + time_t(mGameEvent[itr].occurence) * MINUTE)
             if (!AnchorHolidayDates(mGameEvent[itr], currenttime))

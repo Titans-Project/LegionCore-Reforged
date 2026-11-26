@@ -1,3 +1,11 @@
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+////////////////////////////////////////////
+
 #ifndef CalendarAnnouncements_h__
 #define CalendarAnnouncements_h__
 
@@ -24,6 +32,16 @@ namespace GreatGnomereganRun
     time_t GetCurrentStart();
     time_t GetNextStart(time_t start);
     // its calendar entry, when the realm departs from Blizzard's dates; to run before Publish
+    void PrepareCalendar();
+}
+
+// The Darkmoon Faire (holiday 479): a week from the first Sunday of each month. The client's own
+// sixteen dates ended in 2018; the next sixteen months are written at each startup, in Blizzard's
+// layout (a hidden two-day setup from the Friday, then the week of the faire).
+namespace DarkmoonFaire
+{
+    uint32 const HOLIDAY_ID = 479;
+    // to run before the DB2 stores load
     void PrepareCalendar();
 }
 

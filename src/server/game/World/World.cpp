@@ -1835,6 +1835,7 @@ void World::SetInitialWorldSettings()
     TC_LOG_INFO("server.loading", "Publishing calendar announcements...");
     Timewalking::PrepareCalendar();
     GreatGnomereganRun::PrepareCalendar();
+    DarkmoonFaire::PrepareCalendar();
     CalendarAnnouncements::Publish();
 
     TC_LOG_INFO("server.loading", "Loading db2 info...");
