@@ -79,7 +79,7 @@ The core descends from LegionCore 7.3.5, built on the 2020 UWOW source, itself d
 |---|---|
 | Class spells and talents | 🟢 |
 | Demon Hunter introduction | 🟢 |
-| Death Knight introduction | 🟠 Work in progress |
+| Death Knight introduction | 🟢 |
 
 ### Class halls and campaigns
 
