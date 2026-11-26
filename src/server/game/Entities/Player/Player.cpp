@@ -27082,6 +27082,8 @@ Pet* Player::SummonPet(uint32 entry, Optional<PetSaveMode> slot, float x, float 
     pet->SetFullHealth();
     pet->SetFullPower(GetPowerType());
     pet->SetUInt32Value(UNIT_FIELD_PET_NAME_TIMESTAMP, uint32(GameTime::GetGameTime())); // cast can't be helped in this case
+    // Since Mists of Pandaria a new pet starts on Assist; the charm info would leave it on Passive
+    pet->SetReactState(REACT_HELPER);
 
     // after SetPetNumber
     SetMinion(pet, true);
@@ -27173,7 +27175,12 @@ void Player::RemovePet(Pet* pet, PetSaveMode mode, bool returnreagent)
         m_petStable->CurrentPetIndex.reset();
     else if (mode == PET_SAVE_AS_DELETED)
     {
-        m_petStable->ActivePets[*m_petStable->CurrentPetIndex].reset();
+        // The index of an unslotted pet carries a high bit and is not a slot
+        if (Optional<uint32> activeSlot = m_petStable->GetCurrentActivePetIndex())
+            m_petStable->ActivePets[*activeSlot].reset();
+        else if (Optional<uint32> unslottedIndex = m_petStable->GetCurrentUnslottedPetIndex())
+            if (*unslottedIndex < m_petStable->UnslottedPets.size())
+                m_petStable->UnslottedPets.erase(m_petStable->UnslottedPets.begin() + *unslottedIndex);
         m_petStable->CurrentPetIndex.reset();
     }
     // else if (stable slots) handled in opcode handlers due to required swaps

@@ -579,6 +579,11 @@ void Player::UpdateSpellDamageAndHealingBonus()
         for (int i = SPELL_SCHOOL_HOLY; i < MAX_SPELL_SCHOOL; ++i)
             SetStatInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS + i, SpellBaseDamageBonusDone(SpellSchoolMask(1 << i)));
     }
+
+    // Demons take their spell power from these fields: without this they keep the value they had when summoned
+    if (Pet* pet = GetPet())
+        if (pet->IsInWorld())
+            pet->UpdateAttackPowerAndDamage();
 }
 
 float Player::GetPvpStatScalar() const
@@ -2157,7 +2162,8 @@ bool Guardian::UpdateStats(Stats stat)
         {
             if (GetPowerType() == POWER_MANA)
                 UpdateMaxPower(POWER_MANA);
-            if (owner->getClass() == CLASS_MAGE)
+            // The owner is gone for a moment while logging out or changing map
+            if (owner && owner->getClass() == CLASS_MAGE)
                 UpdateAttackPowerAndDamage();
             break;
         }

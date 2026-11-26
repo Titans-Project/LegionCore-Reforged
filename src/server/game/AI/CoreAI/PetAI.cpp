@@ -231,10 +231,11 @@ void PetAI::UpdateAI(uint32 diff)
                 auto spell = new Spell(me, spellInfo, triggerData);
 
                 // Some spells can target enemy or friendly (DK Ghoul's Leap)
-                // Check for enemy first (pet then owner)
-                Unit* target = me->getAttackerForHelper();
-                if (!target && owner)
-                    target = owner->getAttackerForHelper();
+                // Enemy side: only the pet's own target. Any attacker of the pet or the owner made the ghoul
+                // leap at the end of a fight onto a mob nobody had engaged yet, starting a new one.
+                Unit* target = me->getVictim();
+                if (target && !target->IsAlive())
+                    target = nullptr;
 
                 if (target)
                 {
@@ -411,6 +412,18 @@ void PetAI::OwnerDamagedBy(Unit* attacker)
     AttackStart(attacker);
 }
 
+void PetAI::AttackedBy(Unit* attacker)
+{
+    // A pet hit while its owner is not fights back, on Assist as on Defensive
+    if (!attacker || !me->IsAlive() || me->HasReactState(REACT_PASSIVE))
+        return;
+
+    if (me->getVictim() && me->getVictim()->IsAlive())
+        return;
+
+    AttackStart(attacker);
+}
+
 void PetAI::OwnerAttacked(Unit* target)
 {
     // Called when owner attacks something. Allows defensive pets to know
@@ -420,8 +433,8 @@ void PetAI::OwnerAttacked(Unit* target)
     if (!target)
         return;
 
-    // Passive pets don't do anything
-    if (me->HasReactState(REACT_PASSIVE))
+    // Since Legion only Assist joins the owner's target: Defensive waits for the owner or the pet to be attacked
+    if (!me->HasReactState(REACT_HELPER) && !me->HasReactState(REACT_AGGRESSIVE))
         return;
 
     // Prevent pet from disengaging from current target
@@ -454,10 +467,10 @@ Unit* PetAI::SelectNextTarget()
         if (!ownerAttacker->HasCrowdControlAura())
             return ownerAttacker;
 
-    // Check owner victim
-    // 3.0.2 - Pets now start attacking their owners victim in defensive mode as soon as the hunter does
-    if (Unit* ownerVictim = me->GetCharmerOrOwner()->getVictim())
-        return ownerVictim;
+    // Check owner victim, Assist only
+    if (me->HasReactState(REACT_HELPER) || me->HasReactState(REACT_AGGRESSIVE))
+        if (Unit* ownerVictim = me->GetCharmerOrOwner()->getVictim())
+            return ownerVictim;
 
     // Default - no valid targets
     return nullptr;
@@ -471,7 +484,8 @@ void PetAI::HandleReturnMovement()
     // Handles moving the pet back to stay or owner
     //TC_LOG_DEBUG("misc", "PetAI::HandleReturnMovement [guid=%u] GetCommandState %i", me->GetGUIDLow(), me->GetCharmInfo()->GetCommandState());
 
-    if (me->GetCharmInfo()->HasCommandState(COMMAND_STAY))
+    // Move To saves its point as the stay position
+    if (me->GetCharmInfo()->HasCommandState(COMMAND_STAY) || me->GetCharmInfo()->HasCommandState(COMMAND_MOVE_TO))
     {
         if (!me->GetCharmInfo()->IsAtStay() && !me->GetCharmInfo()->IsReturning())
         {
@@ -486,10 +500,6 @@ void PetAI::HandleReturnMovement()
                 me->GetMotionMaster()->MovePoint(me->GetGUIDLow(), x, y, z);
             }
         }
-    }
-    else if (me->GetCharmInfo()->HasCommandState(COMMAND_MOVE_TO))
-    {
-        //TODO: Do we have to write something ?
     }
     else if (me->GetCharmerOrOwner()) // COMMAND_FOLLOW
     {
@@ -612,8 +622,8 @@ bool PetAI::CanAttack(Unit* target)
 
     // From this point on, pet will always be either aggressive or defensive
 
-    // Stay - can attack if target is within range or commanded to
-    if (me->GetCharmInfo()->HasCommandState(COMMAND_STAY))
+    // Stay or Move To - can attack if target is within range or commanded to
+    if (me->GetCharmInfo()->HasCommandState(COMMAND_STAY) || me->GetCharmInfo()->HasCommandState(COMMAND_MOVE_TO))
         return (me->IsWithinMeleeRange(target, me->GetAttackDist()) || me->GetCharmInfo()->IsCommandAttack());
 
     // Follow

@@ -246,6 +246,7 @@ void TempSummon::InitStats(uint32 duration)
                 slot = MAX_SUMMON_SLOT - 3;
                 canUnsummon = true;
                 break;
+            case 99541: // Death Knight: Risen Skulker (All Will Serve), one at a time since Raise Dead has no cooldown
             case 61146: // Summon Black Ox Statue
             case 47649: // Efflorescence
             case 60849: // Summon Jade Serpent Statue

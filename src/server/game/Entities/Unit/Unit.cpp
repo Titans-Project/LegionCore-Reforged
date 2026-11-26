@@ -19489,6 +19489,8 @@ bool Unit::InitTamedPet(Pet* pet, uint8 level, uint32 spell_id)
     // this enables pet details window (Shift+P)
     pet->InitPetCreateSpells();
     pet->SetFullHealth();
+    // Since Mists of Pandaria a tamed pet starts on Assist; the charm info would leave it on Passive
+    pet->SetReactState(REACT_HELPER);
 
     petStable.SetCurrentActivePetIndex(std::distance(petStable.ActivePets.begin(), freeActiveSlotItr));
     pet->FillPetInfo(&freeActiveSlotItr->emplace());

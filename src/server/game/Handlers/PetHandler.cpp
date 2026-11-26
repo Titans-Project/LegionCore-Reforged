@@ -1,20 +1,16 @@
-/*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///   Copyright 2005-2009 MaNGOS         ///
+///   <http://getmangos.com/>            ///
+///                                      ///
+////////////////////////////////////////////
 
 #include "PetPackets.h"
 #include "QueryPackets.h"
@@ -291,7 +287,7 @@ void WorldSession::HandlePetRename(WorldPackets::PetPackets::PetRename& packet)
         stmt->setUInt64(1, _player->GetGUID().GetGUIDLow());
 
         for (uint8 i = 0; i < MAX_DECLINED_NAME_CASES; i++)
-            stmt->setString(i + 1, declinedname->name[i]);
+            stmt->setString(i + 2, declinedname->name[i]);
 
         trans->Append(stmt);
     }
@@ -480,9 +476,152 @@ void WorldSession::HandlePetCastSpellOpcode(WorldPackets::Spells::PetCastSpell& 
     }
 }
 
-void WorldSession::HandleSetPetSlot(WorldPackets::PetPackets::SetPetSlot& /*packet*/)
+void WorldSession::HandleSetPetSlot(WorldPackets::PetPackets::SetPetSlot& packet)
 {
-    // Moving a pet between stable slots is not implemented yet
+    if (!_player->GetNPCIfCanInteractWith(packet.NpcGUID, UNIT_NPC_FLAG_STABLEMASTER) || packet.NewSlot >= PET_SAVE_LAST_STABLE_SLOT)
+    {
+        SendStableResult(STABLE_ERR_STABLE);
+        return;
+    }
+
+    if (_player->IsMounted())
+        _player->RemoveAurasByType(SPELL_AURA_MOUNTED);
+
+    PetStable* petStable = _player->GetPetStable();
+    if (!petStable)
+    {
+        SendStableResult(STABLE_ERR_INTERNAL);
+        return;
+    }
+
+    std::pair<PetStable::PetInfo const*, PetSaveMode> const srcInfo = Pet::GetLoadPetInfo(*petStable, 0, packet.PetIndex, {});
+    PetStable::PetInfo const* srcPet = srcInfo.first;
+    PetSaveMode const srcPetSlot = srcInfo.second;
+    PetSaveMode dstPetSlot = PetSaveMode(packet.NewSlot);
+    PetStable::PetInfo const* dstPet = Pet::GetLoadPetInfo(*petStable, 0, 0, dstPetSlot).first;
+
+    if (!srcPet || srcPet->Type != HUNTER_PET || (dstPet && dstPet->Type != HUNTER_PET) || srcPetSlot == dstPetSlot)
+    {
+        SendStableResult(STABLE_ERR_INTERNAL);
+        return;
+    }
+
+    Optional<PetStable::PetInfo>* src = nullptr;
+    Optional<PetStable::PetInfo>* dst = nullptr;
+    Optional<uint32> newActivePetIndex;
+
+    // A pet leaving the active slots is dismissed first, and one joining them must still be controllable
+    auto dismissIfCurrent = [&](PetSaveMode activeSlot) -> bool
+    {
+        if (petStable->GetCurrentActivePetIndex() != uint32(activeSlot))
+            return true;
+
+        Pet* oldPet = _player->GetPet();
+        if (oldPet && !oldPet->IsAlive())
+            return false;
+
+        _player->RemovePet(oldPet, PET_SAVE_NOT_IN_SLOT);
+        return true;
+    };
+    auto isControllable = [&](PetStable::PetInfo const* info) -> bool
+    {
+        CreatureTemplate const* creatureInfo = sObjectMgr->GetCreatureTemplate(info->CreatureId);
+        return creatureInfo && creatureInfo->isTameable(_player);
+    };
+
+    if (IsActivePetSlot(srcPetSlot) && IsActivePetSlot(dstPetSlot))
+    {
+        src = &petStable->ActivePets[srcPetSlot - PET_SAVE_FIRST_ACTIVE_SLOT];
+        dst = &petStable->ActivePets[dstPetSlot - PET_SAVE_FIRST_ACTIVE_SLOT];
+
+        if (petStable->GetCurrentActivePetIndex() == uint32(srcPetSlot))
+            newActivePetIndex = dstPetSlot;
+        else if (petStable->GetCurrentActivePetIndex() == uint32(dstPetSlot))
+            newActivePetIndex = srcPetSlot;
+    }
+    else if (IsStabledPetSlot(srcPetSlot) && IsStabledPetSlot(dstPetSlot))
+    {
+        src = &petStable->StabledPets[srcPetSlot - PET_SAVE_FIRST_STABLE_SLOT];
+        dst = &petStable->StabledPets[dstPetSlot - PET_SAVE_FIRST_STABLE_SLOT];
+    }
+    else if (IsActivePetSlot(srcPetSlot) && IsStabledPetSlot(dstPetSlot))
+    {
+        if (dstPet && !isControllable(dstPet))
+        {
+            SendStableResult(STABLE_ERR_EXOTIC);
+            return;
+        }
+
+        if (!dismissIfCurrent(srcPetSlot))
+        {
+            SendStableResult(STABLE_ERR_INTERNAL);
+            return;
+        }
+
+        src = &petStable->ActivePets[srcPetSlot - PET_SAVE_FIRST_ACTIVE_SLOT];
+        dst = &petStable->StabledPets[dstPetSlot - PET_SAVE_FIRST_STABLE_SLOT];
+    }
+    else if (IsStabledPetSlot(srcPetSlot) && IsActivePetSlot(dstPetSlot))
+    {
+        if (!isControllable(srcPet))
+        {
+            SendStableResult(STABLE_ERR_EXOTIC);
+            return;
+        }
+
+        if (!dismissIfCurrent(dstPetSlot))
+        {
+            SendStableResult(STABLE_ERR_INTERNAL);
+            return;
+        }
+
+        src = &petStable->StabledPets[srcPetSlot - PET_SAVE_FIRST_STABLE_SLOT];
+        dst = &petStable->ActivePets[dstPetSlot - PET_SAVE_FIRST_ACTIVE_SLOT];
+    }
+    else
+    {
+        SendStableResult(STABLE_ERR_INVALID_SLOT);
+        return;
+    }
+
+    CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+
+    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_CHAR_PET_SLOT_BY_ID);
+    stmt->setInt16(0, int16(dstPetSlot));
+    stmt->setUInt64(1, _player->GetGUID().GetGUIDLow());
+    stmt->setUInt32(2, srcPet->PetNumber);
+    trans->Append(stmt);
+
+    if (dstPet)
+    {
+        stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_CHAR_PET_SLOT_BY_ID);
+        stmt->setInt16(0, int16(srcPetSlot));
+        stmt->setUInt64(1, _player->GetGUID().GetGUIDLow());
+        stmt->setUInt32(2, dstPet->PetNumber);
+        trans->Append(stmt);
+    }
+
+    bool const toStable = IsStabledPetSlot(dstPetSlot);
+    AddTransactionCallback(CharacterDatabase.AsyncCommitTransaction(trans)).AfterComplete(
+        [this, playerGuid = _player->GetGUID(), npcGuid = packet.NpcGUID, src, dst, newActivePetIndex, toStable](bool success)
+    {
+        if (!_player || _player->GetGUID() != playerGuid)
+            return;
+
+        if (!success)
+        {
+            SendStableResult(STABLE_ERR_INTERNAL);
+            return;
+        }
+
+        std::swap(*src, *dst);
+        if (newActivePetIndex)
+            _player->GetPetStable()->SetCurrentActivePetIndex(*newActivePetIndex);
+
+        SendStableResult(toStable ? STABLE_SUCCESS_STABLE : STABLE_SUCCESS_UNSTABLE);
+        // Refreshes the stable window and the Call Pet icons
+        SendStablePet(npcGuid);
+    });
 }
 
 void WorldSession::SendStableResult(StableResultCode res)
@@ -529,7 +668,8 @@ void WorldSession::HandlePetActionHelper(Unit* pet, ObjectGuid petGuid, uint32 s
 
                     charmInfo->SetIsCommandAttack(false);
                     charmInfo->SetIsAtStay(false);
-                    charmInfo->SetIsReturning(true);
+                    // Already beside the owner no follow move ends, and the flag would block every attack until the owner moves
+                    charmInfo->SetIsReturning(pet->GetDistance(_player) > sWorld->getRate(RATE_TARGET_POS_RECALCULATION_RANGE));
                     charmInfo->SetIsFollowing(false);
                     break;
                 case COMMAND_ATTACK:                        //spellid=1792  //ATTACK
@@ -639,10 +779,18 @@ void WorldSession::HandlePetActionHelper(Unit* pet, ObjectGuid petGuid, uint32 s
             {
                 case REACT_PASSIVE:                         //passive
                     pet->CombatStop(true);
-                    // pet->AttackStop();
-                    //pet->GetMotionMaster()->Clear();
-                    pet->GetMotionMaster()->MoveFollow(_player, pet->GetFollowDistance(), pet->GetFollowAngle());
-                    charmInfo->SetIsReturning(true);
+                    charmInfo->SetIsCommandAttack(false);
+                    // A following pet comes back to its owner, one told to stay goes back to its spot
+                    if (charmInfo->HasCommandState(COMMAND_FOLLOW))
+                        pet->GetMotionMaster()->MoveFollow(_player, pet->GetFollowDistance(), pet->GetFollowAngle());
+                    else if (!charmInfo->IsAtStay())
+                    {
+                        float x, y, z;
+                        charmInfo->GetStayPosition(x, y, z);
+                        charmInfo->SetIsReturning(true);
+                        pet->GetMotionMaster()->Clear(false);
+                        pet->GetMotionMaster()->MovePoint(pet->GetGUIDLow(), x, y, z);
+                    }
                 case REACT_DEFENSIVE:                       //recovery
                 case REACT_HELPER:
                 case REACT_AGGRESSIVE:
@@ -691,7 +839,8 @@ void WorldSession::HandlePetActionHelper(Unit* pet, ObjectGuid petGuid, uint32 s
 
             //  Clear the flags as if owner clicked 'attack'. AI will reset them
             //  after AttackStart, even if spell failed
-            if (pet->GetCharmInfo())
+            //  Only for a spell cast at an enemy: a heal or a buff would leave a passive or staying pet commanded to attack
+            if (pet->GetCharmInfo() && unit_target && unit_target != pet && !spellInfo->IsPositive() && _player->IsValidAttackTarget(unit_target))
             {
                 pet->GetCharmInfo()->SetIsAtStay(false);
                 pet->GetCharmInfo()->SetIsCommandAttack(true);
