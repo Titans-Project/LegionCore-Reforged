@@ -178,13 +178,32 @@ bool WaypointMovementGenerator<Creature>::StartMove(Creature& creature)
     float const y = waypoint.y + _randomMoveY;
     float const z = waypoint.z;
 
-    // Waypoints were recorded close enough for a straight line to follow the ground, and pathing
-    // all of them would touch thousands of patrols. Only a leg whose straight line runs into a wall,
-    // a rock or a fence is pathed. Transports, flyers, take-offs and landings keep the straight line.
+    // Pathing every leg would touch thousands of patrols. Only a leg whose straight line runs into a wall,
+    // a rock or a fence, or leaves the ground over a hill or a hollow, is pathed.
+    // Transports, flyers, take-offs and landings keep the straight line.
+    auto leavesGround = [&]() -> bool
+    {
+        float const sx = creature.GetPositionX(), sy = creature.GetPositionY(), sz = creature.GetPositionZ();
+        float const length = std::sqrt((x - sx) * (x - sx) + (y - sy) * (y - sy));
+        if (length < 10.0f)
+            return false;
+
+        uint32 const steps = std::min<uint32>(uint32(length / 8.0f), 16);
+        for (uint32 i = 1; i < steps; ++i)
+        {
+            float const t = float(i) / float(steps);
+            float const px = sx + (x - sx) * t, py = sy + (y - sy) * t, pz = sz + (z - sz) * t;
+            float const ground = creature.GetMap()->GetHeight(creature.GetPhases(), px, py, pz + 30.0f, true, 60.0f);
+            if (ground > INVALID_HEIGHT && std::fabs(ground - pz) > 2.0f)
+                return true;
+        }
+        return false;
+    };
+
     bool const pathed = !transportPath && !creature.CanFly() && !creature.IsFlying()
         && waypoint.move_type != WAYPOINT_MOVE_TYPE_LAND && waypoint.move_type != WAYPOINT_MOVE_TYPE_TAKEOFF
-        && !creature.GetMap()->isInLineOfSight(creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ() + 1.0f,
-            x, y, z + 1.0f, creature.GetPhases(), VMAP::ModelIgnoreFlags::Nothing);
+        && (!creature.GetMap()->isInLineOfSight(creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ() + 1.0f,
+            x, y, z + 1.0f, creature.GetPhases(), VMAP::ModelIgnoreFlags::Nothing) || leavesGround());
     init.MoveTo(x, y, z, pathed, pathed);
 
     //! Accepts angles such as 0.00001 and -0.00001, 0 must be ignored, default value in waypoint table
