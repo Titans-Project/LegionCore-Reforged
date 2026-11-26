@@ -332,7 +332,8 @@ public:
             if (Creature* anchor = go->FindNearestCreature(29521, 15))
                 if (ObjectGuid prisonerGUID = anchor->AI()->GetGUID())
                     if (Creature* prisoner = Creature::GetCreature(*player, prisonerGUID))
-                        CAST_AI(npc_unworthy_initiate::npc_unworthy_initiateAI, prisoner->AI())->EventStart(anchor, player);
+                        if (auto* initiateAI = CAST_AI(npc_unworthy_initiate::npc_unworthy_initiateAI, prisoner->AI()))
+                            initiateAI->EventStart(anchor, player);
 
             return false;
         }
@@ -681,8 +682,10 @@ public:
                             caster->GetMotionMaster()->MoveIdle();
                             caster->ToCreature()->SetHomePosition(caster->GetPosition());
                             DoCast(caster, CALL_DARK_RIDER, true);
-                            if (Creature* Dark_Rider = me->FindNearestCreature(28654, 15))
-                                CAST_AI(npc_dark_rider_of_acherus::npc_dark_rider_of_acherusAI, Dark_Rider->AI())->InitDespawnHorse(caster);
+                            // the Dark Rider may run another AI (SmartAI from the database): the cast is null then
+                            Creature* Dark_Rider = me->FindNearestCreature(28654, 15);
+                            if (auto* riderAI = Dark_Rider ? CAST_AI(npc_dark_rider_of_acherus::npc_dark_rider_of_acherusAI, Dark_Rider->AI()) : nullptr)
+                                riderAI->InitDespawnHorse(caster);
                             else
                                 caster->ToCreature()->DespawnOrUnsummon(5000);
                         }
