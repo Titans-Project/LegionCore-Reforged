@@ -31,6 +31,12 @@ The core descends from LegionCore 7.3.5, built on the 2020 UWOW source, itself d
 - **Artifact Knowledge back to its 7.0 design**: the late-patch boosts made Artifact Power explode and unbalanced the game. Knowledge follows the original pace, with an optional weekly Knowledge book.
 - **Quality of life**: small improvements that stay within what Legion could have shipped.
 
+## Contributing
+
+**Your bug reports are what move this project forward.** Legion is a huge expansion and a small team cannot test all of it alone. Every report helps.
+
+- **Test and report**: play, and whenever something does not behave as it did on retail, [open an issue](https://github.com/Titans-Project/LegionCore-Reforged/issues/new?template=bug_report.md) using the template. Describe what you did, what you expected and what happened; IDs and screenshots help a lot. Reports are read and fixed quickly.
+
 ## Content status
 
 🟢 Working\* · 🟡 Partially working · 🟠 Work in progress · 🔴 Not available yet or untested
@@ -224,17 +230,12 @@ Run the extractors from the client folder, in this order:
 
 The server needs all the generated folders: `dbc`, `maps`, `vmaps`, `mmaps`, `cameras` and `gt`.
 
-## Contributing
-
-**Your bug reports are what move this project forward.** Legion is a huge expansion and a small team cannot test all of it alone. Every report helps.
-
-- **Test and report**: play, and whenever something does not behave as it did on retail, [open an issue](https://github.com/Titans-Project/LegionCore-Reforged/issues/new?template=bug_report.md) using the template. Describe what you did, what you expected and what happened; IDs and screenshots help a lot. Reports are read and fixed quickly.
-
 ## Credits
 
 - [TrinityCore authors](https://github.com/TrinityCore/TrinityCore/blob/master/AUTHORS)
-- [LegionCore contributors](https://github.com/Titans-Project/LegionCore-Reforged/graphs/contributors)
-- [Titans-Project](https://github.com/Titans-Project)
+- UWOW, the Russian team that wrote the original LegionCore
+- [LegionCore 7.3.5 contributors](https://github.com/dufernst/LegionCore-7.3.5/graphs/contributors)
+- [Titans-Project contributors](https://github.com/Titans-Project/LegionCore-Reforged/graphs/contributors)
 
 ## License
 
