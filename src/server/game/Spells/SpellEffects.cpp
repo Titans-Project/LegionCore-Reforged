@@ -5642,7 +5642,8 @@ void Spell::EffectScriptEffect(SpellEffIndex effIndex)
                     return;
                 case 52479: // Gift of the Harvester
                     if (unitTarget && m_originalCaster)
-                        m_originalCaster->CastSpell(unitTarget, urand(0, 1) ? damage : 52505, true);
+                        // The computed base points no longer name the ghoul summon: every miner became a ghost
+                        m_originalCaster->CastSpell(unitTarget, urand(0, 1) ? 52490 : 52505, true);
                     return;
                 case 53110: // Devour Humanoid
                     if (unitTarget)

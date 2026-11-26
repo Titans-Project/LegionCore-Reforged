@@ -581,7 +581,12 @@ public:
                         break;
                     case 1:
                         if (Unit* target = Unit::GetUnit(*me, TargetGUID))
+                        {
                             DoCast(target, DESPAWN_HORSE, true);
+                            // Nothing handles the script effect of Despawn Horse
+                            if (Creature* horse = target->ToCreature())
+                                horse->DespawnOrUnsummon(1000);
+                        }
                         PhaseTimer = 3000;
                         Phase = 2;
                         break;
@@ -635,6 +640,16 @@ class npc_salanar_the_horseman : public CreatureScript
 public:
     npc_salanar_the_horseman() : CreatureScript("npc_salanar_the_horseman") { }
 
+    // "I must return to the Realm of Shadows": the only option of his menu, shown while Into the Realm of Shadows is in progress
+    bool OnGossipSelect(Player* player, Creature* /*creature*/, uint32 /*sender*/, uint32 /*action*/) override
+    {
+        player->PlayerTalkClass->ClearMenus();
+        player->CLOSE_GOSSIP_MENU();
+        if (player->GetQuestStatus(12687) == QUEST_STATUS_INCOMPLETE)
+            player->CastSpell(player, REALM_OF_SHADOWS, true);
+        return true;
+    }
+
     CreatureAI* GetAI(Creature* creature) const
     {
         return new npc_salanar_the_horsemanAI(creature);
@@ -655,11 +670,21 @@ public:
                         if (charmer->HasAura(EFFECT_STOLEN_HORSE))
                         {
                             charmer->RemoveAurasDueToSpell(EFFECT_STOLEN_HORSE);
+                            // The control aura sits on the horse: removing it from the rider alone left him in the saddle
+                            caster->RemoveAurasDueToSpell(EFFECT_STOLEN_HORSE);
+                            charmer->ExitVehicle();
                             caster->RemoveFlag(UNIT_FIELD_NPC_FLAGS, UNIT_NPC_FLAG_SPELLCLICK);
                             caster->setFaction(35);
+                            // Freed, the horse would trot back to the stables before the Dark Rider takes it
+                            caster->StopMoving();
+                            caster->GetMotionMaster()->Clear();
+                            caster->GetMotionMaster()->MoveIdle();
+                            caster->ToCreature()->SetHomePosition(caster->GetPosition());
                             DoCast(caster, CALL_DARK_RIDER, true);
                             if (Creature* Dark_Rider = me->FindNearestCreature(28654, 15))
                                 CAST_AI(npc_dark_rider_of_acherus::npc_dark_rider_of_acherusAI, Dark_Rider->AI())->InitDespawnHorse(caster);
+                            else
+                                caster->ToCreature()->DespawnOrUnsummon(5000);
                         }
                     }
                 }
@@ -810,11 +835,25 @@ public:
     {
         npc_scarlet_ghoulAI(Creature* creature) : ScriptedAI(creature)
         {
-            // Ghouls should display their Birth Animation
-            // Crawling out of the ground
-            DoCast(me, 35177, true);
-            me->MonsterSay("Mommy?", LANG_UNIVERSAL, ObjectGuid::Empty);
             me->SetReactState(REACT_DEFENSIVE);
+        }
+
+        void IsSummonedBy(Unit* summoner) override
+        {
+            // Crawls out of the ground
+            DoCast(me, 35177, true);
+            Talk(0);
+            me->GetMotionMaster()->MoveFollow(summoner, PET_FOLLOW_DIST, frand(0.0f, 2.0f * float(M_PI)));
+        }
+
+        void EnterEvadeMode() override
+        {
+            // Back at its master's heels rather than where it rose
+            me->RemoveAllAuras();
+            me->DeleteThreatList();
+            me->CombatStop(true);
+            if (Unit* owner = me->GetOwner())
+                me->GetMotionMaster()->MoveFollow(owner, PET_FOLLOW_DIST, frand(0.0f, 2.0f * float(M_PI)));
         }
 
         void FindMinions(Unit* owner)
@@ -857,20 +896,7 @@ public:
             if (!UpdateVictim())
                 return;
 
-            //ScriptedAI::UpdateAI(diff);
-            //Check if we have a current target
-            if (me->getVictim()->GetEntry() == GHOSTS)
-            {
-                if (me->isAttackReady())
-                {
-                    //If we are within range melee the target
-                    if (me->IsWithinMeleeRange(me->getVictim()))
-                    {
-                        me->AttackerStateUpdate(me->getVictim());
-                        me->resetAttackTimer();
-                    }
-                }
-            }
+            DoMeleeAttackIfReady();
         }
     };
 
@@ -1055,8 +1081,9 @@ public:
                         car->Relocate(car->GetPositionX(), car->GetPositionY(), me->GetPositionZ() + 1);
                         car->StopMoving();
                         car->RemoveAura(SPELL_CART_DRAG);
-                        car->GetPlayer(*me, car->GetCreatorGUID())->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC);
-                        car->GetPlayer(*me, car->GetCreatorGUID())->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
+                        // The player may have logged out on the way
+                        if (Player* player = car->GetPlayer(*me, car->GetCreatorGUID()))
+                            player->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC);
                     }
                     me->MonsterSay(SAY_SCARLET_MINER2, LANG_UNIVERSAL, ObjectGuid::Empty);
                     break;
@@ -1090,6 +1117,69 @@ public:
         }
     };
 
+};
+
+/*######
+## npc_scourge_gryphon_escape
+######*/
+
+enum ScourgeGryphonEscape
+{
+    SPELL_GRYPHON_FLIGHT    = 43775,
+    POINT_GRYPHON_LANDED    = 100
+};
+
+Position const ScourgeGryphonPath[] =
+{
+    { 2191.45f, -6131.88f, 48.4288f },
+    { 2220.66f, -6030.99f, 70.0122f },
+    { 2281.50f, -5955.75f, 131.79f  },
+    { 2306.98f, -5872.80f, 177.651f },
+    { 2347.98f, -5736.88f, 167.929f },
+    { 2360.93f, -5710.75f, 155.401f }
+};
+Position const ScourgeGryphonLanding = { 2360.93f, -5710.75f, 153.922f };
+
+// Flies the death knight from the Scarlet ships back to Death's Breach. It now lands before letting the rider off:
+// left in the air, the rider fell, was put back in the saddle and fell again until the gryphon vanished.
+class npc_scourge_gryphon_escape : public CreatureScript
+{
+public:
+    npc_scourge_gryphon_escape() : CreatureScript("npc_scourge_gryphon_escape") { }
+
+    struct npc_scourge_gryphon_escapeAI : public ScriptedAI
+    {
+        npc_scourge_gryphon_escapeAI(Creature* creature) : ScriptedAI(creature) { }
+
+        void IsSummonedBy(Unit* /*summoner*/) override
+        {
+            me->SetReactState(REACT_PASSIVE);
+            DoCast(me, SPELL_GRYPHON_FLIGHT, true);
+            me->SetWalk(false);
+            me->GetMotionMaster()->MovePoint(0, ScourgeGryphonPath[0], false);
+        }
+
+        void MovementInform(uint32 type, uint32 id) override
+        {
+            if (type == POINT_MOTION_TYPE && id + 1 < std::size(ScourgeGryphonPath))
+                me->GetMotionMaster()->MovePoint(id + 1, ScourgeGryphonPath[id + 1], false);
+            else if (type == POINT_MOTION_TYPE)
+                me->GetMotionMaster()->MoveLand(POINT_GRYPHON_LANDED, ScourgeGryphonLanding);
+            else if (type == EFFECT_MOTION_TYPE && id == POINT_GRYPHON_LANDED)
+            {
+                if (Vehicle* vehicle = me->GetVehicleKit())
+                    vehicle->RemoveAllPassengers();
+                me->DespawnOrUnsummon(2000);
+            }
+        }
+
+        void EnterEvadeMode() override { }
+    };
+
+    CreatureAI* GetAI(Creature* creature) const override
+    {
+        return new npc_scourge_gryphon_escapeAI(creature);
+    }
 };
 
 /*######
@@ -1255,8 +1345,9 @@ void AddSC_the_scarlet_enclave_c1()
     new npc_dark_rider_of_acherus();
     new npc_ros_dark_rider();
     new npc_dkc1_gothik();
-    //new npc_scarlet_ghoul();
+    new npc_scarlet_ghoul();
     new npc_scarlet_miner();
     new npc_scarlet_miner_cart();
+    new npc_scourge_gryphon_escape();
     RegisterCreatureAI(npc_eye_of_acherus);
 }

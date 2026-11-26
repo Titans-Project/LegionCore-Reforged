@@ -13,6 +13,7 @@
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
 #include "ScriptedEscortAI.h"
+#include "World.h"
 
 //How to win friends and influence enemies
 // texts signed for creature 28939 but used for 28939, 28940, 28610
@@ -65,6 +66,7 @@ public:
             uiPlayerGUID.Clear();
             me->SetReactState(REACT_AGGRESSIVE);
             me->RestoreFaction();
+            me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC);
         }
 
         void SpellHit(Unit* caster, const SpellInfo* spell)
@@ -79,6 +81,9 @@ public:
                         uiSpeech_timer = 1000;
                         uiSpeech_counter = 1;
                         me->setFaction(caster->getFaction());
+                        // Diseases and other damage over time kept ticking and killed the crusader before the confession
+                        me->RemoveAllAuras();
+                        me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC | UNIT_FLAG_IMMUNE_TO_NPC);
                         me->CombatStop(true);
                         me->GetMotionMaster()->MoveIdle();
                         me->SetReactState(REACT_PASSIVE);
@@ -86,9 +91,9 @@ public:
                     }
                     else if (roll_chance_i(20))
                     {
-                        Talk(RAND(SAY_PERSUADE1, SAY_PERSUADE2, SAY_PERSUADE3,
-                                          SAY_PERSUADE4, SAY_PERSUADE5, SAY_PERSUADE6,
-                                          SAY_PERSUADE7));
+                        // The death knight asks, not the crusader: groups 1-7 of the crusader texts are these broadcast texts
+                        static uint32 const PersuadeTexts[] = { 29138, 29134, 29135, 29139, 29137, 29133, 29136 };
+                        caster->Talk(PersuadeTexts[urand(0, std::size(PersuadeTexts) - 1)], CHAT_MSG_SAY, sWorld->getFloatConfig(CONFIG_LISTEN_RANGE_SAY), me);
                     }
                     else if (roll_chance_i(40)) 
                     {
@@ -135,7 +140,8 @@ public:
                             break;
 
                         case 5:
-                            Talk(SAY_PERSUADED5);
+                            // "LIES!" is the death knight's threat (broadcast text of group 18)
+                            player->Talk(29163, CHAT_MSG_SAY, sWorld->getFloatConfig(CONFIG_LISTEN_RANGE_SAY), me);
                             uiSpeech_timer = 8000;
                             break;
 
@@ -293,6 +299,10 @@ public:
 
             if (HasEscortState(STATE_ESCORT_PAUSED))
             {
+                // The barrier never ends on its own but went away during the waves: kept up until Valroth falls
+                if (wave < 5 && !me->HasAura(SPELL_ANTI_MAGIC_ZONE) && !me->HasUnitState(UNIT_STATE_CASTING))
+                    DoCast(me, SPELL_ANTI_MAGIC_ZONE, true);
+
                 if (waveTimer <= uiDiff)
                 {
                     switch (wave)
