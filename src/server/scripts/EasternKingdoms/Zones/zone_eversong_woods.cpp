@@ -433,83 +433,140 @@ public:
 ## npc_apprentice_mirveda
 ######*/
 
-#define QUEST_UNEXPECTED_RESULT 8488
-#define MOB_GHARZUL     15958
-#define MOB_ANGERSHADE  15656
+enum ApprenticeMirveda
+{
+    QUEST_UNEXPECTED_RESULT     = 8488,
+    NPC_APPRENTICE_MIRVEDA      = 15402,
+    NPC_GHARSUL                 = 15958,
+    NPC_ANGERSHADE              = 15656,
+    SPELL_MIRVEDA_FIREBALL      = 20811,
+    FACTION_MIRVEDA_EVENT       = 232,
+    MIRVEDA_AMBUSH_SIZE         = 3,
+    MIRVEDA_AMBUSH_DESPAWN      = 180000
+};
 
+// The event as in the Cata 4.3.4 / Cata Classic 4.4.2 TDB (smart_scripts 1540201/1540202, creature_summon_groups 15402)
 class npc_apprentice_mirveda : public CreatureScript
 {
 public:
     npc_apprentice_mirveda() : CreatureScript("npc_apprentice_mirveda") {}
 
-    bool OnQuestAccept(Player* player, Creature* creature, Quest const* quest) override
-    {
-        if (quest->GetQuestId() == QUEST_UNEXPECTED_RESULT)
-        {
-            CAST_AI(npc_apprentice_mirveda::npc_apprentice_mirvedaAI, creature->AI())->Summon = true;
-            CAST_AI(npc_apprentice_mirveda::npc_apprentice_mirvedaAI, creature->AI())->PlayerGUID = player->GetGUID();
-        }
-        return true;
-    }
-
-    CreatureAI* GetAI(Creature* creature) const
-    {
-        return new npc_apprentice_mirvedaAI (creature);
-    }
-
     struct npc_apprentice_mirvedaAI : public ScriptedAI
     {
         npc_apprentice_mirvedaAI(Creature* creature) : ScriptedAI(creature), Summons(me) {}
 
-        uint32 KillCount;
+        uint32 KillCount = 0;
+        uint32 FireballTimer = 1000;
+        bool Active = false;
         ObjectGuid PlayerGUID;
-        bool Summon;
         SummonList Summons;
 
+        // also called on evade: the event itself ends only in EndEvent
         void Reset() override
         {
-            KillCount = 0;
-            PlayerGUID.Clear();
-            Summons.DespawnAll();
-            Summon = false;
+            FireballTimer = 1000;
         }
 
-        void EnterCombat(Unit* /*who*/) override {}
+        void StartEvent(Player* player)
+        {
+            if (Active)
+                return;
+
+            Active = true;
+            KillCount = 0;
+            PlayerGUID = player->GetGUID();
+            me->SetUInt32Value(UNIT_FIELD_NPC_FLAGS, 0);
+            me->setFaction(FACTION_MIRVEDA_EVENT);
+            // with the flag the ambush could not attack her: it evaded and stood at its spawn point
+            me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
+
+            me->SummonCreature(NPC_GHARSUL, 8749.5f, -7132.6f, 35.3198f, 3.8165f, TEMPSUMMON_TIMED_OR_DEAD_DESPAWN, MIRVEDA_AMBUSH_DESPAWN);
+            me->SummonCreature(NPC_ANGERSHADE, 8755.38f, -7131.52f, 35.3096f, 3.8165f, TEMPSUMMON_TIMED_OR_DEAD_DESPAWN, MIRVEDA_AMBUSH_DESPAWN);
+            me->SummonCreature(NPC_ANGERSHADE, 8753.2f, -7125.98f, 35.3199f, 3.8165f, TEMPSUMMON_TIMED_OR_DEAD_DESPAWN, MIRVEDA_AMBUSH_DESPAWN);
+        }
+
+        void EndEvent(bool success)
+        {
+            if (!Active)
+                return;
+
+            Active = false;
+            me->SetUInt32Value(UNIT_FIELD_NPC_FLAGS, me->GetCreatureTemplate()->npcflag);
+            me->setFaction(me->GetCreatureTemplate()->faction);
+            me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
+
+            if (Player* player = Unit::GetPlayer(*me, PlayerGUID))
+            {
+                if (player->GetQuestStatus(QUEST_UNEXPECTED_RESULT) == QUEST_STATUS_INCOMPLETE)
+                {
+                    if (success)
+                    {
+                        player->KilledMonsterCredit(NPC_APPRENTICE_MIRVEDA);
+                        player->CompleteQuest(QUEST_UNEXPECTED_RESULT);
+                    }
+                    else
+                        player->FailQuest(QUEST_UNEXPECTED_RESULT);
+                }
+            }
+            PlayerGUID.Clear();
+
+            if (!success)
+                Summons.DespawnAll();
+        }
 
         void JustSummoned(Creature* summoned) override
         {
-            summoned->AI()->AttackStart(me);
             Summons.Summon(summoned);
+            summoned->AI()->AttackStart(me);
+            me->AddThreat(summoned, 1.0f);
         }
 
         void SummonedCreatureDespawn(Creature* summoned) override
         {
             Summons.Despawn(summoned);
-            ++KillCount;
+            if (Summons.empty())
+                EndEvent(false);        // the ambush is gone without being killed
+        }
+
+        void SummonedCreatureDies(Creature* /*summoned*/, Unit* /*killer*/) override
+        {
+            if (Active && ++KillCount >= MIRVEDA_AMBUSH_SIZE)
+                EndEvent(true);
         }
 
         void JustDied(Unit* /*killer*/) override
         {
-            if (PlayerGUID)
-                if (Player* player = Unit::GetPlayer(*me, PlayerGUID))
-                    player->FailQuest(QUEST_UNEXPECTED_RESULT);
+            EndEvent(false);
         }
 
-        void UpdateAI(uint32 /*diff*/) override
+        void UpdateAI(uint32 diff) override
         {
-            if (KillCount >= 3 && PlayerGUID)
-                if (Player* player = Unit::GetPlayer(*me, PlayerGUID))
-                    player->CompleteQuest(QUEST_UNEXPECTED_RESULT);
+            if (!UpdateVictim())
+                return;
 
-            if (Summon)
+            if (FireballTimer <= diff)
             {
-                me->SummonCreature(MOB_GHARZUL, 8745, -7134.32f, 35.22f, 0, TEMPSUMMON_CORPSE_DESPAWN, 4000);
-                me->SummonCreature(MOB_ANGERSHADE, 8745, -7134.32f, 35.22f, 0, TEMPSUMMON_CORPSE_DESPAWN, 4000);
-                me->SummonCreature(MOB_ANGERSHADE, 8745, -7134.32f, 35.22f, 0, TEMPSUMMON_CORPSE_DESPAWN, 4000);
-                Summon = false;
+                DoCastVictim(SPELL_MIRVEDA_FIREBALL);
+                FireballTimer = urand(5000, 8000);
             }
+            else
+                FireballTimer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
+
+    bool OnQuestAccept(Player* player, Creature* creature, Quest const* quest) override
+    {
+        if (quest->GetQuestId() == QUEST_UNEXPECTED_RESULT)
+            CAST_AI(npc_apprentice_mirveda::npc_apprentice_mirvedaAI, creature->AI())->StartEvent(player);
+        return true;
+    }
+
+    CreatureAI* GetAI(Creature* creature) const override
+    {
+        return new npc_apprentice_mirvedaAI(creature);
+    }
 };
 
 /*######
