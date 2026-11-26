@@ -1,0 +1,6 @@
+-- Pilgrim's Bounty: the calendar lists the holiday again, on the Monday before Thanksgiving, from 2020 to 2035
+DELETE FROM `holidays` WHERE `ID` = 404;
+INSERT INTO `holidays` (`ID`,`Date1`,`Date2`,`Date3`,`Date4`,`Date5`,`Date6`,`Date7`,`Date8`,`Date9`,`Date10`,`Date11`,`Date12`,`Date13`,`Date14`,`Date15`,`Date16`,`Duration1`,`Duration2`,`Duration3`,`Duration4`,`Duration5`,`Duration6`,`Duration7`,`Duration8`,`Duration9`,`Duration10`,`Region`,`Looping`,`CalendarFlags1`,`CalendarFlags2`,`CalendarFlags3`,`CalendarFlags4`,`CalendarFlags5`,`CalendarFlags6`,`CalendarFlags7`,`CalendarFlags8`,`CalendarFlags9`,`CalendarFlags10`,`Priority`,`CalendarFilterType`,`Flags`,`HolidayNameID`,`HolidayDescriptionID`,`TextureFileDataID1`,`TextureFileDataID2`,`TextureFileDataID3`,`VerifiedBuild`) VALUES
+(404,346405504,363166336,379927168,396688000,413547136,430307968,447068800,463829632,480574080,497334912,514210432,530971264,547715712,564476544,581237376,597998208,167,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0,5,-1,1,101,101,235465,235464,235463,26972);
+DELETE FROM `hotfix_data` WHERE `Id` = 9100217;
+INSERT INTO `hotfix_data` (`Id`,`TableHash`,`RecordID`,`Timestamp`,`Deleted`) VALUES (9100217,1972272076,404,0,0);

@@ -66,6 +66,51 @@ static void AnchorYearlyEvent(GameEventData& data, time_t now)
     data.occurence = uint32((GetYearlyDate(origin, year + 1) - start) / MINUTE);
 }
 
+// A holiday whose date moves each year (Pilgrim's Bounty follows Thanksgiving) lists its dates in Holidays.db2:
+// while that list reaches the current year, the event starts on the listed date the calendar shows
+static bool AnchorHolidayDates(GameEventData& data, time_t now)
+{
+    HolidaysEntry const* holiday = sHolidaysStore.LookupEntry(data.holiday_id);
+    if (!holiday || holiday->Looping)
+        return false;
+
+    // year 31 alone means every year (Midsummer, Brewfest...): those keep their yearly anchoring;
+    // inside a list of years it is 2031
+    bool everyYear = true;
+    for (int32 packed : holiday->Date)
+        if (packed && ((packed >> 24) & 0x1F) != 0x1F)
+            everyYear = false;
+    if (everyYear)
+        return false;
+
+    std::vector<time_t> dates;
+    for (int32 packed : holiday->Date)
+    {
+        if (!packed)
+            continue;
+
+        tm date = {};
+        date.tm_min = packed & 0x3F;
+        date.tm_hour = (packed >> 6) & 0x1F;
+        date.tm_mday = ((packed >> 14) & 0x3F) + 1;
+        date.tm_mon = (packed >> 20) & 0xF;
+        date.tm_year = ((packed >> 24) & 0x1F) + 100;
+        date.tm_isdst = -1;
+        dates.push_back(mktime(&date));
+    }
+
+    std::sort(dates.begin(), dates.end());
+    if (dates.empty() || dates.back() + time_t(YearlyOccurence) * MINUTE <= now)
+        return false;
+
+    auto next = std::upper_bound(dates.begin(), dates.end(), now);
+    time_t const start = next == dates.begin() ? *next : *std::prev(next);
+    auto following = std::upper_bound(dates.begin(), dates.end(), start);
+    data.start = start;
+    data.occurence = following != dates.end() ? uint32((*following - start) / MINUTE) : YearlyOccurence;
+    return true;
+}
+
 GameEventMgr::ActiveEvents const& GameEventMgr::GetActiveEventList() const
 {
     return m_ActiveEvents;
@@ -359,7 +404,8 @@ void GameEventMgr::LoadFromDB()
             if (pGameEvent.occurence == YearlyOccurence && timewalkingSlot < 0 && pGameEvent.holiday_id != GreatGnomereganRun::HOLIDAY_ID)
             {
                 YearlyEvents.insert(event_id);
-                AnchorYearlyEvent(pGameEvent, GameTime::GetGameTime());
+                if (!AnchorHolidayDates(pGameEvent, GameTime::GetGameTime()))
+                    AnchorYearlyEvent(pGameEvent, GameTime::GetGameTime());
             }
 
             ++count;
@@ -1155,7 +1201,8 @@ uint32 GameEventMgr::Update()                               // return the next e
     {
         // a yearly event that came round moves on to its next calendar date
         if (YearlyEvents.count(uint16(itr)) && currenttime >= mGameEvent[itr].start + time_t(mGameEvent[itr].occurence) * MINUTE)
-            AnchorYearlyEvent(mGameEvent[itr], currenttime);
+            if (!AnchorHolidayDates(mGameEvent[itr], currenttime))
+                AnchorYearlyEvent(mGameEvent[itr], currenttime);
 
         // must do the activating first, and after that the deactivating
         // so first queue it
