@@ -5490,6 +5490,15 @@ void SpellMgr::LoadSpellCustomAttr()
         spellInfo->AuraRestrictions.TargetAuraSpell = 0;
     });
 
+    // The Might of Mograine (The Light of Dawn): each death knight on the quest gets it from spell_area;
+    // as an area aura it spread to every friendly unit around them, other players and Scourge NPCs included
+    ApplySpellFix({53642}, [](SpellInfo* spellInfo)
+    {
+        spellInfo->Effects[EFFECT_0]->Effect = SPELL_EFFECT_APPLY_AURA;
+        spellInfo->Effects[EFFECT_1]->Effect = SPELL_EFFECT_APPLY_AURA;
+        spellInfo->Effects[EFFECT_2]->Effect = SPELL_EFFECT_APPLY_AURA;
+    });
+
     //Corruption
     ApplySpellFix({144421}, [](SpellInfo* spellInfo)
     {
