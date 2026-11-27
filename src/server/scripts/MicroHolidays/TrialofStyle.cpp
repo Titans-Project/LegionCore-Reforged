@@ -10,6 +10,7 @@
 */
 
 #include "WorldStatePackets.h"
+#include "LFGMgr.h"
 #include "Scenario.h"
 #include "ScenarioMgr.h"
 #include "ScenePackets.h"
@@ -184,7 +185,8 @@ struct npc_atheris_voguesong : ScriptedAI
 
         if (action == ACTION_1)
         {
-            if (PlayerListGUID.size() < 6)
+            // the show needs six contestants; the queue's test mode (.debug lfg) lets it run with fewer
+            if (PlayerListGUID.size() < 6 && !sLFGMgr->IsTesting())
                 return;
 
             if (instance)
