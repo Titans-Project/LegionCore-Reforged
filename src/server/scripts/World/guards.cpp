@@ -1,20 +1,14 @@
-/*
- * Copyright (C) 2008-2012 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+////////////////////////////////////////////
+///                                      ///
+///         LEGIONCORE REFORGED          ///
+///    Copyright 2026 Titans-Project     ///
+///         All Rights Reserved.         ///
+///                                      ///
+///      Based on TrinityCore code       ///
+///   Copyright 2008-2012 TrinityCore    ///
+///   <http://www.trinitycore.org/>      ///
+///                                      ///
+////////////////////////////////////////////
 
 /* ScriptData
 SDName: Guards
@@ -39,7 +33,10 @@ enum GuardGeneric
     NPC_CENARION_HOLD_INFANTRY      = 15184,
     NPC_STORMWIND_CITY_GUARD        = 68,
     NPC_STORMWIND_CITY_PATROLLER    = 1976,
-    NPC_ORGRIMMAR_GRUNT             = 3296
+    NPC_ORGRIMMAR_GRUNT             = 3296,
+    NPC_IRONFORGE_GUARD             = 5595,
+    NPC_DARNASSUS_SENTINEL          = 4262,
+    NPC_BLUFFWATCHER                = 3084
 };
 
 class guard_generic : public CreatureScript
@@ -218,6 +215,25 @@ public:
 
         void ReceiveEmote(Player* player, uint32 textEmote) override
         {
+            // Volunteer Guard Day: every capital's guards take volunteers, not only Stormwind's and Orgrimmar's
+            if (textEmote == TEXT_EMOTE_SALUTE && sGameEventMgr->IsActiveEvent(70))
+            {
+                switch (me->GetEntry())
+                {
+                    case NPC_STORMWIND_CITY_GUARD:
+                    case NPC_STORMWIND_CITY_PATROLLER:
+                    case NPC_ORGRIMMAR_GRUNT:
+                    case NPC_IRONFORGE_GUARD:
+                    case NPC_DARNASSUS_SENTINEL:
+                    case NPC_BLUFFWATCHER:
+                        DoCast(player, player->GetTeam() == HORDE ? 231163 : 231193, false);
+                        me->HandleEmoteCommand(EMOTE_ONESHOT_SALUTE);
+                        break;
+                    default:
+                        break;
+                }
+            }
+
             switch (me->GetEntry())
             {
                 case NPC_STORMWIND_CITY_GUARD:
@@ -226,23 +242,6 @@ public:
                     break;
                 default:
                     return;
-            }
-
-            if (textEmote == TEXT_EMOTE_SALUTE)
-            {
-                if (sGameEventMgr->IsActiveEvent(70))
-                {
-                    if (player->GetTeam() == HORDE)
-                    {
-                        DoCast(player, 231163, false);
-                        me->HandleEmoteCommand(EMOTE_ONESHOT_SALUTE);
-                    }
-                    else
-                    {
-                        DoCast(player, 231193, false);
-                        me->HandleEmoteCommand(EMOTE_ONESHOT_SALUTE);
-                    }
-                }
             }
 
             if (!me->IsFriendlyTo(player))
