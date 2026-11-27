@@ -84,7 +84,8 @@ enum eEvents
 
     EVENT_GENERATE_RESULTS,
 
-    EVENT_COMPLETE_TIMER = 27
+    EVENT_COMPLETE_TIMER = 27,
+    EVENT_SEND_HOME      = 100
 };
 
 struct npc_atheris_voguesong : ScriptedAI
@@ -1065,6 +1066,11 @@ struct npc_atheris_voguesong : ScriptedAI
                     for (auto& guid : ConsolationList)
                         if (auto target = ObjectAccessor::GetPlayer(*me, guid))
                             target->CastSpell(target, 242149, false);
+                events.RescheduleEvent(EVENT_SEND_HOME, 30000);
+                break;
+            case EVENT_SEND_HOME:
+                // the show is over: everyone goes back where they queued from
+                instance->instance->ApplyOnEveryPlayer([](Player* player) { sLFGMgr->TeleportPlayer(player, true); });
                 break;
             case EVENT_22:
                 me->GetMotionMaster()->MovePoint(2, 251.9184f, -1.289931f, 1.777769f, 0.0f);
