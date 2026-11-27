@@ -638,7 +638,7 @@ class spell_volunteer_city_guard : public AuraScript
 
     void OnUpdate(uint32 diff, AuraEffect* aurEff)
     {
-        Unit* caster = GetTarget();
+        Unit* caster = GetUnitOwner();    // GetTarget() is not set while the aura updates
         if (!caster || !caster->IsPlayer())
             return;
 
