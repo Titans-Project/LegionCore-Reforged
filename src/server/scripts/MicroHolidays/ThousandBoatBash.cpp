@@ -47,11 +47,20 @@ public:
         m_boatCheckTimer = 2000;
         if (!sGameEventMgr->IsActiveEvent(EVENT_THOUSAND_BOAT_BASH))
         {
-            m_told.clear();
+            // the festival is over: the day's boat goes with it
+            if (!m_told.empty())
+            {
+                ApplyOnEveryPlayerInZone([](Player* player) -> void
+                {
+                    player->RemoveAurasDueToSpell(SPELL_BOAT_DAY);
+                    player->RemoveAurasDueToSpell(SPELL_BOAT_DAY_ALT);
+                });
+                m_told.clear();
+            }
             return true;
         }
 
-        // the day's boat is announced once on entering the zone; its aura only takes on the water
+        // as on retail, the day's boat is given on entering the zone; its water walking keeps the player on the surface
         ApplyOnEveryPlayerInZone([this](Player* player) -> void
         {
             if (m_told.insert(player->GetGUID()).second)
@@ -63,10 +72,7 @@ public:
                 }
             }
 
-            if (player->HasAura(SPELL_BOAT_DAY) || player->HasAura(SPELL_BOAT_DAY_ALT))
-                return;
-
-            if (player->IsInWater())
+            if (!player->HasAura(SPELL_BOAT_DAY) && !player->HasAura(SPELL_BOAT_DAY_ALT))
                 player->CastSpell(player, SPELL_BOAT_DAY, true);
         });
 
@@ -122,13 +128,25 @@ class spell_bating : public AuraScript
         if (!caster)
             return;
 
-        LiquidData liquid_status;
-        ZLiquidStatus Zliquid_status = caster->GetMap()->getLiquidStatus(caster->GetPositionX(), caster->GetPositionY(), caster->GetPositionZ(), MAP_ALL_LIQUIDS, &liquid_status);
+        if (!sGameEventMgr->IsActiveEvent(307))
+        {
+            Remove();
+            return;
+        }
 
-        if (Zliquid_status & (LIQUID_MAP_WATER_WALK | LIQUID_MAP_UNDER_WATER | LIQUID_MAP_IN_WATER))
-            caster->CastSpell(caster, 234450, true);
+        // standing on the surface reads as just above the water: the boat stays as long as the water is close below
+        LiquidData liquid;
+        ZLiquidStatus status = caster->GetMap()->getLiquidStatus(caster->GetPositionX(), caster->GetPositionY(), caster->GetPositionZ(), MAP_ALL_LIQUIDS, &liquid);
+        bool const onWater = (status & (LIQUID_MAP_WATER_WALK | LIQUID_MAP_UNDER_WATER | LIQUID_MAP_IN_WATER))
+            || ((status & LIQUID_MAP_ABOVE_WATER) && caster->GetPositionZ() - liquid.level < 3.0f);
+
+        if (onWater)
+        {
+            if (!caster->HasAura(234460))
+                caster->CastSpell(caster, 234460, true);
+        }
         else
-            caster->RemoveAura(234449);
+            caster->RemoveAura(234460);
     }
 
     void OnRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
