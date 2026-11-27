@@ -1,2 +1,3 @@
--- March of the Tadpoles: A Tadpole's Request in French
-UPDATE `quest_template_locale` SET `LogTitle` = 'La requête d''un têtard', `LogDescription` = 'Obtenez $1oa palourdes ailerons-d''hiver.', `QuestDescription` = 'Glrrrr ! Mrr, mrr, glrrgli !$b$b<Votre petit têtard préféré devient imprudent. Peut-être aimerait-il des palourdes ?>' WHERE `ID` = 46062 AND `locale` = 'frFR';
+-- March of the Tadpoles: Ce que têtard veut… and Le Train du monde in French
+UPDATE `quest_template_locale` SET `LogTitle` = 'Ce que têtard veut…', `LogDescription` = 'Récupérez $1oa Palourdes aileron-d''hiver.', `QuestDescription` = 'Glrrrr ! Mrr, mrr, glrrgli !$b$b<Votre petit têtard préféré se montre de plus en plus téméraire. Peut-être aimerait-il déguster des palourdes ?>' WHERE `ID` = 46062 AND `locale` = 'frFR';
+UPDATE `quest_template_locale` SET `LogTitle` = 'Le Train du monde', `LogDescription` = 'Tuez Mrrga.', `QuestDescription` = 'Mrrga !$b$b<Votre têtard se fait tout petit et se cache quand il distingue les formes d''un épaulard massif traversant la Faille-Ouest.>$b$bMrrga… Mrrga…' WHERE `ID` = 46064 AND `locale` = 'frFR';
