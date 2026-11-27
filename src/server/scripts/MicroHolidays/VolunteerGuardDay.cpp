@@ -61,6 +61,7 @@ struct npc_city_invader : public ScriptedAI
     float bp = 0.f;
     float bp0 = 0.f;
     uint32 randomClass = 0;
+    uint32 scareTimer = 1000;
     EventMap events;
 
     void EnterEvadeMode() override
@@ -68,8 +69,46 @@ struct npc_city_invader : public ScriptedAI
         me->DespawnOrUnsummon();
     }
 
+    // an invader fights at its volunteer's level, with the health and damage of the creatures of that level
+    void ScaleToVolunteer(Unit* owner)
+    {
+        uint8 const level = owner->getLevel();
+        CreatureTemplate const* cInfo = me->GetCreatureTemplate();
+        CreatureBaseStats const* stats = sObjectMgr->GetCreatureBaseStats(level, cInfo->unit_class);
+        if (!stats)
+            return;
+
+        uint8 const expansion = level <= 60 ? EXPANSION_CLASSIC : level <= 70 ? EXPANSION_THE_BURNING_CRUSADE
+            : level <= 80 ? EXPANSION_WRATH_OF_THE_LICH_KING : level <= 85 ? EXPANSION_CATACLYSM
+            : level <= 90 ? EXPANSION_MISTS_OF_PANDARIA : level <= 100 ? EXPANSION_WARLORDS_OF_DRAENOR : EXPANSION_LEGION;
+
+        me->SetLevel(level);
+
+        uint64 const health = uint64(stats->BaseHealth[expansion] * cInfo->HpMulti * sWorld->getRate(RATE_CREATURE_NORMAL_HP));
+        me->SetCreateHealth(health);
+        me->SetMaxHealth(health);
+        me->SetHealth(health);
+        me->SetModifierValue(UNIT_MOD_HEALTH, BASE_VALUE, float(health));
+
+        uint32 const mana = stats->GenerateMana(cInfo);
+        me->SetCreateMana(mana);
+        me->SetMaxPower(POWER_MANA, mana);
+        me->SetFullPower(POWER_MANA);
+
+        float const damage = stats->BaseDamage[expansion];
+        for (WeaponAttackType attack : { BASE_ATTACK, OFF_ATTACK, RANGED_ATTACK })
+        {
+            me->SetBaseWeaponDamage(attack, MINDAMAGE, damage);
+            me->SetBaseWeaponDamage(attack, MAXDAMAGE, damage * 1.5f);
+        }
+        me->SetModifierValue(UNIT_MOD_ATTACK_POWER, BASE_VALUE, float(stats->AttackPower));
+        me->SetModifierValue(UNIT_MOD_ATTACK_POWER_RANGED, BASE_VALUE, float(stats->RangedAttackPower));
+        me->UpdateAllStats();
+    }
+
     void IsSummonedBy(Unit* owner) override
     {
+        ScaleToVolunteer(owner);
         randomClass = urand(WARRIOR, WARLOCK);
         AttackStart(owner);
     }
@@ -498,8 +537,36 @@ struct npc_city_invader : public ScriptedAI
         }
     }
 
+    // the townsfolk run from an invader coming close, then go back to their place
+    void ScareTownsfolk()
+    {
+        std::list<Creature*> nearby;
+        me->GetCreatureListInGrid(nearby, 10.0f);
+        for (Creature* townsman : nearby)
+        {
+            if (!townsman->isCivilian() || townsman->isGuard() || !townsman->IsAlive() || townsman->isInCombat()
+                || townsman->HasUnitState(UNIT_STATE_FLEEING) || townsman->isAnySummons())
+                continue;
+
+            townsman->GetMotionMaster()->MoveFleeing(me, 6000);
+            townsman->AddDelayedEvent(6500, [townsman]() -> void
+            {
+                if (townsman->IsAlive() && !townsman->isInCombat())
+                    townsman->GetMotionMaster()->MoveTargetedHome();
+            });
+        }
+    }
+
     void UpdateAI(uint32 diff) override
     {
+        if (scareTimer <= diff)
+        {
+            scareTimer = 1000;
+            ScareTownsfolk();
+        }
+        else
+            scareTimer -= diff;
+
         if (!UpdateVictim())
             return;
 
@@ -648,6 +715,10 @@ class spell_volunteer_city_guard : public AuraScript
             {
                 timer = 30000;
 
+                // no invader comes for a volunteer lying dead
+                if (!caster->IsAlive())
+                    return;
+
                 if (aurEff->GetSpellInfo()->Id == 231163)
                     if ((caster->GetCurrentZoneID() == 1637) || (caster->GetCurrentZoneID() == 1497) || (caster->GetCurrentZoneID() == 1638) || (caster->GetCurrentZoneID() == 3487) || (caster->GetCurrentAreaID() == 7333))
                         caster->CastSpell(caster, 231192, true);
@@ -660,9 +731,36 @@ class spell_volunteer_city_guard : public AuraScript
         }
     }
 
+    // the volunteer copies the saluted guard: a guard of the other sex gives way to the same guard's model of the volunteer's sex
+    void AfterApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+    {
+        Unit* target = GetTarget();
+        Creature* guard = GetCaster() ? GetCaster()->ToCreature() : nullptr;
+        if (!target || !guard)
+            return;
+
+        CreatureDisplayInfoEntry const* current = sCreatureDisplayInfoStore.LookupEntry(target->GetDisplayId());
+        if (current && current->Gender == int8(target->getGender()))
+            return;
+
+        for (int32 modelId : guard->GetCreatureTemplate()->Modelid)
+        {
+            if (!modelId)
+                continue;
+
+            CreatureDisplayInfoEntry const* display = sCreatureDisplayInfoStore.LookupEntry(sObjectMgr->GetCreatureDisplay(modelId));
+            if (display && display->Gender == int8(target->getGender()))
+            {
+                target->SetDisplayId(display->ID);
+                return;
+            }
+        }
+    }
+
     void Register() override
     {
         OnEffectUpdate += AuraEffectUpdateFn(spell_volunteer_city_guard::OnUpdate, EFFECT_1, SPELL_AURA_DUMMY);
+        AfterEffectApply += AuraEffectApplyFn(spell_volunteer_city_guard::AfterApply, EFFECT_0, SPELL_AURA_ANY, AURA_EFFECT_HANDLE_REAL);
     }
 };
 
