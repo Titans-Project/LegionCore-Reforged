@@ -171,10 +171,14 @@ class spell_boat_day : public AuraScript
         LiquidData liquid_status;
         ZLiquidStatus Zliquid_status = caster->GetMap()->getLiquidStatus(caster->GetPositionX(), caster->GetPositionY(), caster->GetPositionZ(), MAP_ALL_LIQUIDS, &liquid_status);
 
+        // off the water only the boat goes away: the day's aura and its water walking stay, so the player never sinks
         if (Zliquid_status & (LIQUID_MAP_WATER_WALK | LIQUID_MAP_UNDER_WATER | LIQUID_MAP_IN_WATER))
-            caster->CastSpell(caster, 234460, true);
+        {
+            if (!caster->HasAura(234460))
+                caster->CastSpell(caster, 234460, true);
+        }
         else
-            caster->RemoveAura(234458);
+            caster->RemoveAura(234460);
     }
 
     void OnRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
