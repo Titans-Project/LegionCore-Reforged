@@ -88,6 +88,20 @@ enum eEvents
     EVENT_SEND_HOME      = 100
 };
 
+// the client keeps walking through the teleport while a key is held: rooting first stops it where it stands
+static void SendToStage(Player* player, uint32 spellId)
+{
+    player->SetControlled(true, UNIT_STATE_ROOT);
+    player->CastSpell(player, spellId, false);
+
+    // without the stage aura nothing would free the player again
+    player->AddDelayedEvent(1000, [player]() -> void
+    {
+        if (!player->HasAura(SPELL_ON_STAGE))
+            player->SetControlled(false, UNIT_STATE_ROOT);
+    });
+}
+
 struct npc_atheris_voguesong : ScriptedAI
 {
     npc_atheris_voguesong(Creature* creature) : ScriptedAI(creature)
@@ -258,7 +272,7 @@ struct npc_atheris_voguesong : ScriptedAI
                 {
                     target->RemoveAura(SPELL_VOTE);
                     target->RemoveAura(SPELL_MORPH);
-                    target->CastSpell(target, 241865, false);
+                    SendToStage(target, 241865);
                     me->AddDelayedEvent(2000, [this, guid = target->GetGUID()]() -> void { Talk(SAY_HELLO_RIGHT, guid); });
                     target->AddDelayedEvent(500, [target]() -> void
                     {
@@ -277,7 +291,7 @@ struct npc_atheris_voguesong : ScriptedAI
                 {
                     target->RemoveAura(SPELL_VOTE);
                     target->RemoveAura(SPELL_MORPH);
-                    target->CastSpell(target, 241848, false);
+                    SendToStage(target, 241848);
                     target->AddDelayedEvent(500, [target]() -> void
                     {
                         if (target->HasAura(261939))
@@ -451,7 +465,7 @@ struct npc_atheris_voguesong : ScriptedAI
                     {
                         target->RemoveAura(SPELL_MORPH);
                         target->RemoveAura(SPELL_VOTE);
-                        target->CastSpell(target, 241865, false);
+                        SendToStage(target, 241865);
                         me->AddDelayedEvent(2000, [this, guid = target->GetGUID()]() -> void { Talk(SAY_HELLO_RIGHT, guid); });
                         target->AddDelayedEvent(500, [target]() -> void
                         {
@@ -470,7 +484,7 @@ struct npc_atheris_voguesong : ScriptedAI
                     {
                         target->RemoveAura(SPELL_MORPH);
                         target->RemoveAura(SPELL_VOTE);
-                        target->CastSpell(target, 241848, false);
+                        SendToStage(target, 241848);
                         target->AddDelayedEvent(500, [target]() -> void
                         {
                             if (target->HasAura(261939))
@@ -518,7 +532,7 @@ struct npc_atheris_voguesong : ScriptedAI
                     {
                         target->RemoveAura(SPELL_MORPH);
                         target->RemoveAura(SPELL_VOTE);
-                        target->CastSpell(target, 241865, false);
+                        SendToStage(target, 241865);
                         me->AddDelayedEvent(2000, [this, guid = target->GetGUID()]() -> void { Talk(SAY_HELLO_RIGHT, guid); });
                         target->AddDelayedEvent(500, [target]() -> void
                         {
@@ -537,7 +551,7 @@ struct npc_atheris_voguesong : ScriptedAI
                     {
                         target->RemoveAura(SPELL_MORPH);
                         target->RemoveAura(SPELL_VOTE);
-                        target->CastSpell(target, 241848, false);
+                        SendToStage(target, 241848);
                         target->AddDelayedEvent(500, [target]() -> void
                         {
                             if (target->HasAura(261939))
@@ -585,7 +599,7 @@ struct npc_atheris_voguesong : ScriptedAI
                     {
                         target->RemoveAura(SPELL_MORPH);
                         target->RemoveAura(SPELL_VOTE);
-                        target->CastSpell(target, 241865, false);
+                        SendToStage(target, 241865);
                         me->AddDelayedEvent(2000, [this, guid = target->GetGUID()]() -> void { Talk(SAY_HELLO_RIGHT, guid); });
                         target->AddDelayedEvent(500, [target]() -> void
                         {
@@ -604,7 +618,7 @@ struct npc_atheris_voguesong : ScriptedAI
                     {
                         target->RemoveAura(SPELL_MORPH);
                         target->RemoveAura(SPELL_VOTE);
-                        target->CastSpell(target, 241848, false);
+                        SendToStage(target, 241848);
                         target->AddDelayedEvent(500, [target]() -> void
                         {
                             if (target->HasAura(261939))
@@ -652,7 +666,7 @@ struct npc_atheris_voguesong : ScriptedAI
                     {
                         target->RemoveAura(SPELL_MORPH);
                         target->RemoveAura(SPELL_VOTE);
-                        target->CastSpell(target, 241865, false);
+                        SendToStage(target, 241865);
                         me->AddDelayedEvent(2000, [this, guid = target->GetGUID()]() -> void { Talk(SAY_HELLO_RIGHT, guid); });
                         target->AddDelayedEvent(500, [target]() -> void
                         {
@@ -671,7 +685,7 @@ struct npc_atheris_voguesong : ScriptedAI
                     {
                         target->RemoveAura(SPELL_MORPH);
                         target->RemoveAura(SPELL_VOTE);
-                        target->CastSpell(target, 241848, false);
+                        SendToStage(target, 241848);
                         target->AddDelayedEvent(500, [target]() -> void
                         {
                             if (target->HasAura(261939))
@@ -719,7 +733,7 @@ struct npc_atheris_voguesong : ScriptedAI
                     {
                         target->RemoveAura(SPELL_MORPH);
                         target->RemoveAura(SPELL_VOTE);
-                        target->CastSpell(target, 241865, false);
+                        SendToStage(target, 241865);
                         me->AddDelayedEvent(2000, [this, guid = target->GetGUID()]() -> void { Talk(SAY_HELLO_RIGHT, guid); });
                         target->AddDelayedEvent(500, [target]() -> void
                         {
@@ -738,7 +752,7 @@ struct npc_atheris_voguesong : ScriptedAI
                     {
                         target->RemoveAura(SPELL_MORPH);
                         target->RemoveAura(SPELL_VOTE);
-                        target->CastSpell(target, 241848, false);
+                        SendToStage(target, 241848);
                         target->AddDelayedEvent(500, [target]() -> void
                         {
                             if (target->HasAura(261939))
@@ -786,7 +800,7 @@ struct npc_atheris_voguesong : ScriptedAI
                     {
                         target->RemoveAura(SPELL_MORPH);
                         target->RemoveAura(SPELL_VOTE);
-                        target->CastSpell(target, 241865, false);
+                        SendToStage(target, 241865);
                         me->AddDelayedEvent(2000, [this, guid = target->GetGUID()]() -> void { Talk(SAY_HELLO_RIGHT, guid); });
                         target->AddDelayedEvent(500, [target]() -> void
                         {
@@ -805,7 +819,7 @@ struct npc_atheris_voguesong : ScriptedAI
                     {
                         target->RemoveAura(SPELL_MORPH);
                         target->RemoveAura(SPELL_VOTE);
-                        target->CastSpell(target, 241848, false);
+                        SendToStage(target, 241848);
                         target->AddDelayedEvent(500, [target]() -> void
                         {
                             if (target->HasAura(261939))
@@ -853,7 +867,7 @@ struct npc_atheris_voguesong : ScriptedAI
                     {
                         target->RemoveAura(SPELL_MORPH);
                         target->RemoveAura(SPELL_VOTE);
-                        target->CastSpell(target, 241865, false);
+                        SendToStage(target, 241865);
                         me->AddDelayedEvent(2000, [this, guid = target->GetGUID()]() -> void { Talk(SAY_HELLO_RIGHT, guid); });
                         target->AddDelayedEvent(500, [target]() -> void
                         {
@@ -872,7 +886,7 @@ struct npc_atheris_voguesong : ScriptedAI
                     {
                         target->RemoveAura(SPELL_MORPH);
                         target->RemoveAura(SPELL_VOTE);
-                        target->CastSpell(target, 241848, false);
+                        SendToStage(target, 241848);
                         target->AddDelayedEvent(500, [target]() -> void
                         {
                             if (target->HasAura(261939))
@@ -920,7 +934,7 @@ struct npc_atheris_voguesong : ScriptedAI
                     {
                         target->RemoveAura(SPELL_MORPH);
                         target->RemoveAura(SPELL_VOTE);
-                        target->CastSpell(target, 241865, false);
+                        SendToStage(target, 241865);
                         me->AddDelayedEvent(2000, [this, guid = target->GetGUID()]() -> void { Talk(SAY_HELLO_RIGHT, guid); });
                         target->AddDelayedEvent(500, [target]() -> void
                         {
@@ -939,7 +953,7 @@ struct npc_atheris_voguesong : ScriptedAI
                     {
                         target->RemoveAura(SPELL_MORPH);
                         target->RemoveAura(SPELL_VOTE);
-                        target->CastSpell(target, 241848, false);
+                        SendToStage(target, 241848);
                         target->AddDelayedEvent(500, [target]() -> void
                         {
                             if (target->HasAura(261939))
@@ -1237,6 +1251,16 @@ class spell_trial_of_style_on_stage : public AuraScript
         target->RemoveAura(130157);
         target->RemoveAura(130158);
         target->RemoveAura(127323);
+
+        // the root must reach the client after the teleport has landed, or it keeps the movement it had
+        target->AddDelayedEvent(400, [target]() -> void
+        {
+            if (target->HasAura(SPELL_ON_STAGE))
+            {
+                target->ClearUnitState(UNIT_STATE_ROOT);
+                target->SetControlled(true, UNIT_STATE_ROOT);
+            }
+        });
     }
 
     void OnRemove(AuraEffect const* aurEff, AuraEffectHandleModes /*mode*/)
