@@ -195,7 +195,7 @@ struct npc_chens : ScriptedAI
 
     void sGossipSelect(Player* player, uint32 /*sender*/, uint32 action) override
     {
-        if (action == 1)
+        if (action == 0)        // the only option, "Yes!", is option 0
         {
             if (!player->HasAura(SPELL_WAINTING_FOR_BALLOON))
             {
@@ -291,7 +291,7 @@ struct npc_scgnottz : ScriptedAI
 
     void sGossipSelect(Player* player, uint32 /*sender*/, uint32 action) override
     {
-        if (action == 1)
+        if (action == 0)        // the only option, "Yes!", is option 0
         {
             if (!player->HasAura(SPELL_WAINTING_FOR_BALLOON))
             {
@@ -387,7 +387,7 @@ struct npc_lin_cloudwalker : ScriptedAI
 
     void sGossipSelect(Player* player, uint32 /*sender*/, uint32 action) override
     {
-        if (action == 1)
+        if (action == 0)        // the only option, "Yes!", is option 0
         {
             if (!player->HasAura(SPELL_WAINTING_FOR_BALLOON))
             {
@@ -484,7 +484,7 @@ struct npc_rungle : ScriptedAI
 
     void sGossipSelect(Player* player, uint32 /*sender*/, uint32 action) override
     {
-        if (action == 1)
+        if (action == 0)        // the only option, "Yes!", is option 0
         {
             if (!player->HasAura(SPELL_WAINTING_FOR_BALLOON))
             {
@@ -580,7 +580,7 @@ struct npc_zang_cloudwalker : ScriptedAI
 
     void sGossipSelect(Player* player, uint32 /*sender*/, uint32 action) override
     {
-        if (action == 1)
+        if (action == 0)        // the only option, "Yes!", is option 0
         {
             if (!player->HasAura(SPELL_WAINTING_FOR_BALLOON))
             {
@@ -676,7 +676,7 @@ struct npc_hemet_nesingwary : ScriptedAI
 
     void sGossipSelect(Player* player, uint32 /*sender*/, uint32 action) override
     {
-        if (action == 1)
+        if (action == 0)        // the only option, "Yes!", is option 0
         {
             if (!player->HasAura(SPELL_WAINTING_FOR_BALLOON))
             {
@@ -772,7 +772,7 @@ struct npc_emi_lan : ScriptedAI
 
     void sGossipSelect(Player* player, uint32 /*sender*/, uint32 action) override
     {
-        if (action == 1)
+        if (action == 0)        // the only option, "Yes!", is option 0
         {
             if (!player->HasAura(SPELL_WAINTING_FOR_BALLOON))
             {
