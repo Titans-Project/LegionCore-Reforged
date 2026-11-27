@@ -314,48 +314,21 @@ struct npc_atheris_voguesong : ScriptedAI
             events.RescheduleEvent(EVENT_RAUND_2, 20000);
         }
 
-        if (action == ACTION_4)
+        // the vote scene sends voteA for the contestant on the left and voteB for the one on the right
+        if (action == ACTION_4 || action == ACTION_5)
         {
-            if (roundNumber == 0)
-                PlayerVote[FirstPlayer].count++;
-            else if (roundNumber == 1)
-                PlayerVote[SixthPlayer].count++;
-            else if (roundNumber == 2)
-                PlayerVote[FourthPlayer].count++;
-            else if (roundNumber == 3)
-                PlayerVote[SixthPlayer].count++;
-            else if (roundNumber == 4)
-                PlayerVote[FourthPlayer].count++;
-            else if (roundNumber == 5)
-                PlayerVote[FifthPlayer].count++;
-            else if (roundNumber == 6)
-                PlayerVote[FifthPlayer].count++;
-            else if (roundNumber == 7)
-                PlayerVote[FirstPlayer].count++;
-            else if (roundNumber == 8)
-                PlayerVote[SixthPlayer].count++;
-        }
+            // contestants on each round as {right, left}, matching the stage teleports
+            static uint8 const Contestants[9][2] = { {1, 2}, {5, 6}, {3, 4}, {3, 6}, {1, 4}, {2, 5}, {4, 5}, {3, 2}, {1, 6} };
+            if (roundNumber >= std::size(Contestants))
+                return;
 
-        if (action == ACTION_5)
-        {
-            if (roundNumber == 0)
-                PlayerVote[SecondPlayer].count++;
-            else if (roundNumber == 1)
-                PlayerVote[FifthPlayer].count++;
-            else if (roundNumber == 2)
-                PlayerVote[ThirdPlayer].count++;
-            else if (roundNumber == 3)
-                PlayerVote[ThirdPlayer].count++;
-            else if (roundNumber == 4)
-                PlayerVote[FirstPlayer].count++;
-            else if (roundNumber == 5)
-                PlayerVote[SecondPlayer].count++;
-            else if (roundNumber == 6)
-                PlayerVote[FourthPlayer].count++;
-            else if (roundNumber == 7)
-                PlayerVote[ThirdPlayer].count++;
-            else if (roundNumber == 8)
-                PlayerVote[FirstPlayer].count++;
+            ObjectGuid const slots[] = { ObjectGuid::Empty, FirstPlayer, SecondPlayer, ThirdPlayer, FourthPlayer, FifthPlayer, SixthPlayer };
+            ObjectGuid const voted = slots[Contestants[roundNumber][action == ACTION_4 ? 1 : 0]];
+
+            // an empty slot is no contestant: counting it would rank nobody above the players
+            auto itr = PlayerVote.find(voted);
+            if (voted && itr != PlayerVote.end())
+                ++itr->second.count;
         }
     }
 
