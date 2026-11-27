@@ -18353,8 +18353,10 @@ void Player::OnGossipSelect(WorldObject* source, uint32 gossipListId, uint32 men
     if (!menuItemData)
         return;
 
+    // on these menus BoxMoney holds the queue to join, not a price
+    bool const queueOption = (menuId == 15257 || menuId == 21043) && item->BoxMoney;
     int32 cost = int32(item->BoxMoney);
-    if (!HasEnoughMoney(int64(cost)))
+    if (!queueOption && !HasEnoughMoney(int64(cost)))
     {
         SendBuyError(BUY_ERR_NOT_ENOUGHT_MONEY);
         PlayerTalkClass->SendCloseGossip();
@@ -18407,7 +18409,8 @@ void Player::OnGossipSelect(WorldObject* source, uint32 gossipListId, uint32 men
                 std::set<uint32> ScenarioId;
                 ScenarioId.insert(cost);
                 sLFGMgr->JoinLfg(this, GetSpecializationRoleMaskForGroup(), ScenarioId);
-                break;
+                PlayerTalkClass->SendCloseGossip();
+                return;
             }
 
             // HACK GOSSIP_OPTION_OUTDOORPVP

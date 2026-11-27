@@ -340,7 +340,9 @@ void PlayerMenu::SendGossipMenu(uint32 titleTextId, ObjectGuid objectGUID) const
         opt.ClientOption = itr.first;
         opt.OptionNPC = item.OptionNpc;
         opt.OptionFlags = item.IsCoded;
-        opt.OptionCost = item.BoxMoney;
+        // on these menus BoxMoney holds the queue to join (Player::OnGossipSelect), the client must not show it as a price
+        uint32 const menuId = _gossipMenu.GetMenuId();
+        opt.OptionCost = (menuId == 15257 || menuId == 21043) ? 0 : item.BoxMoney;
         opt.Text = item.Message;
         opt.Confirm = item.BoxMessage;
         packet.GossipOptions.emplace_back(opt);
