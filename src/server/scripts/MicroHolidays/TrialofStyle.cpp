@@ -39,6 +39,7 @@ enum eSay
 enum eSpells
 {
     SPELL_MORPH             = 241834,
+    SPELL_TRIAL_OF_STYLE    = 243549,
     SPELL_FIRST_PLACE       = 242146,
     SPELL_SECOND_PLACE      = 242147,
     SPELL_THIRD_PLACE       = 242148,
@@ -1393,9 +1394,57 @@ public:
             return ObjectGuid::Empty;
         }
 
+        // the outfit made for the show only lasts the show: each worn piece's appearance and illusion are kept on
+        // entering and put back on leaving
+        static constexpr ItemModifier AppearanceModifiers[] =
+        {
+            ITEM_MODIFIER_TRANSMOG_APPEARANCE_ALL_SPECS, ITEM_MODIFIER_TRANSMOG_APPEARANCE_SPEC_1, ITEM_MODIFIER_TRANSMOG_APPEARANCE_SPEC_2,
+            ITEM_MODIFIER_TRANSMOG_APPEARANCE_SPEC_3, ITEM_MODIFIER_TRANSMOG_APPEARANCE_SPEC_4, ITEM_MODIFIER_ENCHANT_ILLUSION_ALL_SPECS,
+            ITEM_MODIFIER_ENCHANT_ILLUSION_SPEC_1, ITEM_MODIFIER_ENCHANT_ILLUSION_SPEC_2, ITEM_MODIFIER_ENCHANT_ILLUSION_SPEC_3,
+            ITEM_MODIFIER_ENCHANT_ILLUSION_SPEC_4
+        };
+        std::map<ObjectGuid, std::map<ObjectGuid, std::array<uint32, std::size(AppearanceModifiers)>>> savedAppearances;
+
         void OnPlayerEnter(Player* player) override
         {
             player->CastSpell(player, SPELL_MORPH, true);
+            player->CastSpell(player, SPELL_TRIAL_OF_STYLE, true);    // free transmogrification for the show
+
+            auto& saved = savedAppearances[player->GetGUID()];
+            saved.clear();
+            for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
+            {
+                if (Item* item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
+                {
+                    auto& values = saved[item->GetGUID()];
+                    for (size_t i = 0; i < std::size(AppearanceModifiers); ++i)
+                        values[i] = item->GetModifier(AppearanceModifiers[i]);
+                }
+            }
+        }
+
+        void OnPlayerLeave(Player* player) override
+        {
+            player->RemoveAurasDueToSpell(SPELL_TRIAL_OF_STYLE);
+
+            auto itr = savedAppearances.find(player->GetGUID());
+            if (itr == savedAppearances.end())
+                return;
+
+            for (auto const& itemValues : itr->second)
+            {
+                Item* item = player->GetItemByGuid(itemValues.first);
+                if (!item)
+                    continue;
+
+                for (size_t i = 0; i < std::size(AppearanceModifiers); ++i)
+                    item->SetModifier(AppearanceModifiers[i], itemValues.second[i]);
+
+                if (item->IsEquipped())
+                    player->SetVisibleItemSlot(item->GetSlot(), item);
+                item->SetState(ITEM_CHANGED, player);
+            }
+            savedAppearances.erase(itr);
         }
 
         void onScenarionNextStep(uint32 newStep) override
