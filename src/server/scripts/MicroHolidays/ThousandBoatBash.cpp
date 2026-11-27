@@ -9,6 +9,7 @@
 /*
 */
 
+#include "GameEventMgr.h"
 #include "OutdoorPvP.h"
 #include "QuestData.h"
 
@@ -28,54 +29,46 @@ public:
         return true;
     }
 
+    // the festival is read from the calendar, so the boats are handed out after a restart too and stop with it
     bool Update(uint32 diff) override
     {
-        if (ch_water)
+        if (m_boatCheckTimer > diff)
         {
-            if (ch_water <= diff)
-            {
-                ApplyOnEveryPlayerInZone([this](Player* player) -> void
-                {
-                    ch_water = 2000;
-                    Zliquid_status = player->GetMap()->getLiquidStatus(player->GetPositionX(), player->GetPositionY(), player->GetPositionZ(), MAP_ALL_LIQUIDS, &liquid_status);
-
-                    if (Zliquid_status & (LIQUID_MAP_WATER_WALK | LIQUID_MAP_UNDER_WATER | LIQUID_MAP_IN_WATER))
-                    {
-                        if (!player->HasAura(234458) && !player->HasAura(234449))
-                        {
-                            if (auto entry = sBroadcastTextStore.LookupEntry(126573))
-                            {
-                                std::string text = DB2Manager::GetBroadcastTextValue(entry, player->GetSession()->GetSessionDbLocaleIndex());
-
-                                player->BossWhisper(text, LANG_UNIVERSAL, player->GetGUID());
-                                player->CastSpell(player, 234458, true);
-                            }
-                        }
-                    }             
-                });
-            }
-            else
-                ch_water -= diff;
+            m_boatCheckTimer -= diff;
+            return true;
         }
+
+        m_boatCheckTimer = 2000;
+        if (!sGameEventMgr->IsActiveEvent(EVENT_THOUSAND_BOAT_BASH))
+            return true;
+
+        // as on retail, the day's boat comes on entering the zone; it appears once in the water
+        ApplyOnEveryPlayerInZone([](Player* player) -> void
+        {
+            if (player->HasAura(SPELL_BOAT_DAY) || player->HasAura(SPELL_BOAT_DAY_ALT))
+                return;
+
+            if (auto entry = sBroadcastTextStore.LookupEntry(BROADCAST_FREE_BOAT))
+            {
+                std::string text = DB2Manager::GetBroadcastTextValue(entry, player->GetSession()->GetSessionDbLocaleIndex());
+                player->BossWhisper(text, LANG_UNIVERSAL, player->GetGUID());
+            }
+            player->CastSpell(player, SPELL_BOAT_DAY, true);
+        });
 
         return true;
     }
-    void HandleGameEventStart(uint32 eventId) override
-    {
-        if (eventId != 307)
-            return;
-
-        if (!m_map)
-            return;
-
-        ch_water = 2000;
-    }
 
 private:
-    uint8 m_stage{};
-    uint32 ch_water{};
-    LiquidData liquid_status;
-    ZLiquidStatus Zliquid_status;
+    enum
+    {
+        EVENT_THOUSAND_BOAT_BASH = 307,
+        SPELL_BOAT_DAY           = 234458,
+        SPELL_BOAT_DAY_ALT       = 234449,
+        BROADCAST_FREE_BOAT      = 126573,
+    };
+
+    uint32 m_boatCheckTimer = 2000;
 };
 
 class OutdoorPvP_ThousandNeedles : public OutdoorPvPScript
@@ -328,7 +321,7 @@ struct npc_ilthine_sunsong : ScriptedAI
 void AddSC_ThousandBoatBash()
 {
     new sceneTrigger_beach_ball();
-    //new OutdoorPvP_ThousandNeedles();
+    new OutdoorPvP_ThousandNeedles();
     RegisterAuraScript(spell_bating);
     RegisterAuraScript(spell_boat_day);
     RegisterCreatureAI(npc_fizzle_brassbolts);
