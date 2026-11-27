@@ -333,10 +333,56 @@ struct npc_ilthine_sunsong : ScriptedAI
     }
 };
 
+// Climb Rope Ladder is a jump to a destination the ladder must give: the deck of the boat behind it, read from the
+// collision of the boat models
+class go_thousand_boat_bash_rope_ladder : public GameObjectScript
+{
+public:
+    go_thousand_boat_bash_rope_ladder() : GameObjectScript("go_thousand_boat_bash_rope_ladder") {}
+
+    bool OnGossipHello(Player* player, GameObject* go) override
+    {
+        float const baseZ = go->GetPositionZ();
+        float bestZ = baseZ + 2.0f;
+        float bestX = 0.0f;
+        float bestY = 0.0f;
+        bool found = false;
+
+        for (float angle : { go->GetOrientation(), go->GetOrientation() + float(M_PI) })
+        {
+            for (float dist : { 2.0f, 3.5f, 5.0f })
+            {
+                float const x = go->GetPositionX() + std::cos(angle) * dist;
+                float const y = go->GetPositionY() + std::sin(angle) * dist;
+                float const z = go->GetMap()->GetHeight(go->GetPhases(), x, y, baseZ + 30.0f, true, 40.0f);
+                if (z > bestZ && z < baseZ + 30.0f)
+                {
+                    bestZ = z;
+                    bestX = x;
+                    bestY = y;
+                    found = true;
+                }
+            }
+        }
+
+        if (found)
+            player->CastSpell(bestX, bestY, bestZ, SPELL_CLIMB_ROPE_LADDER, true);
+
+        return true;
+    }
+
+private:
+    enum
+    {
+        SPELL_CLIMB_ROPE_LADDER = 234602,
+    };
+};
+
 void AddSC_ThousandBoatBash()
 {
     new sceneTrigger_beach_ball();
     new OutdoorPvP_ThousandNeedles();
+    new go_thousand_boat_bash_rope_ladder();
     RegisterAuraScript(spell_bating);
     RegisterAuraScript(spell_boat_day);
     RegisterCreatureAI(npc_fizzle_brassbolts);
