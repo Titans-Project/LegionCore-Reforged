@@ -287,12 +287,12 @@ int32 CreatureTemplate::GetRandomValidModelId() const
     if (Modelid[3])
         modelIDs[c++] = Modelid[3];
 
-    // 1126 (an infernal) is Blizzard's placeholder beside the real model of invisible bunnies, never picked there
+    // 1126 and 20324 (infernals) are Blizzard's placeholders beside the real model of invisible bunnies, never picked there
     if (c > 1)
     {
         uint8 kept = 0;
         for (uint8 i = 0; i < c; ++i)
-            if (modelIDs[i] != 1126)
+            if (modelIDs[i] != 1126 && modelIDs[i] != 20324)
                 modelIDs[kept++] = modelIDs[i];
         if (kept)
             c = kept;
