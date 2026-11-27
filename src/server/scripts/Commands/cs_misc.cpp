@@ -1801,7 +1801,73 @@ public:
         return true;
     }
 
+    // Several shift-clicked links, or ids joined by commas, each followed by its own optional count and bonus ids
+    static std::vector<std::string> SplitAddItemArgs(std::string const& args)
+    {
+        std::vector<std::string> entries;
+
+        std::vector<size_t> linkStarts;
+        size_t previousEnd = 0;
+        for (size_t pos = args.find("|Hitem:"); pos != std::string::npos; pos = args.find("|Hitem:", previousEnd))
+        {
+            size_t const color = args.rfind("|c", pos);
+            linkStarts.push_back(color != std::string::npos && color >= previousEnd ? color : pos);
+            size_t const end = args.find("|h|r", pos);
+            previousEnd = end == std::string::npos ? pos + 1 : end + 4;
+        }
+
+        if (linkStarts.size() > 1)
+        {
+            for (size_t i = 0; i < linkStarts.size(); ++i)
+                entries.push_back(args.substr(linkStarts[i], i + 1 < linkStarts.size() ? linkStarts[i + 1] - linkStarts[i] : std::string::npos));
+            return entries;
+        }
+
+        size_t const firstSpace = args.find(' ');
+        std::string const ids = args.substr(0, firstSpace);
+        std::string const rest = firstSpace == std::string::npos ? "" : args.substr(firstSpace);
+        if (ids.find(',') != std::string::npos && ids.find_first_not_of("0123456789,") == std::string::npos)
+        {
+            for (size_t start = 0; start < ids.size();)
+            {
+                size_t const comma = ids.find(',', start);
+                std::string const id = ids.substr(start, comma == std::string::npos ? std::string::npos : comma - start);
+                if (!id.empty())
+                    entries.push_back(id + rest);
+                if (comma == std::string::npos)
+                    break;
+                start = comma + 1;
+            }
+            return entries;
+        }
+
+        entries.push_back(args);
+        return entries;
+    }
+
     static bool HandleAddItemCommand(ChatHandler* handler, char const* args)
+    {
+        if (!*args)
+            return false;
+
+        std::vector<std::string> const entries = SplitAddItemArgs(args);
+        if (entries.size() == 1)
+            return HandleAddOneItem(handler, args);
+
+        bool added = false;
+        for (std::string const& entry : entries)
+        {
+            std::vector<char> buffer(entry.begin(), entry.end());
+            buffer.push_back('\0');
+            handler->SetSentErrorMessage(false);
+            added |= HandleAddOneItem(handler, buffer.data());
+        }
+
+        handler->SetSentErrorMessage(!added);
+        return added;
+    }
+
+    static bool HandleAddOneItem(ChatHandler* handler, char const* args)
     {
         if (!*args)
             return false;
