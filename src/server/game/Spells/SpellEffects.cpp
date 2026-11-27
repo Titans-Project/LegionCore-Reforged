@@ -3818,6 +3818,10 @@ void Spell::EffectSummonType(SpellEffIndex effIndex)
             break;
     }
 
+    // Adopted Puppy Crate lets out all of its puppies, not one; its summon properties are shared with single summons
+    if (m_spellInfo->Id == 234639)
+        numSummons = (damage > 0) ? damage : 1;
+
     switch (entry)
     {
         case 55659:

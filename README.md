@@ -39,7 +39,9 @@ The core descends from LegionCore 7.3.5, built on the 2020 UWOW source, itself d
 
 ## Content status
 
-https://titans-project.github.io/
+Want to know what already works before you play? The **[development tracker](https://titans-project.github.io)** follows the state of every part of the game, from dungeons and raids to class halls, holidays and starting zones, and gathers the notes of every update.
+
+👉 **[titans-project.github.io](https://titans-project.github.io)**
 
 ## Getting started
 

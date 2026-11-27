@@ -694,7 +694,8 @@ class npc_dancing_flames : public CreatureScript
                 me->GetPosition(x, y, z);
                 me->Relocate(x, y, z + 0.94f);
                 me->SetDisableGravity(true);
-                me->HandleEmoteCommand(EMOTE_ONESHOT_DANCE);
+                // the flame keeps dancing between the reactions to emotes, not just once when it appears
+                me->SetUInt32Value(UNIT_FIELD_EMOTE_STATE, EMOTE_STATE_DANCE);
             }
 
             void UpdateAI(uint32 diff) override
@@ -705,7 +706,7 @@ class npc_dancing_flames : public CreatureScript
                     {
                         Active = true;
                         CanIteract = 3500;
-                        me->HandleEmoteCommand(EMOTE_ONESHOT_DANCE);
+                        me->SetUInt32Value(UNIT_FIELD_EMOTE_STATE, EMOTE_STATE_DANCE);
                     }
                     else
                         CanIteract -= diff;
@@ -719,6 +720,7 @@ class npc_dancing_flames : public CreatureScript
                 if (me->IsWithinLOS(player->GetPositionX(), player->GetPositionY(), player->GetPositionZ()) && me->IsWithinDistInMap(player, 30.0f))
                 {
                     me->SetFacingTo(player);
+                    me->SetUInt32Value(UNIT_FIELD_EMOTE_STATE, 0);
                     Active = false;
 
                     switch (emote)

@@ -263,6 +263,10 @@ void TempSummon::InitStats(uint32 duration)
             canUnsummon = true;
         }
 
+        // the balloon toys share this slot: a new balloon replaces the one already held
+        if (m_Properties->ID == 3141)
+            canUnsummon = true;
+
         if (slot)
         {
             if (slot > 0)
