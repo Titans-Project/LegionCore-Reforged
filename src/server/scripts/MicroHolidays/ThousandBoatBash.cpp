@@ -29,6 +29,12 @@ public:
         return true;
     }
 
+    void HandlePlayerLeaveZone(ObjectGuid guid, uint32 zone) override
+    {
+        m_told.erase(guid);
+        OutdoorPvP::HandlePlayerLeaveZone(guid, zone);
+    }
+
     // the festival is read from the calendar, so the boats are handed out after a restart too and stop with it
     bool Update(uint32 diff) override
     {
@@ -40,20 +46,28 @@ public:
 
         m_boatCheckTimer = 2000;
         if (!sGameEventMgr->IsActiveEvent(EVENT_THOUSAND_BOAT_BASH))
-            return true;
-
-        // as on retail, the day's boat comes on entering the zone; it appears once in the water
-        ApplyOnEveryPlayerInZone([](Player* player) -> void
         {
+            m_told.clear();
+            return true;
+        }
+
+        // the day's boat is announced once on entering the zone; its aura only takes on the water
+        ApplyOnEveryPlayerInZone([this](Player* player) -> void
+        {
+            if (m_told.insert(player->GetGUID()).second)
+            {
+                if (auto entry = sBroadcastTextStore.LookupEntry(BROADCAST_FREE_BOAT))
+                {
+                    std::string text = DB2Manager::GetBroadcastTextValue(entry, player->GetSession()->GetSessionDbLocaleIndex());
+                    player->BossWhisper(text, LANG_UNIVERSAL, player->GetGUID());
+                }
+            }
+
             if (player->HasAura(SPELL_BOAT_DAY) || player->HasAura(SPELL_BOAT_DAY_ALT))
                 return;
 
-            if (auto entry = sBroadcastTextStore.LookupEntry(BROADCAST_FREE_BOAT))
-            {
-                std::string text = DB2Manager::GetBroadcastTextValue(entry, player->GetSession()->GetSessionDbLocaleIndex());
-                player->BossWhisper(text, LANG_UNIVERSAL, player->GetGUID());
-            }
-            player->CastSpell(player, SPELL_BOAT_DAY, true);
+            if (player->IsInWater())
+                player->CastSpell(player, SPELL_BOAT_DAY, true);
         });
 
         return true;
@@ -69,6 +83,7 @@ private:
     };
 
     uint32 m_boatCheckTimer = 2000;
+    std::set<ObjectGuid> m_told;
 };
 
 class OutdoorPvP_ThousandNeedles : public OutdoorPvPScript
