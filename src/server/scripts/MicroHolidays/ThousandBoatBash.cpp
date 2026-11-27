@@ -128,7 +128,8 @@ class spell_bating : public AuraScript
         if (!caster)
             return;
 
-        if (!sGameEventMgr->IsActiveEvent(307))
+        // a boat saved at logout or carried out of Thousand Needles would otherwise stay for good
+        if (!sGameEventMgr->IsActiveEvent(307) || caster->GetZoneId() != 400)
         {
             Remove();
             return;
@@ -156,6 +157,7 @@ class spell_bating : public AuraScript
             return;
 
         caster->RemoveAura(234450);
+        caster->RemoveAura(234460);
     }
 
     void OnApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
@@ -185,6 +187,13 @@ class spell_boat_day : public AuraScript
         Unit* caster = GetCaster();
         if (!caster)
             return;
+
+        // a boat saved at logout or carried out of Thousand Needles would otherwise stay for good
+        if (!sGameEventMgr->IsActiveEvent(307) || caster->GetZoneId() != 400)
+        {
+            Remove();
+            return;
+        }
 
         LiquidData liquid_status;
         ZLiquidStatus Zliquid_status = caster->GetMap()->getLiquidStatus(caster->GetPositionX(), caster->GetPositionY(), caster->GetPositionZ(), MAP_ALL_LIQUIDS, &liquid_status);
